@@ -1,4 +1,4 @@
-# Personal Bureaucracy Digital Twin: Stateful Agentic Assistant
+# Personal Bureaucracy Agent: Stateful Agentic Assistant
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -10,7 +10,7 @@
 
 ## 📌 Introduction
 
-This repository contains the official implementation of the **Personal Bureaucracy Digital Twin**, a stateful hybrid agentic assistant designed to guide international students through complex, multi-week administrative workflows (such as obtaining a Turkish residence permit / *İkamet*).
+This repository contains the official implementation of the **Personal Bureaucracy Agent**, a stateful hybrid agentic assistant designed to guide international students through complex, multi-week administrative workflows (such as obtaining a Turkish residence permit / *İkamet*).
 
 Bureaucratic procedures are inherently dependency-driven and time-sensitive. Standard conversational LLMs or static checklists fail because they lack persistent long-term memory, make errors in date logic, and cannot recover safely from runtime failures.
 
@@ -36,27 +36,7 @@ Bureaucratic procedures are inherently dependency-driven and time-sensitive. Sta
 
 The workflow combines semantic LLM planning with deterministic safety gates:
 
-```text
-User Goal / New Event 
-       │
-       ▼
-[Gate 0: Input Pre-Checks] ──(Rejects Malformed Files)
-       │
-       ▼
-{ Digital Twin / Shared State } ──(SQLite Persistent Checkpointer)
-       │
-       ▼
-[Supervisor / Orchestrator] ──(State-Aware Dynamic Routing)
-       ├── 📄 Document Analyzer (Parser + LLM + Pydantic)
-       ├── ⚙️ Requirement Engine (Deterministic Rules)
-       └── 🗓️ Action Planner (LLM + Scheduling Tools)
-       │
-       ▼
-[Gate 1: Deterministic Validator] ──(Checks Dates, Schemas & Prereqs)
-       │
-       ├── [PASS] ──► Human Approval ──► State Update ──► Final Output
-       └── [FAIL] ──► Reflection / Replan Loop (Max 3 retries)
-```
+![System Architecture](docs/architecture_diagram.png)
 
 > [!WARNING]
 > **Safety Guardrail:** The system will never autonomously submit official forms, make payments, or bypass authentication on government portals. Human approval is mandatory.
@@ -68,8 +48,13 @@ User Goal / New Event
 The codebase is organized into clean, modular workstreams designed for parallel collaboration across our team of 4 data science engineers:
 
 ```text
-personal-bureaucracy-digital-twin/
+Personal_Bureaucracy_Agent/
 ├── config.py                 # Global configurations (paths, DB settings, circuit breaker thresholds)
+│
+├── docs/                     # Documentation, presentations, and reports
+│   ├── architecture_diagram.png # High-resolution architecture graph image
+│   ├── presentations/        # Slides & pitch decks (.pptx, .pdf)
+│   └── reports/              # Milestone progress reports and documentation
 │
 ├── data/
 │   ├── rules_ikamet.json     # Versioned, authoritative administrative rule base
@@ -112,13 +97,6 @@ personal-bureaucracy-digital-twin/
 └── README.md
 ```
 
-> [!TIP]
-> **Suggested Team Task Division (4 Members):**
-> - **Member 1 (Graph & Orchestration):** `src/core/` and `src/agents/` (LangGraph setup, Supervisor logic, state reducers).
-> - **Member 2 (Document Analysis & Extraction):** `src/workers/document_analyzer.py` (PDF parsing, OCR integration, Pydantic schemas).
-> - **Member 3 (Rules Engine & Knowledge Base):** `src/workers/rules_engine.py` and `data/` (Encoding deterministic dependency rules, date logic).
-> - **Member 4 (Guardrails, Persistence & Testing):** `src/guardrails/`, `src/memory/`, and `tests/` (Gates 0/1, SQLite checkpointer, circuit breaker test harness).
-
 ---
 
 ## 🛠️ Installation & Quickstart
@@ -131,8 +109,8 @@ personal-bureaucracy-digital-twin/
 
 ```bash
 # Clone repository
-git clone [https://github.com/your-username/personal-bureaucracy-digital-twin.git](https://github.com/your-username/personal-bureaucracy-digital-twin.git)
-cd personal-bureaucracy-digital-twin
+git clone [https://github.com/your-username/Personal_Bureaucracy_Agent.git](https://github.com/your-username/Personal_Bureaucracy_Agent.git)
+cd Personal_Bureaucracy_Agent
 
 # Create virtual environment
 python -m venv venv
@@ -158,5 +136,3 @@ python -m scripts.run_demo --scenario tuition_receipt
 - **Daniele Catalano** ([@Polixide](https://github.com/Polixide)) — Politecnico di Torino / Sabancı University
 - **Andrea Brambilla** — Politecnico di Torino / Sabancı University
 - **Marco Belforti** — Politecnico di Torino / Sabancı University
-
-*CS58012: Agentic AI Systems Architecture and Deployment — Sabancı University 2026*
