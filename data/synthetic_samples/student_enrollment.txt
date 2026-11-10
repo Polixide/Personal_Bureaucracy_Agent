@@ -1,0 +1,9 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Student Enrollment Certificate
+University: Example University
+Holder name: Alex Example
+Student identifier: TEST-0001
+Program: Master's in Data Science
+Enrollment status: Active
+Issue date: 2026-10-01
+Expiry date: 2027-09-30
