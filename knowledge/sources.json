@@ -1,0 +1,83 @@
+{
+  "dataset_version": "1.0.0",
+  "retrieved_at": "2026-11-05",
+  "authority_order": [
+    "government_primary",
+    "sabanci_operational",
+    "crosscheck_only"
+  ],
+  "sources": [
+    {
+      "source_id": "GOV_SHORT_TERM_FORM_2026",
+      "authority_level": "government_primary",
+      "organization": "Presidency of Migration Management",
+      "title": "Declaration for Short Term Residence Permit Registration Form",
+      "url": "https://e-ikamet.goc.gov.tr/Ikamet/BasvuruFormuOrnegi/BasvuruFormuBos?tur=0",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "GOV_RESIDENCE_TYPES",
+      "authority_level": "government_primary",
+      "organization": "Presidency of Migration Management",
+      "title": "Residence Permit Types",
+      "url": "https://en.goc.gov.tr/residence-permit-types",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "GOV_FAQ",
+      "authority_level": "government_primary",
+      "organization": "Presidency of Migration Management",
+      "title": "Frequently Asked Questions about Foreigners",
+      "url": "https://en.goc.gov.tr/frequently-asked-questions-about-foreigners",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "GOV_GENERAL_INFO",
+      "authority_level": "government_primary",
+      "organization": "Presidency of Migration Management",
+      "title": "Residence Permit General Information",
+      "url": "https://www.goc.gov.tr/ikamet-genel-bilgiler/",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "GOV_RESIDENCE_INFO",
+      "authority_level": "government_primary",
+      "organization": "Presidency of Migration Management",
+      "title": "Residence Permit",
+      "url": "https://en.goc.gov.tr/residence-",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "SAB_EXCHANGE_CURRENT",
+      "authority_level": "sabanci_operational",
+      "organization": "Sabancı University IRO",
+      "title": "Exchange Students Short-Term Residence Permit - First and Extension Application Guidelines",
+      "url": "https://iro.sabanciuniv.edu/en/exchange-students-short-term-residence-permit-first-and-extension-application-guidelines",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "SAB_EXCHANGE_OVERVIEW",
+      "authority_level": "sabanci_operational",
+      "organization": "Sabancı University IRO",
+      "title": "Residence Permit Application for Exchange Students",
+      "url": "https://iro.sabanciuniv.edu/en/exchange-students-guide/residence-permit",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "METU_RESIDENCE_2026",
+      "authority_level": "crosscheck_only",
+      "organization": "METU ISO",
+      "title": "Residence Permit",
+      "url": "https://iso.metu.edu.tr/en/residence-permit",
+      "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "BILKENT_EXCHANGE_RP",
+      "authority_level": "crosscheck_only",
+      "organization": "Bilkent University Office of Exchange Programs",
+      "title": "Visa and Residence Permit – Exchange Students",
+      "url": "https://exchange.bilkent.edu.tr/visa-and-residence-permit/",
+      "retrieved_at": "2026-11-05"
+    }
+  ]
+}
