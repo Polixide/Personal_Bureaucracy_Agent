@@ -1,0 +1,39 @@
+{
+  "dataset_version": "1.0.0",
+  "refresh_policy": {
+    "very_high": "daily/before active submission",
+    "high": "weekly/before submission",
+    "medium": "monthly",
+    "low": "each semester or on source-change signal"
+  },
+  "pipeline": [
+    "Retrieve only allow-listed government and Sabancı sources.",
+    "Store URL, retrieval time, source snapshot/hash and relevant passage.",
+    "Use RAG to retrieve candidate evidence and compare it with active deterministic rules.",
+    "If evidence changed, create RULE_CHANGE_CANDIDATE; never overwrite automatically.",
+    "Human reviewer approves or rejects the change.",
+    "On approval, increment version and store old/new values, reason, effective date and sources.",
+    "Run regression tests before promotion.",
+    "Keep prior versions for reproducibility."
+  ],
+  "rag_allowed": [
+    "official evidence retrieval",
+    "drift/conflict detection",
+    "cited explanation",
+    "candidate update suggestion"
+  ],
+  "rag_forbidden": [
+    "silent rule mutation",
+    "inventing deadlines/fees",
+    "overriding government with cross-check university pages",
+    "auto-resolving official conflicts"
+  ],
+  "dynamic_fields": [
+    "Sabancı submission windows",
+    "fee amounts",
+    "payment channels/reference codes",
+    "office locations/hours",
+    "document counts",
+    "insurance wording"
+  ]
+}

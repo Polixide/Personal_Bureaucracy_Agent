@@ -1,0 +1,148 @@
+{
+  "dataset_version": "1.0.0",
+  "tests": [
+    {
+      "id": "T01",
+      "rule": "R003",
+      "input": {
+        "is_in_turkiye": false,
+        "entered_with_passport": false
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T02",
+      "rule": "R004",
+      "input": {
+        "application_date": "2026-11-10",
+        "legal_stay_expiry_date": "2026-11-20"
+      },
+      "expected": "PASS"
+    },
+    {
+      "id": "T03",
+      "rule": "R004",
+      "input": {
+        "application_date": "2026-11-21",
+        "legal_stay_expiry_date": "2026-11-20"
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T04",
+      "rule": "R006",
+      "input": {
+        "requested_permit_end_date": "2027-06-01",
+        "passport_expiry_date": "2027-08-01"
+      },
+      "expected": "PASS"
+    },
+    {
+      "id": "T05",
+      "rule": "R006",
+      "input": {
+        "requested_permit_end_date": "2027-06-01",
+        "passport_expiry_date": "2027-07-15"
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T06",
+      "rule": "R009",
+      "input": {
+        "photo_age_months": 2,
+        "biometric_photo": true,
+        "icao_compliant": true
+      },
+      "expected": "PASS"
+    },
+    {
+      "id": "T07",
+      "rule": "R015",
+      "input": {
+        "insurance_exempt": false,
+        "insurance_valid_for_ikamet": true,
+        "insurance_start_date": "2026-09-01",
+        "insurance_end_date": "2027-06-30",
+        "requested_start_date": "2026-09-15",
+        "requested_end_date": "2027-06-15"
+      },
+      "expected": "PASS"
+    },
+    {
+      "id": "T08",
+      "rule": "R015",
+      "input": {
+        "insurance_exempt": false,
+        "insurance_valid_for_ikamet": true,
+        "insurance_start_date": "2026-09-01",
+        "insurance_end_date": "2027-05-31",
+        "requested_start_date": "2026-09-15",
+        "requested_end_date": "2027-06-15"
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T09",
+      "rule": "R017",
+      "input": {
+        "address_proof_type": "rental_agreement"
+      },
+      "expected": "PASS"
+    },
+    {
+      "id": "T10",
+      "rule": "R017",
+      "input": {
+        "address_proof_type": "airbnb"
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T11",
+      "rule": "R021",
+      "input": {
+        "scans_sent_to_iro": true,
+        "iro_preverification_confirmed": false
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T12",
+      "rule": "R022",
+      "input": {
+        "online_application_completed": true,
+        "fingerprint_step_completed": true,
+        "gi_number_present": false
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T13",
+      "rule": "R023",
+      "input": {
+        "online_application_completed": true,
+        "iro_preverification_confirmed": true,
+        "gi_number_present": true,
+        "all_core_documents_present": true
+      },
+      "expected": "PASS"
+    },
+    {
+      "id": "T14",
+      "rule": "R027",
+      "input": {
+        "approval_status": "guaranteed"
+      },
+      "expected": "FAIL"
+    },
+    {
+      "id": "T15",
+      "rule": "R028",
+      "input": {
+        "decision_authority": "Sabancı IRO"
+      },
+      "expected": "FAIL"
+    }
+  ]
+}

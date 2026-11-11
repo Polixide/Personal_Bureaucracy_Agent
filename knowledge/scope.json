@@ -1,0 +1,18 @@
+{
+  "scope_id": "SABANCI_EXCHANGE_FIRST_IKAMET",
+  "dataset_version": "1.0.0",
+  "institution": "Sabancı University",
+  "user_type": "incoming exchange student",
+  "age": "18+",
+  "stay": "3 months or longer",
+  "procedure": "first short-term residence permit application",
+  "country": "Türkiye",
+  "excluded": [
+    "extensions",
+    "transfers",
+    "minors",
+    "family permits",
+    "work permits",
+    "degree-student variants"
+  ]
+}
