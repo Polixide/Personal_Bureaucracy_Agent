@@ -1,2 +1,5 @@
 langgraph==1.2.18
 pydantic==2.14.2
+PyMuPDF>=1.24
+ollama>=0.5,<1
+httpx>=0.27,<1
