@@ -30,6 +30,11 @@ class ProcessorTests(unittest.TestCase):
             request = client.return_value.chat.call_args.kwargs
             self.assertEqual(request["model"], "qwen3:4b")
             self.assertEqual(request["format"], DocumentInfo.model_json_schema())
+            prompt = request["messages"][0]["content"]
+            self.assertIn("If a source date is invalid or impossible, return null for that date field", prompt)
+            self.assertIn("include its field name in ambiguous_fields", prompt)
+            self.assertIn("Never invent a replacement date", prompt)
+            self.assertNotIn("copy its original text", prompt)
             self.assertEqual(request["messages"][1]["content"],
                              (SAMPLES / filename).read_text(encoding="utf-8"))
             return result
@@ -67,10 +72,48 @@ class ProcessorTests(unittest.TestCase):
 
     def test_invalid_date(self):
         result = self.run_sample("insurance_invalid_date.txt", {
+            **INSURANCE, "issue_date": None, "ambiguous_fields": ["issue_date"]})
+        self.assertIsNone(result.issue_date)
+        self.assertIn("issue_date", result.ambiguous_fields)
+        self.assertIn("issue_date", result.missing_fields)
+        self.assertIn("issue_date: ambiguous; manual review needed", result.validation_issues)
+
+    def test_invalid_date_string_from_noncompliant_model(self):
+        result = self.run_sample("insurance_invalid_date.txt", {
             **INSURANCE, "issue_date": "2026-02-30"})
         self.assertIsNone(result.issue_date)
         self.assertIn("issue_date", result.missing_fields)
         self.assertTrue(any("invalid date" in issue for issue in result.validation_issues))
+
+    def test_numeric_dates_are_rejected(self):
+        for field in ("issue_date", "expiry_date"):
+            for value in (0, 1790812800, 0.0, 1790812800.0, True, False):
+                with self.subTest(field=field, value=value):
+                    payload = {**INSURANCE, field: value}
+                    with self.assertRaisesRegex(ValidationError, "numeric and boolean"):
+                        DocumentInfo.model_validate(payload)
+                    with self.assertRaisesRegex(ValidationError, "numeric and boolean"):
+                        self.run_sample("health_insurance.txt", payload)
+
+    def test_both_date_fields_preserve_supported_values(self):
+        for value in (None, "2026-10-01", date(2026, 10, 1)):
+            with self.subTest(value=value):
+                result = DocumentInfo(issue_date=value, expiry_date=value)
+                expected = None if value is None else date(2026, 10, 1)
+                self.assertEqual(result.issue_date, expected)
+                self.assertEqual(result.expiry_date, expected)
+
+    def test_invalid_or_ambiguous_expiry_date_cannot_survive(self):
+        for payload in (
+            {**INSURANCE, "expiry_date": "2026-02-30"},
+            {**INSURANCE, "expiry_date": None, "ambiguous_fields": ["expiry_date"]},
+            {**INSURANCE, "ambiguous_fields": ["expiry_date"]},
+        ):
+            with self.subTest(payload=payload):
+                result = self.run_sample("health_insurance.txt", payload)
+                self.assertIsNone(result.expiry_date)
+                self.assertIn("expiry_date", result.missing_fields)
+                self.assertTrue(result.validation_issues)
 
     def test_unknown_and_empty_fields(self):
         result = DocumentInfo(holder_name="  ")

@@ -41,6 +41,8 @@ class DocumentInfo(BaseModel):
         issues = list(values.get("validation_issues", []))
         for name in ("holder_name", "student_id", "institution", "policy_number", "issue_date", "expiry_date"):
             value = values.get(name)
+            if name in ("issue_date", "expiry_date") and isinstance(value, (int, float, bool)):
+                raise ValueError(f"{name}: numeric and boolean values are not valid dates")
             if isinstance(value, str):
                 value = value.strip() or None
                 values[name] = value

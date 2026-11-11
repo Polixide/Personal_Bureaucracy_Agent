@@ -21,7 +21,8 @@ unofficial label does not change the document type or prevent extracting facts.
 Map Holder name to holder_name and Student identifier or Student ID to student_id.
 institution means university or insurance provider. Preserve identifiers as strings.
 Use YYYY-MM-DD only for unambiguous dates; do not guess day/month order.
-If a date is explicitly impossible, copy its original text so Python can flag it.
+If a source date is invalid or impossible, return null for that date field and
+include its field name in ambiguous_fields. Never invent a replacement date.
 Leave missing_fields and validation_issues empty; Python computes those.
 Do not assess legal validity or whether a document is acceptable to authorities.
 """
