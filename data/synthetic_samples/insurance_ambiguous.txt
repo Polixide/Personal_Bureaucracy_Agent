@@ -1,0 +1,7 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Health Insurance Certificate
+Holder name: Alex Example
+Insurance provider: Example Insurance
+Policy number: TEST-A or TEST-B (unresolved conflicting records)
+Issue date: 03/04/2026 (day/month order unspecified)
+Expiry date: 2027-09-30

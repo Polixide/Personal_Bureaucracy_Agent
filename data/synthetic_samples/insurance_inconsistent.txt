@@ -1,0 +1,7 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Health Insurance Certificate
+Holder name: Alex Example
+Insurance provider: Example Insurance
+Policy number: TEST-POL-0002
+Issue date: 2026-10-01
+Expiry date: 2026-09-01
