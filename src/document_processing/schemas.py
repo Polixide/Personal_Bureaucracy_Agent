@@ -13,6 +13,16 @@ class DocumentClassification(BaseModel):
     document_type: DocumentType
 
 
+class SourceEvidence(BaseModel):
+    """Deterministic observation with exact original text and original page."""
+    field: str | None
+    original_value: str
+    normalized_value: str | None = None
+    snippet: str
+    line_number: int
+    page_number: int
+
+
 class DocumentInfo(BaseModel):
     """Small common base. Use a concrete subtype for administrative documents."""
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -23,6 +33,9 @@ class DocumentInfo(BaseModel):
     validation_issues: list[str] = Field(default_factory=list)
     source_pages: dict[str, int] = Field(default_factory=dict)
     selected_pages: list[int] = Field(default_factory=list)
+    source_snippets: dict[str, str] = Field(default_factory=dict)
+    source_evidence: list[SourceEvidence] = Field(default_factory=list)
+    correction_notes: list[str] = Field(default_factory=list)
 
     REQUIRED: ClassVar[tuple[str, ...]] = ()
     DATES: ClassVar[tuple[str, ...]] = ()
@@ -31,7 +44,8 @@ class DocumentInfo(BaseModel):
     @classmethod
     def observation_fields(cls):
         return set(cls.model_fields) - {"document_type", "missing_fields", "ambiguous_fields",
-                                      "validation_issues", "source_pages", "selected_pages"}
+                                      "validation_issues", "source_pages", "selected_pages",
+                                      "source_snippets", "source_evidence", "correction_notes"}
 
     @model_validator(mode="before")
     @classmethod
@@ -73,7 +87,8 @@ class DocumentInfo(BaseModel):
             if name not in fields:
                 raise ValueError(f"Invalid ambiguous field for {self.document_type}: {name}")
             setattr(self, name, None)
-            self.validation_issues.append(f"{name}: ambiguous; manual review needed")
+            if not any(issue.startswith(f"{name}:") for issue in self.validation_issues):
+                self.validation_issues.append(f"{name}: ambiguous; manual review needed")
         if self.document_type == "unknown":
             if self.holder_name is not None:
                 self.holder_name = None
@@ -89,6 +104,11 @@ class DocumentInfo(BaseModel):
             if name not in fields or getattr(self, name) is None or self.source_pages[name] < 1:
                 del self.source_pages[name]
                 self.validation_issues.append(f"{name}: invalid source page discarded")
+        if self.document_type == "health_insurance_certificate":
+            if self.expiry_date and self.coverage_end_date and self.expiry_date != self.coverage_end_date:
+                self.validation_issues.append("expiry_date conflicts with coverage_end_date")
+            if self.issue_date and self.expiry_date and self.expiry_date < self.issue_date:
+                self.validation_issues.append("expiry_date precedes issue_date")
         self.validation_issues = list(dict.fromkeys(self.validation_issues))
         return self
 
@@ -107,10 +127,12 @@ class HealthInsurance(DocumentInfo):
     policy_number: str | None = None
     insurer: str | None = None
     passport_or_foreign_id: str | None = None
+    issue_date: date | None = None
+    expiry_date: date | None = None
     coverage_start_date: date | None = None
     coverage_end_date: date | None = None
     REQUIRED = ("holder_name", "policy_number", "insurer", "coverage_start_date", "coverage_end_date")
-    DATES = ("coverage_start_date", "coverage_end_date")
+    DATES = ("issue_date", "expiry_date", "coverage_start_date", "coverage_end_date")
     PERIOD = ("coverage_start_date", "coverage_end_date")
 
 

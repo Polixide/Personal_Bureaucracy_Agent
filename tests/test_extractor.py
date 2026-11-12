@@ -252,3 +252,28 @@ def test_missing_bundled_models_fail_without_downloading(tmp_path):
         with pytest.raises(DocumentExtractionError, match="bundled model files are missing"):
             create_engine_for_test()
     factory.assert_not_called()
+
+
+def test_rapidocr_insurance_text_uses_labelled_evidence_reconciliation(tmp_path):
+    import json
+    from datetime import date
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from src.document_processing.processor import process_document
+    path=tmp_path / "insurance-scan.pdf"; scanned_pdf(path)
+    text=("Health Insurance Certificate\nInsured: Taylor Example\nInsurer: Example Insurance\n"
+          "Policy number: DEMO-OCR-42\nPolicy approval date: 18/09/2028\n"
+          "Coverage start date: 20/09/2028\nCoverage end date: 30/06/2029")
+    engine=Mock(return_value=ocr_result(text))
+    with patch("src.document_processing.extractor._create_ocr_engine",return_value=engine), patch("src.document_processing.processor.Client") as client:
+        payloads=[{"document_type":"health_insurance_certificate"}, {"policy_number":"FABRICATED-99", "source_snippets":{"policy_number":"Invented quotation"}}]
+        client.return_value.chat.side_effect=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(value))) for value in payloads]
+        info=process_document(path)
+    assert info.policy_number == "DEMO-OCR-42"
+    assert info.coverage_start_date == date(2028,9,20)
+    assert info.coverage_end_date == date(2029,6,30)
+    assert info.source_pages["policy_number"] == 1
+    assert info.source_snippets["policy_number"] == "Policy number: DEMO-OCR-42"
+    assert any("policy_number" in note for note in info.correction_notes)
+    assert not info.validation_issues
+    assert info.source_evidence and all(e.page_number == 1 for e in info.source_evidence)

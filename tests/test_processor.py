@@ -130,7 +130,7 @@ def test_unknown_documents_cannot_invent_administrative_facts(tmp_path):
 
 
 def test_missing_fields_are_recomputed(tmp_path):
-    info, _ = process_text(tmp_path, "Student Enrollment Certificate\nHolder name: Alex Example", "student_enrollment_certificate", {**STUDENT,"student_id":None,"issue_date":None,"missing_fields":["invented"],"validation_issues":["model claim"]})
+    info, _ = process_text(tmp_path, "Student Enrollment Certificate\nHolder name: Alex Example\nInstitution: Example University", "student_enrollment_certificate", {**STUDENT,"student_id":None,"issue_date":None,"missing_fields":["invented"],"validation_issues":["model claim"]})
     assert info.missing_fields == ["student_id","issue_date"]
     assert not info.validation_issues
 
@@ -451,3 +451,237 @@ def test_unknown_with_dates_and_identifiers_still_skips_field_extraction(tmp_pat
     assert len(calls) == 1
     assert info.document_type == "unknown" and info.holder_name is None
     assert not {"passport_or_foreign_id","coverage_start_date","application_number"} & info.model_dump().keys()
+
+
+# Selectively adapted from origin/test/integration-abc evidence/reconciliation
+# regressions. Canonical classification, bounded requests and typed schemas run.
+def hybrid_insurance(tmp_path, text=None, payload=None):
+    if text is None:
+        text = ("Health Insurance Certificate\nInsured: Taylor Example\nInsurer: Example Insurance\n"
+                "Policy number: DEMO-730\nPolicy approval date: 18/09/2028\n"
+                "Document issuance date: 19/09/2028\n"
+                "Coverage start date: 20/09/2028\nCoverage end date: 30/06/2029")
+    return process_text(tmp_path, text, "health_insurance_certificate", {} if payload is None else payload)
+
+
+def test_unique_labelled_insurance_evidence_fills_nulls_with_correction_notes(tmp_path):
+    info, calls = hybrid_insurance(tmp_path, payload={"ambiguous_fields":["policy_number","issue_date","coverage_start_date","coverage_end_date"]})
+    assert info.holder_name == "Taylor Example"
+    assert info.insurer == "Example Insurance"
+    assert info.policy_number == "DEMO-730"
+    assert info.issue_date == date(2028,9,18)
+    assert info.coverage_start_date == date(2028,9,20)
+    assert info.coverage_end_date == date(2029,6,30)
+    assert info.expiry_date is None  # Explicit expiry is not silently inferred.
+    assert not info.ambiguous_fields and not info.missing_fields and not info.validation_issues
+    assert any(note.startswith("issue_date:") for note in info.correction_notes)
+    issue = next(e for e in info.source_evidence if e.field == "issue_date")
+    assert issue.original_value == "18/09/2028" and issue.normalized_value == "2028-09-18"
+    assert issue.snippet == "Policy approval date: 18/09/2028"
+    assert issue.page_number == info.source_pages["issue_date"] == 1
+    assert any(e.field == "document_issue_date" for e in info.source_evidence)
+    assert all(len(c.kwargs["messages"][1]["content"]) <= MAX_INPUT_CHARS for c in calls)
+
+
+def test_wrong_or_implausible_model_dates_corrected_only_by_labelled_role(tmp_path):
+    info, _ = hybrid_insurance(tmp_path, payload={"issue_date":"2028-02-30", "coverage_start_date":"2028-09-18", "coverage_end_date":"3006-06-29", "policy_number":"FABRICATED-99"})
+    assert info.issue_date == date(2028,9,18)
+    assert info.coverage_start_date == date(2028,9,20)
+    assert info.coverage_end_date == date(2029,6,30)
+    assert info.policy_number == "DEMO-730"
+    assert not info.validation_issues
+    assert all(any(note.startswith(field+":") for note in info.correction_notes) for field in ("issue_date","policy_number","coverage_start_date","coverage_end_date"))
+
+
+@pytest.mark.parametrize("extra,field", [
+    ("Policy approval date: 19/09/2028","issue_date"),
+    ("Coverage start date: 21/09/2028","coverage_start_date"),
+    ("Policy number: OTHER-999","policy_number"),
+    ("Insurer: Other Insurance","insurer"),
+    ("Insured: Another Person","holder_name"),
+])
+def test_conflicting_source_values_are_not_resolved_by_model_choice(tmp_path, extra, field):
+    text = ("Health Insurance Certificate\nInsured: Taylor Example\nInsurer: Example Insurance\n"
+            "Policy number: DEMO-730\nPolicy approval date: 18/09/2028\n"
+            "Coverage start date: 20/09/2028\nCoverage end date: 30/06/2029\n" + extra)
+    values={"issue_date":"2028-09-18","coverage_start_date":"2028-09-20","policy_number":"DEMO-730","insurer":"Example Insurance","holder_name":"Taylor Example"}
+    info, _ = hybrid_insurance(tmp_path,text,{field:values[field]})
+    assert getattr(info,field) is None
+    assert field in info.ambiguous_fields
+    assert field not in info.source_snippets
+    assert sum(issue.startswith(field+":") for issue in info.validation_issues) == 1
+
+
+@pytest.mark.parametrize("raw", ["31/02/2028", "03/04/2028", "1310-10-20"])
+def test_invalid_or_ambiguous_labelled_policy_date_stays_null(tmp_path,raw):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate\nPolicy approval date: "+raw,{"issue_date":"2028-04-03"})
+    assert info.issue_date is None and "issue_date" in info.ambiguous_fields
+    assert info.validation_issues
+    assert any(e.original_value == raw and e.normalized_value is None for e in info.source_evidence if e.field == "issue_date")
+
+
+def test_explicit_date_format_resolves_slash_ambiguity(tmp_path):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate\nFormat: DD/MM/YYYY\nPolicy approval date: 03/04/2028")
+    assert info.issue_date == date(2028,4,3)
+    assert not any(issue.startswith("issue_date:") for issue in info.validation_issues)
+
+
+@pytest.mark.parametrize("other", ["Law reference: 18/09/1994", "Birth date: 18/09/1994", "Page 1: 18/09/2028"])
+def test_legal_birth_or_footer_dates_do_not_disambiguate_policy_date(tmp_path,other):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+other+"\nPolicy approval date: 03/04/2028")
+    assert info.issue_date is None
+    assert "issue_date" in info.ambiguous_fields
+
+
+def test_exact_snippets_replace_fabricated_model_quotes_as_correction_notes(tmp_path):
+    info, _ = hybrid_insurance(tmp_path,payload={"issue_date":"2028-09-18","source_snippets":{"issue_date":"Invented wording 18/09/2028","coverage_end_date":"Invented ending 30/06/2029"}})
+    assert info.issue_date == date(2028,9,18)
+    assert info.source_snippets["issue_date"] == "Policy approval date: 18/09/2028"
+    assert all("Invented" not in quote for quote in info.source_snippets.values())
+    assert any("independently verified" in note for note in info.correction_notes)
+    assert not info.validation_issues
+
+
+def test_fabricated_value_and_quote_without_independent_evidence_require_review(tmp_path):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate\nNo policy dates supplied",{"issue_date":"2028-09-18","source_snippets":{"issue_date":"Invented 18/09/2028"}})
+    assert info.issue_date is None
+    assert "issue_date" not in info.source_snippets
+    assert any("source snippet" in issue for issue in info.validation_issues)
+    assert not any("independently verified" in note for note in info.correction_notes)
+
+
+def test_source_evidence_and_correction_notes_cannot_be_fabricated_by_model(tmp_path):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate",{"source_evidence":[{"field":"invented"}],"correction_notes":["Trust this model"]})
+    assert not info.source_evidence
+    assert "Trust this model" not in info.correction_notes
+
+
+@pytest.mark.parametrize("period,expected", [
+    ("18/09/2028-00:00 - 20/09/2028-23:59", (date(2028,9,18),date(2028,9,20))),
+    ("18/09/2028", (None,None)),
+    ("18/09/2028\n20/09/2028\n21/09/2028", (None,None)),
+    ("18/09/2028\nBirth date: 20/09/2028", (None,None)),
+    ("18/09/2028\nLaw: 20/09/2028", (None,None)),
+])
+def test_split_period_requires_exactly_two_related_dates(tmp_path,period,expected):
+    text="Health Insurance Certificate\nSEYAHAT BA\u015eLANGI\u00c7-\nB\u0130T\u0130\u015e TAR\u0130H\u0130\n"+period
+    info, _ = hybrid_insurance(tmp_path,text)
+    assert (info.coverage_start_date,info.coverage_end_date) == expected
+
+
+def test_policy_prefix_and_decomposed_turkish_label_preserve_original_text(tmp_path):
+    import unicodedata
+    text=unicodedata.normalize("NFD","Health Insurance Certificate\nPOL\u0130\u00c7E NO\n\uff1a DEMO-42")
+    info, _ = hybrid_insurance(tmp_path,text)
+    assert info.policy_number == "DEMO-42"
+    evidence=next(e for e in info.source_evidence if e.field == "policy_number")
+    assert evidence.original_value.startswith("\uff1a")
+    assert evidence.normalized_value == "DEMO-42"
+    assert evidence.snippet in text
+
+
+def test_policy_label_cannot_consume_unrelated_identifier(tmp_path):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate\nPOLICE NO\nFOREIGN ID: 1234567890",{"policy_number":"1234567890"})
+    assert info.policy_number is None
+    assert info.validation_issues
+
+
+def test_duplicate_and_empty_labels_corroborate_instead_of_conflicting(tmp_path):
+    text="Health Insurance Certificate\nPolicy approval date:\nPolicy approval date: 18/09/2028\nPolicy approval date: 2028-09-18"
+    info, _ = hybrid_insurance(tmp_path,text)
+    assert info.issue_date == date(2028,9,18)
+    assert "issue_date" not in info.ambiguous_fields
+
+
+def test_explicit_expiry_is_preserved_when_different_from_coverage_end(tmp_path):
+    text="Health Insurance Certificate\nCoverage start date: 20/09/2028\nCoverage end date: 30/06/2029\nExpiry date: 01/07/2029"
+    info, _ = hybrid_insurance(tmp_path,text)
+    assert info.expiry_date == date(2029,7,1)
+    assert info.coverage_end_date == date(2029,6,30)
+    assert "expiry_date conflicts with coverage_end_date" in info.validation_issues
+
+
+def test_policy_dates_do_not_cross_page_boundaries(tmp_path):
+    pages=[TextPage(1,"Health Insurance Certificate\nPolicy approval date:"),TextPage(2,"18/09/2028")]
+    with patch("src.document_processing.processor.extract_pages",return_value=pages), patch("src.document_processing.processor.Client") as client:
+        client.return_value.chat.side_effect=[response({"document_type":"health_insurance_certificate"}),response({"issue_date":"2028-09-18"})]
+        info=process_document("synthetic.pdf")
+    assert info.issue_date is None
+    assert any(e.field == "issue_date" and e.page_number == 1 and e.normalized_value is None for e in info.source_evidence)
+
+
+def test_real_pdf_evidence_keeps_original_page_and_snippet(tmp_path):
+    path=tmp_path/"insurance.pdf"
+    with pymupdf.open() as pdf:
+        pdf.new_page().insert_text((72,72),"Health Insurance Certificate")
+        pdf.new_page().insert_text((72,72),"Policy approval date: 18/09/2028\nPolicy number: DEMO-42")
+        pdf.save(path)
+    with patch("src.document_processing.processor.Client") as client:
+        client.return_value.chat.side_effect=[response({"document_type":"health_insurance_certificate"}),response({})]
+        info=process_document(path)
+    assert info.issue_date == date(2028,9,18)
+    assert info.source_pages["issue_date"] == 2
+    evidence=next(e for e in info.source_evidence if e.field=="issue_date")
+    assert evidence.page_number == 2 and evidence.snippet == "Policy approval date: 18/09/2028"
+
+
+def test_insurer_next_line_is_reliable_labelled_evidence(tmp_path):
+    info, _ = hybrid_insurance(tmp_path,"Health Insurance Certificate\nInsurer:\nExample Insurance")
+    assert info.insurer == "Example Insurance"
+    assert info.source_snippets["insurer"] == "Insurer:\nExample Insurance"
+
+
+def test_enrollment_keeps_model_uncertainty_despite_unique_source(tmp_path):
+    text="Student Enrollment Certificate\nHolder name: Alex Example\nStudent ID: TEST-0001\nInstitution: Example University\nIssue date: 2026-10-01"
+    info, _ = process_text(tmp_path,text,"student_enrollment_certificate",{**STUDENT,"student_id":None,"ambiguous_fields":["issue_date"]})
+    assert isinstance(info,StudentCertificate)
+    assert info.student_id is None and info.issue_date is None
+    assert not info.correction_notes
+    assert "issue_date" in info.ambiguous_fields
+
+
+def test_ikamet_roles_and_provenance_remain_supported(tmp_path):
+    text="RESIDENCE PERMIT APPLICATION FORM\nApplicant: Alex Example\nApplication number: APP-123\nPassport: P123456\nRequested start: 2026-11-01\nRequested end: 2027-06-01"
+    info, _ = process_text(tmp_path,text,"ikamet_application_form",APPLICATION)
+    assert isinstance(info,IkametApplicationForm)
+    assert info.requested_start_date == date(2026,11,1)
+    assert info.requested_end_date == date(2027,6,1)
+    assert info.source_snippets["requested_start_date"] == "Requested start: 2026-11-01"
+    assert info.source_pages["application_number"] == 1
+    assert not info.validation_issues
+
+
+def test_hybrid_observations_and_correction_notes_survive_sqlite(tmp_path):
+    from src.core.graph import build_graph
+    from src.core.state import Document
+    from src.memory.checkpointer import sqlite_checkpointer
+    from src.document_processing.schemas import SourceEvidence
+    info, _ = hybrid_insurance(tmp_path)
+    document=Document(doc_id="policy",file_path="synthetic.txt",doc_type="health_insurance",status="analyzed",info=info)
+    config={"configurable":{"thread_id":"hybrid-policy"}}
+    db=tmp_path/"hybrid.db"
+    with sqlite_checkpointer(db) as saver:
+        build_graph(saver).update_state(config,{"documents":[document],"extracted_facts":{"policy":info.model_dump(mode="json")}})
+    with sqlite_checkpointer(db) as saver:
+        state=build_graph(saver).get_state(config).values
+    restored=state["documents"][0].info
+    assert restored == info
+    assert isinstance(restored.source_evidence[0],SourceEvidence)
+    assert state["extracted_facts"]["policy"]["correction_notes"] == info.correction_notes
+
+
+def test_repeated_date_in_two_chunks_of_same_page_retains_real_snippet():
+    from src.document_processing.evidence import source_candidates
+    chunks=[TextPage(2,"Coverage start date: 20/09/2028"),TextPage(2,"Heading\nOther line\nCoverage start date: 20/09/2028")]
+    candidates, _=source_candidates(chunks)
+    assert any(c["snippet"] == "Coverage start date: 20/09/2028" and c["page_number"] == 2 for c in candidates)
+
+
+def test_correction_notes_alone_do_not_block_gate_1(tmp_path):
+    from src.core.state import ActionPlan, Document, PlanStep
+    from src.guardrails.gate_1 import validate_plan
+    info, _=hybrid_insurance(tmp_path)
+    assert info.correction_notes and not info.validation_issues
+    document=Document(doc_id="policy",file_path="synthetic.txt",status="analyzed",doc_type="health_insurance",info=info,expiry_date=info.coverage_end_date)
+    plan=ActionPlan(actions=[PlanStep(step_id="review",priority=1,action="Review policy details",reason="Check the grounded observations",required_documents=["health_insurance"])],summary="Review proposed observations")
+    assert not validate_plan({"documents":[document],"relevant_requirements":[]},plan)

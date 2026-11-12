@@ -1,9 +1,7 @@
 """Bounded page selection, classification, then document-specific extraction."""
 import argparse
 import json
-import re
 import sys
-import unicodedata
 from datetime import date
 from pathlib import Path
 from time import perf_counter
@@ -17,6 +15,9 @@ from config import (
     DOCUMENT_MAX_CHUNKS, DOCUMENT_CHUNK_CHARS, DOCUMENT_MAX_INPUT_CHARS,
 )
 from src.document_processing.extractor import TextPage, extract_pages
+from src.document_processing.evidence import (
+    normalized, normalized_date, source_candidates, candidate_hint, ground_fields, audit_snippets,
+)
 from src.document_processing.schemas import (
     DOCUMENT_SCHEMAS, DocumentClassification, DocumentInfo, UnknownDocument,
 )
@@ -59,8 +60,11 @@ nearby labels. European dates are parsed as DD.MM.YYYY or DD/MM/YYYY by Python.
 Choose identifiers and holder/applicant names ONLY from matching labelled source
 candidates. Never invent values; use null when no reliable candidate exists.
 Preserve identifiers as strings. Supply one-based source_pages for populated fields.
-Leave missing_fields, validation_issues and selected_pages empty: Python computes
-them. Do not assess legal validity, acceptance, authenticity or permit approval.
+Leave missing_fields, validation_issues, source_evidence, correction_notes and
+selected_pages empty: Python computes them. source_snippets must be exact source
+quotes keyed by field name, never invented wording. Policy approval/issue dates
+are not coverage dates. Python reconciles unique labelled evidence after extraction.
+Do not assess legal validity, acceptance, authenticity or permit approval.
 """
 
 
@@ -76,118 +80,6 @@ class DocumentProcessingError(RuntimeError):
 def debug_message(enabled, message):
     if enabled:
         print(f"[document-debug] {message}", file=sys.stderr)
-
-
-def normalized(text):
-    text = text.casefold().replace("\u0131", "i")
-    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
-
-
-DATE_PATTERN = re.compile(r"(?<![\w])(?:\d{2}\.\d{2}\.\d{4}|\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})(?![\w])")
-IDENTIFIER_LABELS = {
-    "policy_number": r"policy(?:\s*(?:number|no\.?))?|police\s*(?:no\.?|numarasi)",
-    "passport_or_foreign_id": r"passport(?:\s*(?:number|no\.?))?|foreign(?:er)?\s*(?:id|identity)(?:\s*(?:number|no\.?))?|pasaport(?:\s*(?:no\.?|numarasi))?|yabanci\s*kimlik(?:\s*(?:no\.?|numarasi))?",
-    "application_number": r"application\s*(?:number|no\.?|id)|basvuru\s*(?:no\.?|numarasi)",
-    "student_id": r"student\s*(?:id|identifier|number)|ogrenci\s*(?:no\.?|numarasi)",
-}
-NAME_LABEL = re.compile(r"^(?:insured(?:\s+person)?|policy\s*holder|holder\s*name|applicant(?:\s*name)?|full\s*name|name\s*(?:/|and)\s*surname|ad(?:i)?\s*/\s*soyad(?:i)?|ad(?:i)?\s+soyad(?:i)?|name)(?:\s*:\s*|\s*$)(.*)$")
-
-
-def normalized_date(value):
-    """Parse only the three supported source formats, with broad quality bounds."""
-    if not isinstance(value, str) or not DATE_PATTERN.fullmatch(value):
-        return None
-    try:
-        if "." in value or "/" in value:
-            day, month, year = re.split(r"[./]", value)
-            parsed = date(int(year), int(month), int(day))
-        else:
-            parsed = date.fromisoformat(value)
-        return parsed.isoformat() if 1900 <= parsed.year <= 2100 else None
-    except ValueError:
-        return None
-
-
-def source_candidates(chunks):
-    """Conservative candidates from selected text only; no semantic date roles."""
-    candidates, issues = [], []
-    for chunk in chunks:
-        for match in DATE_PATTERN.finditer(chunk.text):
-            value = normalized_date(match.group())
-            if value is None:
-                issues.append(f"date: invalid source date {match.group()!r} on page {chunk.number}")
-                continue
-            nearby = " ".join(chunk.text[max(0, match.start()-35):match.end()+20].split())
-            candidates.append(dict(kind="date", value=value, page=chunk.number, nearby=nearby))
-        lines = chunk.text.splitlines()
-        name_parts = {"first": [], "last": []}
-        for index, line in enumerate(lines):
-            folded = normalized(line)
-            for kind, label in IDENTIFIER_LABELS.items():
-                labelled = line
-                if re.search(rf"\b(?:{label})\s*[:#]?\s*$", folded) and index + 1 < len(lines):
-                    labelled += " " + lines[index+1]
-                pattern = rf"\b(?:{label})(?:\s*[:#]\s*|\s+)([a-z0-9][a-z0-9./-]{{2,39}})\b"
-                for match in re.finditer(pattern, normalized(labelled)):
-                    value = labelled[match.start(1):match.end(1)]
-                    if any(c.isdigit() for c in value) and not DATE_PATTERN.fullmatch(value):
-                        candidates.append(dict(kind=kind, value=value, page=chunk.number, nearby=line.strip()[:90]))
-            for part, labels in (("first", "name|ad|adi"), ("last", "surname|soyad|soyadi")):
-                if re.match(rf"^(?:{labels})(?:\s*:|\s*$)", folded.strip()):
-                    value = line.split(":", 1)[1].strip() if ":" in line else ""
-                    if not value and index + 1 < len(lines):
-                        value = lines[index+1].strip()
-                    if value and all(w.isalpha() for w in value.split()) and len(value.split()) <= 3:
-                        name_parts[part].append(value)
-            match = NAME_LABEL.match(folded.strip())
-            if match:
-                # Labels and values may occupy adjacent lines in PDF text.
-                value = line.strip()[match.start(1):].strip()
-                if not value and index + 1 < len(lines):
-                    value = lines[index+1].strip()
-                value = re.split(r"[;|\t]", value)[0].strip()
-                words = value.replace("-", " ").replace("'", " ").split()
-                if 2 <= len(words) <= 6 and all(word.isalpha() for word in words):
-                    candidates.append(dict(kind="name", value=value, page=chunk.number, nearby=line.strip()[:90]))
-        if len(name_parts["first"]) == len(name_parts["last"]) == 1:
-            value = name_parts["first"][0] + " " + name_parts["last"][0]
-            candidates.append(dict(kind="name", value=value, page=chunk.number, nearby="Name / surname labels"))
-    return candidates, issues
-
-
-def candidate_hint(candidates, limit):
-    """Small complete rows, inside the existing request budget (never extra context)."""
-    text = "[SOURCE CANDIDATES]"
-    # Interleave kinds so a date-heavy form cannot crowd out identities/names.
-    groups = [[c for c in candidates if c["kind"] == kind] for kind in
-              ("date", "policy_number", "passport_or_foreign_id", "application_number", "student_id", "name")]
-    for index in range(max((len(group) for group in groups), default=0)):
-        for group in groups:
-            if index < len(group):
-                c = group[index]
-                row = f"\n{c['kind']}={c['value']} | p{c['page']} | {c['nearby'][:55]}"
-                if len(text) + len(row) <= limit:
-                    text += row
-    return text if "\n" in text else ""
-
-
-def ground_fields(payload, schema, candidates, issues):
-    """Discard unsupported identities/dates/names before Pydantic quality checks."""
-    for field in schema.observation_fields():
-        value = payload.get(field)
-        if value is None:
-            continue
-        kind = "date" if field in schema.DATES else "name" if field in ("holder_name", "applicant_name") else field
-        if kind not in {"date", "name", *IDENTIFIER_LABELS}:
-            continue
-        chosen = normalized_date(value) if kind == "date" else value
-        matches = [c for c in candidates if c["kind"] == kind and isinstance(chosen, str)
-                   and " ".join(normalized(c["value"]).split()) == " ".join(normalized(chosen).split())]
-        if not matches:
-            payload[field] = None
-            issues.append(f"{field}: value absent from reliable source candidates; discarded")
-        else:
-            payload[field] = matches[0]["value"]
 
 
 def select_chunks(pages, document_type=None, *, max_context_chars=MAX_INPUT_CHARS):
@@ -297,6 +189,8 @@ def attach_provenance(info, chunks, proposed_sources, candidates=()):
         elif len(matches) == 1:
             info.source_pages[name] = matches.pop()
     for name in proposed_sources:
+        if name in info.observation_fields() and getattr(info, name) is None:
+            info.validation_issues.append(f"{name}: source page cannot be verified for discarded value")
         if name not in info.observation_fields():
             info.validation_issues.append(f"{name}: inappropriate source field discarded")
     info.validation_issues = list(dict.fromkeys(info.validation_issues))
@@ -341,7 +235,7 @@ def process_document(file_path: str | Path, *, host: str = OLLAMA_HOST,
     if payload.get("document_type", document_type) != document_type:
         issues.append("Extraction attempted to change the classified document type; ignored")
     payload["document_type"] = document_type
-    ground_fields(payload, schema, candidates, issues)
+    model_quotes = ground_fields(payload, schema, candidates, issues, chunks)
     payload["missing_fields"] = []
     payload["validation_issues"] = issues
     payload["selected_pages"] = sorted({c.number for c in chunks})
@@ -350,7 +244,8 @@ def process_document(file_path: str | Path, *, host: str = OLLAMA_HOST,
         sources = {}
         payload["validation_issues"].append("Invalid source_pages discarded")
     info = schema.model_validate(payload)
-    return attach_provenance(info, chunks, sources, candidates)
+    info = attach_provenance(info, chunks, sources, candidates)
+    return audit_snippets(info, model_quotes, chunks)
 
 
 def main():

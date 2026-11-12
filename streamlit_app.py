@@ -160,7 +160,8 @@ def render_state(snapshot, graph, config, thread_key):
                 st.write("Observed document type:", observations.get("document_type", "Unavailable"))
                 fields = {key: value for key, value in observations.items()
                           if key not in {"document_type", "missing_fields", "ambiguous_fields",
-                                         "validation_issues", "selected_pages", "source_pages"}}
+                                         "validation_issues", "selected_pages", "source_pages",
+                                         "source_snippets", "source_evidence", "correction_notes"}}
                 st.write("Extracted fields")
                 st.json(fields)
                 st.write("Missing fields:", observations.get("missing_fields") or "None recorded")
@@ -169,6 +170,11 @@ def render_state(snapshot, graph, config, thread_key):
                 st.write("Selected pages:", observations.get("selected_pages") or "Unavailable")
                 st.write("Field source pages")
                 st.json(observations.get("source_pages") or {})
+                st.write("Correction notes:", observations.get("correction_notes") or "None recorded")
+                st.write("Source snippets")
+                st.json(observations.get("source_snippets") or {})
+                st.write("Deterministic source evidence")
+                st.json(observations.get("source_evidence") or [])
             elif isinstance(document, dict) or "legacy_value" in record:
                 st.json(record)
     if not state.get("documents"):
