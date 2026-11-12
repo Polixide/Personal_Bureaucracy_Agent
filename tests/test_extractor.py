@@ -3,6 +3,7 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import pymupdf
 
@@ -46,7 +47,8 @@ class ExtractTextTests(unittest.TestCase):
             with pymupdf.open() as document:
                 document.new_page()
                 document.save(path)
-            with self.assertRaisesRegex(DocumentExtractionError, "no extractable text"):
+            with patch("pymupdf.Page.get_textpage_ocr", return_value=None), \
+                    self.assertRaisesRegex(DocumentExtractionError, "no extractable text"):
                 extract_text(path)
 
     def test_invalid_pdf(self) -> None:

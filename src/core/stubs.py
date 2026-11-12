@@ -10,7 +10,7 @@ from pathlib import Path
 
 from src.core.state import AgentState, Document, PlanStep, Requirement, ValidationIssue
 
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".png", ".jpg"}
+ALLOWED_EXTENSIONS = {".pdf", ".txt"}
 
 # Canned Document Analyzer output, keyed by file name.
 MOCK_EXTRACTIONS = {
@@ -70,6 +70,10 @@ def rules_engine(state: AgentState) -> dict:
 
 def planner(state: AgentState) -> dict:
     """Mock of the Action / Deadline Planner -> src/agents/planner.py."""
+    # The connected R014 demo produces no claims about the other rules.
+    if all(r.rule_id == "R014" for r in state["relevant_requirements"]):
+        return {"candidate_plan": [PlanStep(
+            step_id="review_r014_demo", action="[MOCK planner] Review the R014 certificate result") ]}
     steps = [PlanStep(step_id=f"obtain_{r.rule_id.lower()}", action=r.description)
              for r in state["relevant_requirements"] if not r.satisfied]
     steps.append(PlanStep(
@@ -89,6 +93,9 @@ def gate_1(state: AgentState) -> dict:
     The stub implements one check: every document a step needs must still be
     valid on the date of that step.
     """
+    # Keep analyzer failures so the existing FAIL route bypasses approval.
+    if state.get("validation_errors"):
+        return {"validation_errors": state["validation_errors"]}
     expiry = {d.doc_type: d.expiry_date for d in state.get("documents", [])
               if d.status == "analyzed" and d.expiry_date}
     errors = []

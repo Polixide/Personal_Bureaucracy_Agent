@@ -1,0 +1,9 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+SEYAHAT SAĞLIK SİGORTASI POLİÇESİ
+Sigortalı: Taylor Example
+Sigorta şirketi: Synthetic Insurance
+POLİÇE NO: DEMO-TR-2048
+POLİÇE ONAY TARİHİ: 18/09/2028
+DÜZENLEME TARİHİ: 19/09/2028
+SEYAHAT BAŞLANGIÇ-BİTİŞ TARİHİ: 20/09/2028-00:00 - 30/06/2029-23:59
+Yasal referans: 15/03/1994 tarihli kanun, sayılı madde.

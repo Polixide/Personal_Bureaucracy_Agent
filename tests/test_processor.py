@@ -28,7 +28,7 @@ class ProcessorTests(unittest.TestCase):
                 message=SimpleNamespace(content=json.dumps(payload)))
             result = process_document(SAMPLES / filename)
             request = client.return_value.chat.call_args.kwargs
-            self.assertEqual(request["model"], "qwen3:4b")
+            self.assertEqual(request["model"], "qwen3:8b")
             self.assertEqual(request["format"], DocumentInfo.model_json_schema())
             prompt = request["messages"][0]["content"]
             self.assertIn("If a source date is invalid or impossible, return null for that date field", prompt)
@@ -103,7 +103,7 @@ class ProcessorTests(unittest.TestCase):
                 self.assertEqual(result.issue_date, expected)
                 self.assertEqual(result.expiry_date, expected)
 
-    def test_invalid_or_ambiguous_expiry_date_cannot_survive(self):
+    def test_invalid_or_ambiguous_model_expiry_is_reconciled_with_unique_source(self):
         for payload in (
             {**INSURANCE, "expiry_date": "2026-02-30"},
             {**INSURANCE, "expiry_date": None, "ambiguous_fields": ["expiry_date"]},
@@ -111,9 +111,10 @@ class ProcessorTests(unittest.TestCase):
         ):
             with self.subTest(payload=payload):
                 result = self.run_sample("health_insurance.txt", payload)
-                self.assertIsNone(result.expiry_date)
-                self.assertIn("expiry_date", result.missing_fields)
-                self.assertTrue(result.validation_issues)
+                self.assertEqual(result.expiry_date, date(2027, 9, 30))
+                self.assertNotIn("expiry_date", result.missing_fields)
+                self.assertNotIn("expiry_date", result.ambiguous_fields)
+                self.assertTrue(result.correction_notes)
 
     def test_unknown_and_empty_fields(self):
         result = DocumentInfo(holder_name="  ")

@@ -1,0 +1,6 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Student Enrollment Certificate
+Holder name: Alex Example
+University: Example University
+Student identifier: TEST-0001
+Issue date: 2026-02-30

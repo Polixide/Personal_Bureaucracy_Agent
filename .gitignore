@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
+data/local_samples/
 
 # Local secrets
 .env
@@ -18,3 +19,12 @@ __pycache__/
 *.temp
 ~$*
 .DS_Store
+
+# Local graph checkpoints and SQLite sidecar files
+.local/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*

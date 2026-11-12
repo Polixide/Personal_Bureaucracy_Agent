@@ -1,5 +1,12 @@
 # Personal Bureaucracy Agent: Stateful Agentic Assistant
 
+Current implemented mock: document extraction -> LangGraph -> deterministic R014
+-> safe response, with optional local SQLite checkpoints. Planner and approval
+remain MOCKED; reflection and the remaining knowledge rules are not implemented.
+See [consolidation and reproduction](docs/consolidation.md) for the actual scope,
+offline/live commands, persistence demonstration, and limitations. The broader
+architecture below includes future milestones.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Framework: LangGraph](https://img.shields.io/badge/Framework-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
@@ -122,11 +129,21 @@ pip install -r requirements.txt
 
 ### Running a Test Scenario
 
-To test the system against a sample event (e.g., uploading a tuition payment receipt):
+Run the R014 student-certificate demo offline (only Ollama is mocked; planner
+and approval remain mocked):
 
 ```bash
-python -m scripts.run_demo --scenario tuition_receipt
+python -m scripts.run_demo --offline
 ```
+
+For a live Ollama/Qwen3:8b run, use:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.run_demo data/synthetic_samples/student_enrollment.txt --model qwen3:8b
+```
+
+See [Document Processing verification](document_processing/README.md) for the
+full workflow, reporting format, test commands, and limitations.
 
 ---
 

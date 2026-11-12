@@ -1,6 +1,7 @@
 """Deterministic text extraction, independent of future LLM processing."""
 
 import argparse
+import os
 from pathlib import Path
 
 import pymupdf
@@ -10,8 +11,39 @@ class DocumentExtractionError(ValueError):
     """A supported document could not provide readable text."""
 
 
+def _usable_text(text: str) -> bool:
+    """Treat whitespace, punctuation, and replacement glyphs alone as unreadable."""
+    return any(character.isalnum() for character in text)
+
+
+def _page_text(page: pymupdf.Page) -> str:
+    text = page.get_text()
+    if _usable_text(text):
+        return text
+    languages = os.environ.get("PBA_OCR_LANGUAGES", "eng").strip() or "eng"
+    tessdata = os.environ.get("TESSDATA_PREFIX") or None
+    try:
+        textpage = page.get_textpage_ocr(
+            language=languages, dpi=300, full=True, tessdata=tessdata,
+        )
+        text = page.get_text(textpage=textpage)
+    except (RuntimeError, ValueError, OSError, ImportError) as error:
+        raise DocumentExtractionError(
+            f"Page {page.number + 1} has no extractable text and OCR failed: {error}. "
+            "Install Tesseract and the requested language data; set TESSDATA_PREFIX "
+            "to the folder containing eng.traineddata (and tur.traineddata for Turkish). "
+            "Set PBA_OCR_LANGUAGES=eng or eng+tur. See document_processing/README.md."
+        ) from error
+    if not _usable_text(text):
+        raise DocumentExtractionError(
+            f"Page {page.number + 1} has no extractable text after OCR. "
+            "Check scan quality and PBA_OCR_LANGUAGES; blank pages also produce this error."
+        )
+    return text
+
+
 def extract_text(file_path: str | Path) -> str:
-    """Read a UTF-8 TXT or text-based PDF file and return its text.
+    """Read UTF-8 TXT or PDF text, using local OCR for unreadable PDF pages.
 
     Raises FileNotFoundError for missing paths, ValueError for unsupported
     extensions, and DocumentExtractionError for unreadable or textless PDFs.
@@ -33,13 +65,14 @@ def extract_text(file_path: str | Path) -> str:
         with pymupdf.open(path) as document:
             if document.needs_pass:
                 raise DocumentExtractionError("Password-protected PDFs are not supported.")
-            text = "\n".join(page.get_text() for page in document)
+            # A form-feed preserves PDF page boundaries without changing the str API.
+            text = "\n\f\n".join(_page_text(page) for page in document)
     except (pymupdf.FileDataError, RuntimeError) as error:
         raise DocumentExtractionError(f"Cannot read PDF: {path}") from error
 
     if not text.strip():
         raise DocumentExtractionError(
-            f"PDF contains no extractable text: {path}. OCR is not supported."
+            f"PDF contains no extractable text: {path}."
         )
     return text
 

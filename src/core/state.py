@@ -39,6 +39,9 @@ class Requirement(BaseModel):
     description: str
     satisfied: bool
     source_id: str | None = None         # provenance: where the rule comes from
+    evaluation_result: Literal["supplied_and_accepted", "missing", "manual_review_required"] | None = None
+    rule_version: str | None = None
+    source_metadata: list[dict[str, Any]] = []
 
 
 class PlanStep(BaseModel):

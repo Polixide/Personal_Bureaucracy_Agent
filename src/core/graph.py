@@ -18,8 +18,10 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 
 from src.core.state import AgentState, NextStep
-from src.core.stubs import (document_analyzer, gate_0, gate_1, human_approval, planner,
-                            rules_engine, state_update)
+from src.workers.document_analyzer import document_analyzer
+from src.workers.rules_engine import rules_engine
+from src.core.stubs import (gate_0, gate_1, human_approval, planner,
+                            state_update)
 
 
 # ---------------------------------------------------- orchestration nodes --
@@ -49,6 +51,10 @@ def respond(state: AgentState) -> dict:
         lines = ["Next actions:"]
         lines += [f"  {i}. {step.action}" + (f" (by {step.due_date})" if step.due_date else "")
                   for i, step in enumerate(state["candidate_plan"], start=1)]
+    lines.append("Demo scope: R014 only. Planner and approval are MOCKED; no official approval is made.")
+    for requirement in state.get("relevant_requirements") or []:
+        lines.append(f"{requirement.rule_id}: {requirement.evaluation_result} "
+                     f"(source: {requirement.source_id})")
     return {"final_response": "\n".join(lines)}
 
 
@@ -89,27 +95,6 @@ def build_graph(checkpointer=None):
 
 
 if __name__ == "__main__":
-    from datetime import date
+    from scripts.run_demo import run_offline_demo
 
-    from src.core.state import UserEvent, new_run
-
-    graph = build_graph()
-    known_facts = {"appointment_date": date(2026, 11, 20)}   # already in the Digital Twin
-    scenarios = {
-        "Upload valid insurance -> PASS":
-            UserEvent(kind="upload", file_path="insurance_valid.pdf"),
-        "Message without document -> PASS (supervisor skips the analyzer)":
-            UserEvent(kind="message", text="What should I do next?"),
-        "Insurance expires before appointment -> FAIL at Gate 1":
-            UserEvent(kind="upload", file_path="insurance_expiring.pdf"),
-        "Unsupported file -> FAIL at Gate 0":
-            UserEvent(kind="upload", file_path="photo.exe"),
-    }
-    for title, event in scenarios.items():
-        run_input = {**new_run(event, user_id="student_001"), "extracted_facts": known_facts}
-        path, final = [], {}
-        for update in graph.stream(run_input, stream_mode="updates"):
-            node, output = next(iter(update.items()))
-            path.append(node)
-            final = output or final
-        print(f"\n=== {title} ===\npath: {' -> '.join(path)}\n{final['final_response']}")
+    run_offline_demo()
