@@ -16,18 +16,23 @@ def supervisor(state):
     if state.get("run_status") == "REPAIRING": decision = "planner"
     elif any(d.status == "pending" for d in state.get("documents", [])): decision = "document_analyzer"
     elif state.get("relevant_requirements") is None: decision = "rules_engine"
+    elif state.get("event") and state["event"].kind in {"analyze_document", "confirm_information", "resolve_conflict", "record_progress", "reevaluate", "delete_document", "replace_document", "cancel_document", "reprocess_document", "remove_correction"}: decision = "respond"
     else: decision = "planner"
     return {"next_step": decision}
 
 
 def respond(state):
     status = state.get("run_status", "RUNNING")
-    if status == "PLAN_INVALID" and state.get("retry_count", 0) >= MAX_REFLECTION_ATTEMPTS:
+    if any(e.code == "PLANNER_UNAVAILABLE" for e in state.get("validation_errors", [])):
+        status = "PLANNING_UNAVAILABLE"
+    if status == "PLAN_INVALID" and (state.get("retry_count", 0) >= MAX_REFLECTION_ATTEMPTS or any(e.code=="UNCHANGED_INVALID_PLAN" for e in state.get("validation_errors", []))):
         status = "HUMAN_REVIEW_REQUIRED"
     if state.get("validation_errors"):
         lines = [status] + [f"[{e.code}] {e.message}" for e in state["validation_errors"]]
+    elif state.get("event") and state["event"].kind in {"analyze_document", "confirm_information", "resolve_conflict", "record_progress", "reevaluate", "delete_document", "replace_document", "cancel_document", "reprocess_document", "remove_correction"}:
+        lines = [status, "Review document information, then select Generate / Update Plan when ready."]
     else:
-        lines = [status, "Proposed next actions (no official action executed):"]
+        lines = [status, state.get("plan_summary") or "Proposed next actions (no official action executed):"]
         lines += [f"{i}. {step.action}" for i,step in enumerate(state.get("candidate_plan") or [], 1)]
     return {"run_status":status, "final_response":"\n".join(lines)}
 
@@ -36,6 +41,7 @@ def route_check(state): return "fail" if state.get("validation_errors") else "pa
 
 
 def route_gate_1(state):
+    if any(e.code in {"PLANNER_UNAVAILABLE","UNCHANGED_INVALID_PLAN"} for e in state.get("validation_errors", [])): return "exhausted"
     if not state.get("validation_errors"): return "pass"
     return "exhausted" if state.get("retry_count",0) >= MAX_REFLECTION_ATTEMPTS else "repair"
 
@@ -51,7 +57,7 @@ def build_graph(checkpointer=None):
     for node in [gate_0,supervisor,document_analyzer,rules_engine,planner,gate_1,reflection,human_approval,state_update,respond]: builder.add_node(node)
     builder.add_edge(START,"gate_0")
     builder.add_conditional_edges("gate_0",route_check,{"pass":"supervisor","fail":"respond"})
-    builder.add_conditional_edges("supervisor",lambda s:s["next_step"], {n:n for n in ["document_analyzer","rules_engine","planner"]})
+    builder.add_conditional_edges("supervisor",lambda s:s["next_step"], {n:n for n in ["document_analyzer","rules_engine","planner","respond"]})
     builder.add_edge("document_analyzer","supervisor")
     builder.add_edge("rules_engine","supervisor")
     builder.add_edge("planner","gate_1")

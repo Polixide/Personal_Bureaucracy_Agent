@@ -82,7 +82,8 @@ def test_student_type_fields_and_source_page(tmp_path):
     assert not info.missing_fields
     assert not info.validation_issues
     assert info.source_pages["student_id"] == 1
-    assert calls[1].kwargs["format"] == StudentCertificate.model_json_schema()
+    assert set(calls[1].kwargs["format"]["properties"]) == set(StudentCertificate.model_fields) - {"missing_fields", "validation_issues", "source_evidence", "correction_notes", "selected_pages"}
+    assert "SourceEvidence" not in calls[1].kwargs["format"].get("$defs", {})
     assert all(call.kwargs["model"] == OLLAMA_MODEL for call in calls)
 
 
@@ -309,7 +310,11 @@ def test_cli_debug_metadata_is_opt_in_and_leaves_json_clean(debug, capsys):
         sent = client.return_value.chat.call_args_list[1].kwargs["messages"][1]["content"]
         assert f"extraction_input_characters={len(sent)}" in captured.err
     else:
-        assert captured.err == ""
+        assert "[document-debug]" not in captured.err
+        for component in ("document_classification","document_extraction"):
+            assert f"[LLM] {component} model=" in captured.err
+        assert captured.err.count(" started")==2
+        assert captured.err.count(" success elapsed=")==2
 
 
 @pytest.mark.parametrize("stage", ["classification", "extraction"])
@@ -683,5 +688,127 @@ def test_correction_notes_alone_do_not_block_gate_1(tmp_path):
     info, _=hybrid_insurance(tmp_path)
     assert info.correction_notes and not info.validation_issues
     document=Document(doc_id="policy",file_path="synthetic.txt",status="analyzed",doc_type="health_insurance",info=info,expiry_date=info.coverage_end_date)
-    plan=ActionPlan(actions=[PlanStep(step_id="review",priority=1,action="Review policy details",reason="Check the grounded observations",required_documents=["health_insurance"])],summary="Review proposed observations")
-    assert not validate_plan({"documents":[document],"relevant_requirements":[]},plan)
+    plan=ActionPlan(actions=[PlanStep(step_id="review",priority=1,action="Review policy details",reason="Check the grounded observations",related_rule_id="R015",required_documents=["health_insurance"])],summary="Review proposed observations")
+    from src.workers.rules_engine import evaluate_requirements
+    assert not validate_plan({"documents":[document],"relevant_requirements":evaluate_requirements({})},plan)
+
+
+@pytest.mark.parametrize("holder", ["MARCO BELFORTI", None])
+def test_insurance_person_dob_row_is_strong_source_evidence(tmp_path, holder):
+    row="MARCO BELFORTI 26/06/2002"
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+row,{"holder_name":holder})
+    assert info.holder_name == "MARCO BELFORTI"
+    assert info.source_snippets["holder_name"] == row
+    assert info.source_pages["holder_name"] == 1
+    evidence=next(e for e in info.source_evidence if e.field=="holder_name")
+    assert evidence.original_value == evidence.normalized_value == "MARCO BELFORTI"
+    assert evidence.page_number == 1 and evidence.snippet == row
+
+
+@pytest.mark.parametrize("row", ["THIS IS AN ARBITRARY SENTENCE", "PLEASE READ CAREFULLY 26/06/2002",
+                               "UNITED STATES 26/06/2002", "HEALTH INSURANCE CERTIFICATE 26/06/2002",
+                               "EXAMPLE INSURANCE COMPANY 26/06/2002", "MARCO BELFORTI 31/02/2002"])
+def test_uppercase_or_nonperson_insurance_rows_are_not_names(tmp_path,row):
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+row,{"holder_name":row.split(" 26/")[0]})
+    assert info.holder_name is None
+
+
+def test_unlabelled_name_after_insured_information_heading(tmp_path):
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nInsured information\nMARCO BELFORTI",{"holder_name":"MARCO BELFORTI"})
+    assert info.holder_name == "MARCO BELFORTI"
+    assert info.source_snippets["holder_name"] == "MARCO BELFORTI"
+
+
+def test_unlabelled_insurance_company_header_is_grounded(tmp_path):
+    company="GIG S\u0130GORTA A.\u015e."
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+company,{"insurer":company})
+    assert info.insurer == company
+    assert info.source_snippets["insurer"] == company
+    assert info.source_pages["insurer"] == 1
+    evidence=next(e for e in info.source_evidence if e.field=="insurer")
+    assert evidence.original_value == company and evidence.page_number == 1
+
+
+@pytest.mark.parametrize("line", ["According to sigorta law, the insurer must comply",
+                                "GIG SIGORTA A.S. tarafindan police duzenlenmistir",
+                                "Legal reference to GIG SIGORTA A.S.",
+                                "TRAVEL INSURANCE", "INSURANCE FOR FOREIGNERS", "SIGORTA GENEL SARTLARI"])
+def test_legal_company_mentions_cannot_be_insurer(tmp_path,line):
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+line,{"insurer":line})
+    assert info.insurer is None
+    assert any("insurer" in issue for issue in info.validation_issues)
+
+
+def test_fabricated_holder_absent_from_source_is_rejected(tmp_path):
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nNo person details supplied",{"holder_name":"FABRICATED PERSON"})
+    assert info.holder_name is None
+    assert any("holder_name" in issue for issue in info.validation_issues)
+
+
+def test_strong_unlabelled_insurance_people_conflict_instead_of_guessing(tmp_path):
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nMARCO BELFORTI 26/06/2002\nANOTHER PERSON 20/05/2001",{"holder_name":"MARCO BELFORTI"})
+    assert info.holder_name is None and "holder_name" in info.ambiguous_fields
+
+
+def test_insurance_only_person_row_does_not_relax_student_certificate(tmp_path):
+    info, _=process_text(tmp_path,"Student Enrollment Certificate\nMARCO BELFORTI 26/06/2002","student_enrollment_certificate",{"holder_name":"MARCO BELFORTI"})
+    assert info.holder_name is None
+
+
+
+def test_complete_student_evidence_avoids_redundant_semantic_call(tmp_path):
+    from src.document_processing.processor import process_document
+    path=tmp_path/"complete-student.txt"
+    path.write_text("STUDENT CERTIFICATE\nHolder name: Alex Example\nStudent ID: S123\nInstitution: Sabanci University\nIssue date: 2026-10-14\nThe exchange student will study between September 15, 2026 - June 25, 2027 at Sabanci University",encoding="utf-8")
+    with patch("src.document_processing.processor.Client") as client:
+        client.return_value.chat.return_value=response({"document_type":"student_enrollment_certificate"})
+        info=process_document(path)
+    assert client.return_value.chat.call_count==1
+    assert info.exchange_student is True and info.program_start_date.isoformat()=="2026-09-15"
+    assert not info.missing_fields and info.source_pages["student_id"]==1
+
+
+@pytest.mark.parametrize("body,expected_start,expected_end", [
+    ("Exchange student\nProgram start date: 2026-09-15\nProgram end date: 2027-06-25", "2026-09-15","2027-06-25"),
+    ("Exchange student\nProgramme end date: 25.06.2027\nProgramme start date: 15.09.2026", "2026-09-15","2027-06-25"),
+    ("Degisim ogrencisi\nProgram baslangic tarihi: 15/09/2026\nProgram bitis tarihi: 25/06/2027", "2026-09-15","2027-06-25"),
+    ("Exchange student\nProgram start date: 03/04/2026\nProgram end date: 05/06/2027", None,None),
+    ("Academic dates: 2026-09-15 and 2027-06-25", None,None),
+])
+def test_alternate_academic_layouts_keep_evidence_rules(body,expected_start,expected_end,tmp_path):
+    path=tmp_path/"alternate-student.txt"
+    path.write_text("STUDENT CERTIFICATE\n"+body,encoding="utf-8")
+    with patch("src.document_processing.processor.Client") as client:
+        client.return_value.chat.side_effect=[response({"document_type":"student_enrollment_certificate"}),response({})]
+        info=process_document(path)
+    assert (info.program_start_date.isoformat() if info.program_start_date else None)==expected_start
+    assert (info.program_end_date.isoformat() if info.program_end_date else None)==expected_end
+    if expected_start:
+        assert info.source_pages["program_start_date"]==1
+        assert info.source_snippets["program_start_date"] in "STUDENT CERTIFICATE\n"+body
+
+
+def test_turkish_only_short_term_heading_is_recognized(tmp_path):
+    path=tmp_path/"turkish-form.txt"
+    path.write_text("IKAMET IZNI KISA DONEM KAYIT FORMU",encoding="utf-8")
+    with patch("src.document_processing.processor.Client") as client:
+        client.return_value.chat.side_effect=[response({"document_type":"ikamet_application_form"}),response({})]
+        info=process_document(path)
+    assert info.document_type=="ikamet_application_form" and info.permit_type=="short_term"
+    assert info.source_pages["permit_type"]==1
+
+
+
+def test_document_llm_diagnostics_are_present_without_verbose_content(tmp_path,capsys):
+    path=tmp_path/"document-diagnostics.txt"
+    path.write_text("Student Enrollment Certificate\nPRIVATE DOCUMENT CONTENT",encoding="utf-8")
+    with patch("src.document_processing.processor.Client") as client:
+        client.return_value.chat.side_effect=[response({"document_type":"student_enrollment_certificate"}),response({})]
+        info=process_document(path,debug=False)
+    assert info.document_type=="student_enrollment_certificate"
+    captured=capsys.readouterr()
+    for component in ("document_classification","document_extraction"):
+        assert f"[LLM] {component} model=" in captured.err
+    assert captured.err.count(" started")==2 and captured.err.count(" success elapsed=")==2
+    assert "PRIVATE" not in captured.err and "[document-debug]" not in captured.err
+    assert captured.out==""

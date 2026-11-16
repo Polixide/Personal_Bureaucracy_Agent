@@ -10,3 +10,8 @@ data/digital_twin.db-wal
 data/digital_twin.db-shm
 data/digital_twin.db-journal
 data/uploads/
+.local/
+data/local_samples/
+data/synthetic_samples/Basvuru_Formu-*.pdf
+data/synthetic_samples/Policy-*.pdf
+data/synthetic_samples/Student_certificate.pdf

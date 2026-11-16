@@ -82,7 +82,7 @@ def _basic_candidates(chunks):
                     value = lines[index+1].strip()
                 value = re.split(r"[;|\t]", value)[0].strip()
                 words = value.replace("-", " ").replace("'", " ").split()
-                if 2 <= len(words) <= 6 and all(word.isalpha() for word in words):
+                if 2 <= len(words) <= 6 and all(word.isalpha() for word in words) and not {"nationality", "citizenship", "surname", "country"}.intersection(normalized(value).split()):
                     candidates.append(dict(kind="name", value=value, page=chunk.number, nearby=line.strip()[:90]))
         if len(name_parts["first"]) == len(name_parts["last"]) == 1:
             value = name_parts["first"][0] + " " + name_parts["last"][0]
@@ -164,6 +164,10 @@ def date_label(line: str) -> str | None:
     label = label_text(line)
     if LEGAL_REFERENCE.search(label) or UNRELATED_FIELD.search(label):
         return None
+    if re.search(r"(?:program(?:me)?|exchange) start date|program baslangic tarihi",label):
+        return "program_start_date"
+    if re.search(r"(?:program(?:me)?|exchange) end date|program bitis tarihi",label):
+        return "program_end_date"
     if re.search(r"requested (?:start|begin)(?: date)?", label):
         return "requested_start_date"
     if re.search(r"requested end(?: date)?", label):
@@ -278,6 +282,229 @@ def _record(kind, field, original, value, snippet, page, line):
                 page_number=page, line_number=line)
 
 
+# Restricted textual evidence for insurance layouts, not a general name detector.
+_TEXT_EXCLUSIONS = re.compile(
+    r"\b(?:policy|police|coverage|certificate|application|form|period|validity|"
+    r"terms|conditions|information|important|please|read|carefully|this|is|the|"
+    r"document|country|nationality|citizenship|kanun\w*|law|regulation|legal|"
+    r"yonetmelik\w*|geregince|kapsaminda|tarafindan|pursuant|according)\b")
+_NONPERSON = re.compile(r"\b(?:insurance|sigorta|company|university|limited|ltd|inc|corp)\b")
+_PERSON_CONTEXT = re.compile(r"^(?:insured|person|policy holder|sigortali)(?: (?:person|information|details|bilgileri))?\s*:?$")
+_COUNTRY_ROWS = {"united states", "united kingdom", "united arab emirates", "south africa",
+                 "new zealand", "republic of turkey", "republic of turkiye", "south korea", "north korea"}
+
+
+def _person_row(value):
+    words = value.replace("-", " ").replace("'", " ").split()
+    folded = fold(value)
+    return (2 <= len(words) <= 5 and all(len(word) >= 2 and word.isalpha() for word in words)
+            and (value.isupper() or all(word[0].isupper() for word in words))
+            and not _TEXT_EXCLUSIONS.search(folded) and not _NONPERSON.search(folded)
+            and folded not in _COUNTRY_ROWS)
+
+
+def _insurance_company_row(value):
+    folded = fold(value)
+    if (len(value) > 100 or not re.search(r"\b(?:sigorta|insurance)\b", folded)
+            or _TEXT_EXCLUSIONS.search(folded) or LEGAL_REFERENCE.search(folded)
+            or any(char in value for char in ":;=/") or EVIDENCE_DATE_PATTERN.search(value)):
+        return False
+    words = re.findall(r"[a-z]+", folded)
+    generic = {"sigorta", "insurance", "health", "saglik", "company", "a", "s", "as", "inc", "ltd", "limited", "co", "corp", "corporation",
+               "travel", "medical", "private", "personal", "general", "genel", "international"}
+    boilerplate = {"for", "foreigners", "sartlari", "contract", "agreement", "under", "issued"}
+    return (2 <= len(words) <= 9 and words[0] not in generic
+            and not boilerplate.intersection(words)
+            and any(len(word) > 1 and word not in generic for word in words))
+
+
+def _insurance_text_candidates(chunks):
+    """Exact short header/company lines and person rows with DOB/context support."""
+    evidence = []
+    for chunk in chunks:
+        lines = chunk.text.splitlines()
+        nonempty = 0
+        previous = ""
+        for number, line in enumerate(lines, 1):
+            row = line.strip()
+            if not row:
+                continue
+            nonempty += 1
+            # Company mentions are useful in short insurance header lines, not
+            # legal paragraphs or arbitrary mentions elsewhere on the page.
+            if nonempty <= 8 and _insurance_company_row(row):
+                candidate = _record("insurer", "insurer", row, row, line, chunk.number, number)
+                candidate["insurance_only"] = True
+                evidence.append(candidate)
+            matches = list(EVIDENCE_DATE_PATTERN.finditer(row))
+            name = None
+            if len(matches) == 1 and not row[matches[0].end():].strip():
+                birthday = normalized_date(matches[0].group())
+                prefix = row[:matches[0].start()].strip()
+                if birthday and date.fromisoformat(birthday) <= date.today() and _person_row(prefix):
+                    name = prefix
+            elif not matches and _PERSON_CONTEXT.fullmatch(fold(previous)) and _person_row(row):
+                name = row
+            if name:
+                candidate = _record("name", "holder_name", name, name, line, chunk.number, number)
+                candidate["insurance_only"] = True
+                evidence.append(candidate)
+            previous = row
+    return evidence
+
+
+
+def administrative_candidates(chunks):
+    """Narrow bilingual certificate/form evidence; quotes always come from source."""
+    evidence = []
+    months = {word: i for i, pair in enumerate((('january','ocak'),('february','subat'),('march','mart'),('april','nisan'),('may','mayis'),('june','haziran'),('july','temmuz'),('august','agustos'),('september','eylul'),('october','ekim'),('november','kasim'),('december','aralik')),1) for word in pair}
+    months.update({'\u015fubat':2,'may\u0131s':5,'a\u011fustos':8,'eyl\u00fcl':9,'kas\u0131m':11,'aral\u0131k':12})
+    pattern = re.compile(r'\b('+'|'.join(months)+r')\s+(\d{1,2}),?\s+(20\d{2})|\b(\d{1,2})\s+('+'|'.join(months)+r')\s+(20\d{2})',re.I)
+    for chunk in chunks:
+        lines=chunk.text.splitlines()
+        if "personal information" in normalized(chunk.text[:250]):
+            parts={}
+            for n,row in enumerate(lines[:-1]):
+                key=normalized(row).strip()
+                if key in {"adi","soyadi"}:
+                    value=lines[n+1].strip()
+                    if value and len(value.split()) <= 3 and all(w.isalpha() for w in value.split()):
+                        parts[key]=(value,n)
+            if set(parts)=={"adi","soyadi"}:
+                value=parts["adi"][0]+" "+parts["soyadi"][0]
+                start=min(v[1] for v in parts.values());end=max(v[1] for v in parts.values())+2
+                evidence.append(_record("name","applicant_name",value,value,"\n".join(lines[start:end]),chunk.number,start+1))
+        for index,line in enumerate(lines):
+            folded=normalized(line)
+            def add(field,original,value,snippet=line):
+                evidence.append(_record("date" if field.endswith("_date") else field,field,original,value,snippet,chunk.number,index+1))
+            if re.search(r'\b(?:exchange student|degisim ogrencisi)',folded):
+                add('exchange_student',line,'false' if re.search(r'not (?:an? )?exchange student|degisim ogrencisi degil',folded) else 'true')
+            # Academic periods require explicit exchange context, never education tables.
+            block='\n'.join(lines[max(0,index-2):index+2])
+            if ('exchange' in normalized(block) or 'degisim' in normalized(block)):
+                found=list(pattern.finditer(re.sub(r'(?i)between(?=[A-Z])','between ',line)))
+                if len(found)==2:
+                    for role,match in zip(('program_start_date','program_end_date'),found):
+                        month,day,year=match.group(1,2,3) if match.group(1) else (match.group(5),match.group(4),match.group(6))
+                        try: value=date(int(year),months[month.casefold()],int(day)).isoformat()
+                        except ValueError: value=None
+                        # Original string taken from the actual row, not the normalized parser.
+                        original=match.group()
+                        add(role,original,value,block)
+            if 'short term residence permit registration form' in ' '.join(folded.split()) or 'ikamet izni kisa donem kayit formu' in ' '.join(folded.split()):
+                add('permit_type',line,'short_term')
+            if re.match(r'^\s*(?:isim\s*/\s*name|ad[i]?\s*/\s*name)\s*:?',folded) and index+1<len(lines):
+                raw=lines[index+1].strip().lstrip(':').strip()
+                if _person_row(raw):
+                    evidence.append(_record('name','holder_name',raw,raw,line+'\n'+lines[index+1],chunk.number,index+1))
+            if re.search(r'\bat sabanci university\b',folded):
+                match=re.search(r'Sabanc[\u0131i] University',line,re.I)
+                if match: add('institution',match.group(),match.group())
+            if folded.strip() == "belge no" and index+1<len(lines) and "pasaport" in normalized(" ".join(lines[max(0,index-4):index])):
+                value=lines[index+1].strip()
+                if re.fullmatch(r"[A-Za-z0-9]{5,20}",value) and any(c.isdigit() for c in value):
+                    add("passport_or_foreign_id",value,value,"\n".join(lines[max(0,index-3):index+2]))
+            if folded.strip() == "number)" and index>0 and "registration" in normalized(lines[index-1]) and index+1<len(lines):
+                value=lines[index+1].strip()
+                if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{4,12}",value):
+                    add("application_number",value,value,"\n".join(lines[index-1:index+2]))
+            # Header issue date on certificates, before DOB/enrollment labels.
+            if index<4 and DATE_PATTERN.fullmatch(line.strip()):
+                add('issue_date',line.strip(),normalized_date(line.strip()))
+            # Known PDF reading order: start label, start value, end value, end label.
+            if 'requested start date' in folded and index+4<len(lines):
+                rows=lines[index+1:index+3]
+                if 'requested end date' in normalized(' '.join(lines[index+3:index+6])):
+                    matches=[EVIDENCE_DATE_PATTERN.fullmatch(row.strip()) for row in rows]
+                    if all(matches):
+                        for role,row in zip(('requested_start_date','requested_end_date'),rows):
+                            add(role,row.strip(),source_date(row.strip(),'dmy'),'\n'.join(lines[index:index+6]))
+    for item in evidence:
+        item["administrative"] = True
+    return evidence
+
+
+
+def preparation_candidates(chunks):
+    """Conservative profiles: printed labels/headings, never visual signature inference."""
+    output=[]
+    for chunk in chunks:
+        lines=chunk.text.splitlines()
+        text=' '.join(normalized(chunk.text).split())
+        profiles=[]
+        tax_receipt=(any(word in text for word in ('tahsilat','odeme makbuzu','payment receipt','collection receipt')) and any(word in text for word in ('ikamet izin belge bedeli','ikamet belge bedeli','residence permit card','residence permit document fee')))
+
+        if 'passport' in text or 'pasaport' in text: profiles.append('PassportIdentity')
+        if any(title in text for title in ('turkiye entry stamp','turkey entry stamp','turkiye giris','turkey entry date')) or (('turkiye' in text or 'turkey' in text) and any(normalized(line).strip() in {'entry','entry stamp','giris'} for line in lines)): profiles.append('EntryStamp')
+        if 'declaration control' in text or 'beyan kontrol' in text or 'beyan/kontrol' in text: profiles.append('DeclarationControl')
+        if tax_receipt or any(title in text for title in ('card fee payment receipt','document fee payment receipt','ikamet belge bedeli','residence permit card fee receipt')): profiles.append('CardFeeReceipt')
+        for profile in profiles:
+            for index,line in enumerate(lines):
+                folded=normalized(line).strip()
+                def add(field,raw,value,quote=line):
+                    c=_record('date' if field.endswith('_date') else field,field,raw,value,quote,chunk.number,index+1)
+                    c['profile']=profile;output.append(c)
+                if profile=='PassportIdentity':
+                    if re.fullmatch(r'(?:passport(?: identity page)?|pasaport)',folded): add('identity_page_present',line,'true')
+                    labels={'passport_number':r'(?:passport (?:number|no)|pasaport no)', 'nationality':r'(?:nationality|uyrugu|uyruk)'}
+                elif profile=='EntryStamp':
+                    if any(title in folded for title in ('turkiye entry stamp','turkey entry stamp','turkiye giris')) or folded in {'entry','entry stamp','giris'}: add('entry_stamp_present',line,'true')
+                    labels={'latest_entry_date':r'(?:latest (?:turkey|turkiye) entry date|(?:turkey |turkiye )?entry date|giris tarihi)'}
+                elif profile=='DeclarationControl':
+                    if 'declaration control' in folded or 'beyan kontrol' in folded or 'beyan/kontrol' in folded: add('document_present',line,'true')
+                    labels={'signed':r'(?:signed|signature status|signed status|imzali)','passport_number':r'(?:passport number|pasaport no)','foreigner_id':r'(?:foreigner id|foreign id|yabanci kimlik no)','nationality':r'(?:nationality|uyrugu)','application_number':r'(?:application number|basvuru no)'}
+                else:
+                    if any(title in folded for title in ('card fee payment receipt','document fee payment receipt','ikamet belge bedeli','residence permit card fee receipt')) or (tax_receipt and any(word in folded for word in ('tahsilat','odeme makbuzu','payment receipt','collection receipt'))): add('receipt_present',line,'true')
+                    labels={'payment_date':r'(?:payment date|collection date|tahsilat tarihi|odeme tarihi)','reference_number':r'(?:receipt (?:number|no)|reference (?:number|no)|makbuz no|dekont no|tahsilat no|alindi no)','amount':r'(?:amount|paid amount|tutar)'}
+                for field,label in labels.items():
+                    match=re.match(r'^'+label+r'\s*:\s*(.*)$',folded)
+                    if not match: continue
+                    raw=line.split(':',1)[1].strip();quote=line
+                    if not raw and index+1<len(lines): raw=lines[index+1].strip();quote+='\n'+lines[index+1]
+                    value=raw
+                    if field.endswith('_date'): value=source_date(raw,date_order(chunk.text))
+                    elif field=='signed': value={'yes':'true','signed':'true','evet':'true','no':'false','unsigned':'false','hayir':'false'}.get(normalized(raw))
+                    elif field in {'passport_number','reference_number','foreigner_id','application_number'}:
+                        value=raw if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9/-]{2,39}',raw) and any(c.isdigit() for c in raw) else None
+                    elif field=='nationality': value=raw if re.fullmatch(r'[\w -]{2,50}',raw) and not any(c.isdigit() for c in raw) else None
+                    elif field=='amount': value=raw if re.fullmatch(r'\d[\d., ]*(?:TRY|TL|EUR|USD)?',raw,re.I) else None
+                    add(field,raw,value,quote)
+        # Unlabelled stamp dates are observations only; multiple dates remain ambiguous.
+        if 'EntryStamp' in profiles and not any(c.get('profile')=='EntryStamp' and c['field']=='latest_entry_date' and c['page_number']==chunk.number for c in output):
+            for index,line in enumerate(lines):
+                for match in EVIDENCE_DATE_PATTERN.finditer(line):
+                    c=_record('date','latest_entry_date',match.group(),source_date(match.group(),date_order(chunk.text)),line,chunk.number,index+1)
+                    c['profile']='EntryStamp';output.append(c)
+    # A receipt heading alone (or a Tax ID) is not transaction evidence.
+    output=[c for c in output if not (c.get('profile')=='CardFeeReceipt' and c['field']=='receipt_present' and not any(other.get('profile')=='CardFeeReceipt' and other['page_number']==c['page_number'] and other['field'] in {'payment_date','reference_number','amount'} and other['normalized_value'] is not None for other in output))]
+    return output
+
+
+
+def mrz_candidates(chunks):
+    """ICAO TD3 with passport/DOB/expiry/composite check digits; no OCR guessing."""
+    def check(text,digit):
+        def number(c): return 0 if c=='<' else ord(c)-55 if 'A'<=c<='Z' else int(c)
+        return digit.isdigit() and sum(number(c)*(7,3,1)[i%3] for i,c in enumerate(text))%10==int(digit)
+    evidence=[]
+    for chunk in chunks:
+        lines=chunk.text.splitlines()
+        for index in range(len(lines)-1):
+            a,b=(re.sub(r'\s+','',line).upper() for line in lines[index:index+2])
+            if len(a)!=44 or len(b)!=44 or not a.startswith('P<') or not re.fullmatch(r'[A-Z0-9<]+',a+b): continue
+            if not (check(b[:9],b[9]) and check(b[13:19],b[19]) and check(b[21:27],b[27]) and check(b[:10]+b[13:20]+b[21:43],b[43])): continue
+            try: expiry=date(2000+int(b[21:23]),int(b[23:25]),int(b[25:27])).isoformat()
+            except ValueError: continue
+            surname,_,given=a[5:].partition('<<')
+            name=' '.join((given+' '+surname).replace('<',' ').split())
+            values={'holder_name':(a[5:],name),'passport_number':(b[:9],b[:9].rstrip('<')),'nationality':(b[10:13],b[10:13]),'expiry_date':(b[21:27],expiry),'identity_page_present':(a,'true')}
+            for field,(raw,value) in values.items():
+                c=_record('date' if field=='expiry_date' else 'name' if field=='holder_name' else field,field,raw,value,'\n'.join(lines[index:index+2]),chunk.number,index+1)
+                c['profile']='PassportIdentity';evidence.append(c)
+    return evidence
+
+
 def source_candidates(chunks):
     """Bounded TextPages -> original/normalized evidence with semantic labels."""
     basic, issues = _basic_candidates(chunks)
@@ -320,6 +547,13 @@ def source_candidates(chunks):
                         quote += "\n" + following
                 field = "institution" if match.group(1) in ("institution", "university") else "insurer"
                 candidates.append(_record(field, field, raw, raw if any(c.isalpha() for c in raw) else None, quote, chunk.number, index))
+    administrative = administrative_candidates(chunks)
+    if any(c['field']=='requested_end_date' for c in administrative):
+        candidates = [c for c in candidates if c.get('field') not in ('requested_start_date','requested_end_date')]
+    candidates.extend(administrative)
+    candidates.extend(preparation_candidates(chunks))
+    candidates.extend(mrz_candidates(chunks))
+    candidates.extend(_insurance_text_candidates(chunks))
     # Evidence is deterministic; identical repeated observations corroborate.
     unique = []
     for c in candidates:
@@ -344,6 +578,13 @@ def candidate_hint(candidates, limit):
 
 
 def field_candidates(field, schema, candidates):
+    candidates=[c for c in candidates if not c.get("profile") or c["profile"]==schema.__name__]
+    if schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt"} and field not in {"holder_name"}:
+        return [c for c in candidates if c.get("field")==field]
+    if schema.__name__ == "HealthInsurance":
+        candidates = [c for c in candidates if not c.get("administrative")]
+    if field in {"program_start_date", "program_end_date"}:
+        return [c for c in candidates if c.get("field") == field]
     if field in schema.DATES:
         selected = [c for c in candidates if c.get("field") == field]
         if field == "issue_date" and not selected:
@@ -358,8 +599,12 @@ def field_candidates(field, schema, candidates):
                         and not LEGAL_REFERENCE.search(fold(c["snippet"]))
                         and not UNRELATED_FIELD.search(fold(c["snippet"]))]
         return selected
+    if field in {"exchange_student", "permit_type"}:
+        return [c for c in candidates if c.get("field") == field]
     kind = "name" if field in ("holder_name", "applicant_name") else field
-    return [c for c in candidates if c["kind"] == kind]
+    return [c for c in candidates if c["kind"] == kind
+            and (not c.get("insurance_only") or
+                 (schema.__name__ == "HealthInsurance" and field in ("holder_name", "insurer")))]
 
 
 def _equivalent(value, date_field=False):
@@ -371,8 +616,8 @@ def _equivalent(value, date_field=False):
 def ground_fields(payload, schema, candidates, issues, chunks=()):
     """Reconcile source evidence, keeping corrections separate from review issues.
 
-    Only insurance receives automatic fills/corrections. Enrollment and IKAMET
-    retain null-on-model-uncertainty behavior; conflicting source stays null for
+    Insurance and narrow administrative labels receive deterministic corrections.
+    Other enrollment/IKAMET fields retain model-uncertainty behavior; conflicts stay null for
     every document type. Input metadata is never trusted as source evidence.
     """
     insurance = schema.__name__ == "HealthInsurance"
@@ -391,12 +636,13 @@ def ground_fields(payload, schema, candidates, issues, chunks=()):
     for field in schema.observation_fields():
         value = payload.get(field)
         selected = field_candidates(field, schema, candidates)
-        known_kind = field in schema.DATES or field in {"holder_name", "applicant_name", "insurer", "institution", *IDENTIFIER_LABELS}
+        auto = insurance or schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt"} or field in {"exchange_student", "program_start_date", "program_end_date", "permit_type"} or any(c.get("administrative") for c in selected) or any(c.get("field")==field and c.get("kind")==field for c in selected) and field in {"institution", "issue_date", "requested_start_date", "requested_end_date"}
+        known_kind = schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt"} or field in schema.DATES or field in {"exchange_student", "permit_type","holder_name", "applicant_name", "insurer", "institution", *IDENTIFIER_LABELS}
         if not known_kind:
             continue
         # Literal whole-line support for company/institution names interpreted
         # by the model, never for arbitrary numbers or legal-reference dates.
-        if not selected and field in ("insurer", "institution") and isinstance(value, str):
+        if not selected and field == "institution" and isinstance(value, str):
             for chunk in chunks:
                 for index, line in enumerate(chunk.text.splitlines(), 1):
                     if _equivalent(line) == _equivalent(value):
@@ -406,9 +652,9 @@ def ground_fields(payload, schema, candidates, issues, chunks=()):
         unresolved = any(c["normalized_value"] is None for c in nonempty)
         unique = len(values) == 1 and not unresolved
         # For non-insurance, match a single source value without filling nulls.
-        if value is None and not insurance and not (unresolved or len(values) > 1):
+        if value is None and not auto and not (unresolved or len(values) > 1):
             continue
-        if field in ambiguous and not (insurance and unique):
+        if field in ambiguous and not (auto and unique):
             payload[field] = None
             continue
         if unresolved or len(values) > 1:
@@ -425,11 +671,11 @@ def ground_fields(payload, schema, candidates, issues, chunks=()):
         chosen = next(c for c in nonempty if c["normalized_value"] in values)
         source_value = chosen["normalized_value"]
         same = _equivalent(value, field in schema.DATES) == _equivalent(source_value, field in schema.DATES)
-        if not insurance and not same:
+        if not auto and not same:
             payload[field] = None
             issues.append(f"{field}: value absent from reliable source candidates; discarded")
             continue
-        payload[field] = source_value
+        payload[field] = (source_value == "true") if field in {"exchange_student","identity_page_present","entry_stamp_present","document_present","signed","receipt_present"} else source_value
         snippets[field] = chosen["snippet"]
         if field not in sources:
             sources[field] = chosen["page_number"]

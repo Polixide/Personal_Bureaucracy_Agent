@@ -1,12 +1,13 @@
 """Synthetic graph demo. Default is offline; --live explicitly calls Ollama."""
 import argparse
+import json
 from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import patch
 from langgraph.types import Command
 from config import PROJECT_ROOT, DATABASE_PATH
 from src.core.graph import build_graph
-from src.core.state import ActionPlan, PlanStep, UserEvent, new_run
+from src.core.state import UserEvent, new_run
 from src.document_processing.schemas import StudentCertificate
 from src.memory.checkpointer import sqlite_checkpointer
 
@@ -40,7 +41,7 @@ def main():
             # Mock only the model transport. Extraction, schemas, adapters,
             # requirements, validator, graph and approval are all real.
             info=StudentCertificate(document_type="student_enrollment_certificate",holder_name="Alex Example",student_id="TEST-0001",institution="Example University",issue_date="2026-10-01")
-            plan=ActionPlan(actions=[PlanStep(step_id="confirm_scope",action="Confirm Sabanci incoming exchange status and requested stay dates",priority=1,reason="Scope and dates are not yet known",related_rule_id="R001",action_type="information")],summary="Gather missing application information")
+            plan={"actions":[{"candidate_ids":["R001"],"title":"Confirm your incoming exchange student status","reason":"Exchange status is not yet known"}],"summary":"Review missing application information"}
             response=lambda model:SimpleNamespace(message=SimpleNamespace(content=model.model_dump_json()))
             client=stack.enter_context(patch("src.document_processing.processor.Client"))
             client.return_value.chat.side_effect=[
@@ -48,7 +49,7 @@ def main():
                 response(info),
             ]
             planner=stack.enter_context(patch("src.agents.planner.Client"))
-            planner.return_value.chat.return_value=response(plan)
+            planner.return_value.chat.return_value=SimpleNamespace(message=SimpleNamespace(content=json.dumps(plan)))
         if snapshot.next:
             # Reading/reopening never resumes a pending approval or executes nodes.
             if snapshot.next != ("human_approval",):

@@ -119,3 +119,19 @@ def test_requirement_summary_does_not_modify_canonical_state():
     assert state == before
     assert state["relevant_requirements"][0] is requirement
     assert requirement_summary(None) == {"PASS": 0, "FAIL": 0, "missing_information": 0}
+
+
+
+def test_unknown_scope_summary_keeps_legal_status_and_canonical_state():
+    from copy import deepcopy
+    from src.workers.rules_engine import evaluate_requirements
+    from src.workers.verification import MILESTONE_SCOPE
+    from streamlit_app import unknown_requirement_groups
+    state={"planning_scope":MILESTONE_SCOPE,"residence_permit_context":ResidencePermitContext()}
+    state["relevant_requirements"]=evaluate_requirements(state)
+    before=deepcopy(state)
+    groups=unknown_requirement_groups(state)
+    assert "R006" in groups["immediate"]
+    assert "R022" in groups["future"] and "R017" in groups["outside_scope"] and "R027" in groups["guardrail_only"]
+    assert state==before
+    assert all(r.status=="missing_information" for r in state["relevant_requirements"])

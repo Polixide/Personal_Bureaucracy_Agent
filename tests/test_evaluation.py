@@ -1,4 +1,4 @@
-"""Ten curated M1 scenarios: real graph/SQLite/gates, mocked Ollama transport.
+"""Ten curated M1 scenarios: real graph/SQLite/gates, mocked document transport and plans.
 
 Run: python -m pytest tests/test_evaluation.py -v
 APPROVED means the proposed next-action plan was explicitly approved, never that
@@ -114,7 +114,12 @@ def response(payload):
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda scenario: scenario["id"])
 def test_curated_end_to_end_scenario(tmp_path, scenario):
-    """Exercise extraction, rules, planner parsing, Gate 1, repairs, approval and persistence."""
+    """Exercise extraction, rules, adversarial Gate 1 plans, repairs, approval and persistence.
+
+    Trusted PlanStep fixtures deliberately include official/adversarial actions
+    unavailable in the live candidate-only response schema. Transport grounding
+    is exercised separately in test_hybrid_planning and test_action_planner.
+    """
     context = {} if scenario.get("empty_context") else READY_CONTEXT
     request = new_run(UserEvent(kind="upload", file_path=str(tmp_path / "synthetic.txt")), scenario["id"])
     request["residence_permit_context"] = ResidencePermitContext(**{**context, **scenario["changes"]})
@@ -132,7 +137,15 @@ def test_curated_end_to_end_scenario(tmp_path, scenario):
     initial = candidate(scenario, submission=True) if scenario.get("premature") else good
     proposals = [initial]
     if scenario.get("premature"):
-        proposals += [initial] * 3 if scenario.get("exhaust") else [good]
+        if scenario.get("exhaust"):
+            # Distinct unsuccessful revisions exercise the full repair budget.
+            # Identical invalid responses now stop early (covered separately).
+            for attempt in range(1,4):
+                revision=initial.model_copy(deep=True)
+                revision.actions[-1].reason=f"Proposed submission after repair {attempt}; prerequisites remain unverified"
+                proposals.append(revision)
+        else:
+            proposals.append(good)
     gate_results = []
 
     def gate_1(state):
@@ -143,10 +156,10 @@ def test_curated_end_to_end_scenario(tmp_path, scenario):
     db = tmp_path / "evaluation.db"
     config = {"configurable": {"thread_id": scenario["id"]}, "recursion_limit": 60}
     with patch("src.document_processing.processor.Client") as document_client, \
-         patch("src.agents.planner.Client") as planner_client, \
+         patch("src.agents.planner.create_action_plan") as planner_client, \
          patch("src.core.graph.gate_1", gate_1):
         document_client.return_value.chat.side_effect = document_responses
-        planner_client.return_value.chat.side_effect = [response(plan.model_dump(mode="json")) for plan in proposals]
+        planner_client.side_effect = proposals
         with sqlite_checkpointer(db) as saver:
             graph = build_graph(saver)
             result = graph.invoke(request, config)
@@ -187,7 +200,7 @@ def test_curated_end_to_end_scenario(tmp_path, scenario):
             assert not result.get("completed_steps")
             expected_repairs = len(scenario["gates"]) - 1
             assert result["retry_count"] == expected_repairs
-        assert planner_client.return_value.chat.call_count == len(scenario["gates"])
+        assert planner_client.call_count == len(scenario["gates"])
         assert document_client.return_value.chat.call_count == len(document_responses)
 
     # A fresh graph/SQLite connection must restore the complete final snapshot.

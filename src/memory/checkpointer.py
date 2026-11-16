@@ -29,3 +29,11 @@ def sqlite_checkpointer(db_path: str | Path = DATABASE_PATH):
             connection,
             serde=JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES),
         )
+
+
+
+def reset_thread(thread_id: str, confirmation: str, db_path: str | Path = DATABASE_PATH):
+    """Delete only the named thread checkpoints. Upload files are retained safely."""
+    if not thread_id or confirmation!=thread_id: raise ValueError("Type the exact current thread ID to confirm reset")
+    with sqlite_checkpointer(db_path) as saver:
+        saver.delete_thread(thread_id)

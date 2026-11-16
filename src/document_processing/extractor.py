@@ -50,9 +50,17 @@ def ocr_page(page, number):
     """OCR one scanned page; returned text is still untrusted document input."""
     try:
         engine = get_ocr_engine()
-        image = page.get_pixmap(dpi=200, colorspace=pymupdf.csRGB, alpha=False).tobytes("png")
-        result = engine(image)
-        text = "\n".join(line.strip() for line in (result.txts or ()) if line.strip())
+        best_text="";best_quality=-1
+        for angle in (0,90,180,270):
+            pixmap=page.get_pixmap(dpi=200,colorspace=pymupdf.csRGB,alpha=False) if angle==0 else page.get_pixmap(matrix=pymupdf.Matrix(200/72,200/72).prerotate(angle),colorspace=pymupdf.csRGB,alpha=False)
+            result=engine(pixmap.tobytes("png"))
+            candidate="\n".join(line.strip() for line in (result.txts or ()) if line.strip())
+            scores=getattr(result,"scores",None)
+            confidence=sum(float(v) for v in scores)/len(scores) if scores is not None and len(scores) else (1.0 if candidate else 0.0)
+            quality=confidence*max(1,sum(c.isalnum() for c in candidate))**0.5
+            if candidate and quality>best_quality: best_text,best_quality=candidate,quality
+            if angle==0 and candidate and confidence>=0.85: break
+        text=best_text
         if not text:
             raise DocumentExtractionError(f"RapidOCR found no readable text on page {number}. Try a clearer scan.")
         return text

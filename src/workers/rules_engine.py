@@ -34,6 +34,15 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
         v = value(name)
         return None if v is None else op(v)
     def yes(*names): return all_of(*(eq(n, True) for n in names))
+    def scoped_insurance():
+        # Milestone-1 exchange workflow policy, not a general residence-permit rule.
+        targets=[(name,getattr(c,name)) for name in ("requested_permit_end_date","program_end_date") if getattr(c,name) is not None]
+        if not targets:
+            missing.update(("requested_permit_end_date","program_end_date"));return None
+        else:
+            end=value("insurance_end_date")
+            coverage=None if end is None else any(end>=target for _,target in targets)
+        return True if c.insurance_exempt is True else all_of(eq("insurance_valid_for_ikamet",True),coverage)
     checks = {
         "R001": lambda: all_of(eq("exchange_student", True), number("planned_stay_months", lambda v: v >= 3)),
         "R002": lambda: eq("permit_type", "short_term"),
@@ -65,6 +74,8 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
         "R028": lambda: eq("decision_authority", "Migration Management"),
         "R029": lambda: any_of(eq("submitted_to_iro", False), eq("tracking_channel", "e_ikamet")),
     }
+    if state.get("planning_scope")=="milestone_1_document_preparation":
+        checks["R015"]=scoped_insurance
     results = []
     for rule in load_rules():
         missing.clear()
@@ -74,14 +85,25 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
             message="Missing information: " + ", ".join(sorted(missing)) if passed is None else rule["description"],
             missing_fields=sorted(missing) if passed is None else [],
             error_code=rule["rule_id"] + "_FAILED" if passed is False else None,
-            source_ids=rule["source_ids"], severity=rule["severity"]))
+            source_ids=rule["source_ids"], severity=rule["severity"],
+            assessment_policy="Milestone-1 exchange end coverage: requested permit end OR accepted program end; start date excluded" if rule["rule_id"]=="R015" and state.get("planning_scope")=="milestone_1_document_preparation" else None))
     return results
 
 
 def rules_engine(state: AgentState) -> dict:
-    results = evaluate_requirements(state)
+    updates = {}
+    event = state.get("event")
+    if event and event.kind in {"analyze_document", "confirm_information", "generate_plan", "resolve_conflict", "record_progress", "reevaluate", "delete_document", "replace_document", "cancel_document", "reprocess_document", "remove_correction"}:
+        from src.workers.verification import verification_updates
+        from src.core.state import ValidationIssue
+        try:
+            updates = verification_updates(state)
+        except ValueError as error:
+            return {"relevant_requirements": [], "run_status": "INVALID_INPUT", "validation_errors": [
+                ValidationIssue(code="INVALID_INPUT", source="verification", message=str(error))]}
+    results = evaluate_requirements({**state, **updates})
     # Assessment must remain accurate even when planning fails or approval is
     # never reached. This records blockers, not completed or approved actions.
-    return {"relevant_requirements": results,
+    return {**updates, "relevant_requirements": results,
             "blockers": [r.rule_id for r in results
                          if r.severity == "blocking" and r.passed is not True]}

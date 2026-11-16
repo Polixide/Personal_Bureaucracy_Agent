@@ -5,7 +5,7 @@ from typing import Annotated, ClassVar, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DocumentType = Literal["student_enrollment_certificate", "health_insurance_certificate",
-                       "ikamet_application_form", "unknown"]
+                       "ikamet_application_form", "passport_identity_page", "turkiye_entry_stamp", "declaration_control_document", "card_fee_receipt", "unknown"]
 
 
 class DocumentClassification(BaseModel):
@@ -118,8 +118,12 @@ class StudentCertificate(DocumentInfo):
     student_id: str | None = None
     institution: str | None = None
     issue_date: date | None = None
+    exchange_student: bool | None = None
+    program_start_date: date | None = None
+    program_end_date: date | None = None
     REQUIRED = ("holder_name", "student_id", "institution", "issue_date")
-    DATES = ("issue_date",)
+    DATES = ("issue_date", "program_start_date", "program_end_date")
+    PERIOD = ("program_start_date", "program_end_date")
 
 
 class HealthInsurance(DocumentInfo):
@@ -137,6 +141,7 @@ class HealthInsurance(DocumentInfo):
 
 
 class IkametApplicationForm(DocumentInfo):
+    permit_type: Literal["short_term"] | None = None
     document_type: Literal["ikamet_application_form"] = "ikamet_application_form"
     application_number: str | None = None
     applicant_name: str | None = None
@@ -148,17 +153,60 @@ class IkametApplicationForm(DocumentInfo):
     PERIOD = ("requested_start_date", "requested_end_date")
 
 
+class PassportIdentity(DocumentInfo):
+    identity_page_present: bool | None = None
+    document_type: Literal["passport_identity_page"] = "passport_identity_page"
+    passport_number: str | None = None
+    nationality: str | None = None
+    expiry_date: date | None = None
+    REQUIRED = ("holder_name", "passport_number", "nationality", "expiry_date")
+    DATES = ("expiry_date",)
+
+
+class EntryStamp(DocumentInfo):
+    document_type: Literal["turkiye_entry_stamp"] = "turkiye_entry_stamp"
+    entry_stamp_present: bool | None = None
+    latest_entry_date: date | None = None
+    REQUIRED = ("entry_stamp_present", "latest_entry_date")
+    DATES = ("latest_entry_date",)
+
+
+class DeclarationControl(DocumentInfo):
+    passport_number: str | None = None
+    foreigner_id: str | None = None
+    nationality: str | None = None
+    application_number: str | None = None
+    document_type: Literal["declaration_control_document"] = "declaration_control_document"
+    document_present: bool | None = None
+    signed: bool | None = None
+    REQUIRED = ("document_present", "signed")
+
+
+class CardFeeReceipt(DocumentInfo):
+    document_type: Literal["card_fee_receipt"] = "card_fee_receipt"
+    receipt_present: bool | None = None
+    payment_date: date | None = None
+    reference_number: str | None = None
+    amount: str | None = None
+    REQUIRED = ("receipt_present",)
+    DATES = ("payment_date",)
+
+
 class UnknownDocument(DocumentInfo):
     document_type: Literal["unknown"] = "unknown"
 
 
 ExtractedDocument = Annotated[
-    StudentCertificate | HealthInsurance | IkametApplicationForm | UnknownDocument,
+    StudentCertificate | HealthInsurance | IkametApplicationForm | PassportIdentity | EntryStamp | DeclarationControl | CardFeeReceipt | UnknownDocument,
     Field(discriminator="document_type"),
 ]
 DOCUMENT_SCHEMAS = {
     "student_enrollment_certificate": StudentCertificate,
     "health_insurance_certificate": HealthInsurance,
     "ikamet_application_form": IkametApplicationForm,
+    "passport_identity_page": PassportIdentity,
+    "turkiye_entry_stamp": EntryStamp,
+    "declaration_control_document": DeclarationControl,
+    "card_fee_receipt": CardFeeReceipt,
     "unknown": UnknownDocument,
 }
