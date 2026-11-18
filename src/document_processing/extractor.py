@@ -4,8 +4,11 @@ import argparse
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from time import perf_counter
 
 import pymupdf
+from src.core.llm_diagnostics import _emit
+from config import DOCUMENT_OCR_DPI, DOCUMENT_MAX_IMAGE_SIDE, DOCUMENT_MIN_TEXT_CHARS, DOCUMENT_OCR_MIN_CONFIDENCE
 
 
 class DocumentExtractionError(ValueError):
@@ -16,6 +19,43 @@ class DocumentExtractionError(ValueError):
 class TextPage:
     number: int  # One-based original page; TXT is one logical page.
     text: str
+    extraction_method: str = "native_text"
+    native_text_character_count: int | None = None
+    ocr_used: bool = False
+    ocr_duration_seconds: float = 0.0
+    ocr_confidence: float | None = None
+    rotation_degrees: int = 0
+    quality_issues: tuple[str, ...] = ()
+
+
+def text_quality_issues(text):
+    visible=[c for c in text if not c.isspace()]
+    alphanumeric=sum(c.isalnum() for c in visible)
+    issues=[]
+    if alphanumeric<DOCUMENT_MIN_TEXT_CHARS:issues.append("insufficient_text")
+    if visible and (alphanumeric/len(visible)<0.45 or text.count("\ufffd")/len(visible)>0.05):issues.append("malformed_text")
+    return issues
+
+
+def render_page(page, rotation=0):
+    """Reuse PyMuPDF for bounded RGB rendering; no second PDF/image backend."""
+    if not 200<=DOCUMENT_OCR_DPI<=300 or DOCUMENT_MAX_IMAGE_SIDE<256:
+        raise DocumentExtractionError("Invalid document rendering configuration")
+    scale=min(DOCUMENT_OCR_DPI/72,DOCUMENT_MAX_IMAGE_SIDE/max(page.rect.width,page.rect.height))
+    return page.get_pixmap(matrix=pymupdf.Matrix(scale,scale).prerotate(rotation),colorspace=pymupdf.csRGB,alpha=False).tobytes("png")
+
+
+def render_pdf_pages(file_path, numbers):
+    """Render only explicitly selected original pages for optional vision input."""
+    numbers=list(dict.fromkeys(numbers))
+    try:
+        with pymupdf.open(file_path) as document:
+            if document.needs_pass:raise DocumentExtractionError("Password-protected PDFs are not supported")
+            if any(type(n) is not int or not 1<=n<=len(document) for n in numbers):
+                raise DocumentExtractionError("Invalid selected PDF page number")
+            return {n:render_page(document[n-1]) for n in numbers}
+    except (pymupdf.FileDataError,RuntimeError) as error:
+        raise DocumentExtractionError("Cannot render selected PDF pages") from error
 
 
 def _create_ocr_engine():
@@ -46,20 +86,22 @@ def get_ocr_engine():
     return _create_ocr_engine()
 
 
-def ocr_page(page, number):
+def ocr_page(page, number, *, metadata=None):
     """OCR one scanned page; returned text is still untrusted document input."""
     try:
         engine = get_ocr_engine()
-        best_text="";best_quality=-1
+        best_text="";best_quality=-1;best_confidence=None;best_angle=0
         for angle in (0,90,180,270):
-            pixmap=page.get_pixmap(dpi=200,colorspace=pymupdf.csRGB,alpha=False) if angle==0 else page.get_pixmap(matrix=pymupdf.Matrix(200/72,200/72).prerotate(angle),colorspace=pymupdf.csRGB,alpha=False)
-            result=engine(pixmap.tobytes("png"))
+            result=engine(render_page(page,angle))
             candidate="\n".join(line.strip() for line in (result.txts or ()) if line.strip())
             scores=getattr(result,"scores",None)
             confidence=sum(float(v) for v in scores)/len(scores) if scores is not None and len(scores) else (1.0 if candidate else 0.0)
             quality=confidence*max(1,sum(c.isalnum() for c in candidate))**0.5
-            if candidate and quality>best_quality: best_text,best_quality=candidate,quality
+            if candidate and quality>best_quality:
+                best_text,best_quality,best_angle=candidate,quality,angle
+                best_confidence=confidence if scores is not None and len(scores) else None
             if angle==0 and candidate and confidence>=0.85: break
+        if metadata is not None:metadata.update(ocr_confidence=best_confidence,rotation_degrees=best_angle)
         text=best_text
         if not text:
             raise DocumentExtractionError(f"RapidOCR found no readable text on page {number}. Try a clearer scan.")
@@ -75,7 +117,7 @@ def ocr_page(page, number):
         ) from error
 
 
-def extract_pages(file_path: str | Path) -> list[TextPage]:
+def extract_pages(file_path: str | Path, *, allow_ocr_failure: bool = False) -> list[TextPage]:
     """Read UTF-8 TXT or PDF text, retaining original one-based page numbers.
 
     Raises FileNotFoundError for missing paths, ValueError for unsupported
@@ -90,7 +132,8 @@ def extract_pages(file_path: str | Path) -> list[TextPage]:
 
     extension = path.suffix.lower()
     if extension == ".txt":
-        return [TextPage(1, path.read_text(encoding="utf-8-sig"))]
+        text=path.read_text(encoding="utf-8-sig")
+        return [TextPage(1,text,native_text_character_count=len(text),quality_issues=tuple(text_quality_issues(text)))]
     if extension != ".pdf":
         raise ValueError(f"Unsupported extension '{extension}'. Use PDF or TXT.")
 
@@ -101,15 +144,30 @@ def extract_pages(file_path: str | Path) -> list[TextPage]:
             pages = []
             for i, page in enumerate(document):
                 text = page.get_text()
-                # Short text-only pages (and blank pages) keep their existing
-                # behavior. OCR only raster-containing pages with little text.
-                if sum(c.isalnum() for c in text) < 30 and page.get_images(full=True):
-                    text = ocr_page(page, i + 1) or text
-                pages.append(TextPage(i + 1, text))
+                native_count=len(text)
+                metadata={}
+                used_ocr=bool(text_quality_issues(text)) and bool(page.get_images(full=True))
+                duration=0.0
+                issues=[]
+                _emit(f"[DOCUMENT] native_page page={i+1} native_text_characters={native_count} ocr_triggered={used_ocr}")
+                if used_ocr:
+                    started=perf_counter()
+                    try:text=ocr_page(page,i+1,metadata=metadata) or text
+                    except DocumentExtractionError:
+                        issues.append("ocr_failed")
+                        if not allow_ocr_failure:raise
+                    finally:
+                        duration=perf_counter()-started
+                        _emit(f"[DOCUMENT] ocr page={i+1} elapsed_seconds={duration:.3f} failure={bool(issues)}")
+                issues.extend(text_quality_issues(text))
+                if metadata.get("ocr_confidence") is not None and metadata["ocr_confidence"]<DOCUMENT_OCR_MIN_CONFIDENCE:
+                    issues.append("low_ocr_confidence")
+                pages.append(TextPage(i+1,text,"rapidocr" if used_ocr else "native_text",native_count,used_ocr,duration,
+                                      metadata.get("ocr_confidence"),metadata.get("rotation_degrees",0),tuple(dict.fromkeys(issues))))
     except (pymupdf.FileDataError, RuntimeError) as error:
         raise DocumentExtractionError(f"Cannot read PDF: {path}") from error
 
-    if not any(page.text.strip() for page in pages):
+    if not allow_ocr_failure and not any(page.text.strip() for page in pages):
         raise DocumentExtractionError(
             f"PDF contains no extractable text: {path}. No readable text was recovered."
         )

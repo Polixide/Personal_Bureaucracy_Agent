@@ -9,7 +9,7 @@ from pathlib import Path
 from unicodedata import normalize, category
 import json
 import re
-from src.core.state import ResidencePermitContext, VerifiedInput, ActionPlan
+from src.core.state import ResidencePermitContext, VerifiedInput, ActionPlan, ProcedureState
 from src.document_processing.schemas import DOCUMENT_SCHEMAS
 from src.document_processing.evidence import normalized_snippet
 
@@ -63,6 +63,18 @@ CONTEXT_GROUPS={
     "Application form":("application_date","requested_permit_end_date"),
 }
 INSURANCE_TYPES=("bilateral_social_security","sgk_provision","sgk_application","private_health_insurance")
+
+
+# Backend confirmations only in V2 collection; no new document/profile or UI.
+PROCEDURE_CONTEXT_FIELDS = {"address_proof_type":"str", "biometric_photo":"bool"}
+
+
+def declaration_fields(state):
+    fields=dict(CONTEXT_FIELDS)
+    procedure=state.get("procedure")
+    if procedure is not None and ProcedureState.model_validate(procedure).current_stage=="DOCUMENT_COLLECTION":
+        fields.update(PROCEDURE_CONTEXT_FIELDS)
+    return fields
 
 
 def clean_name(value):
@@ -224,12 +236,16 @@ def verification_updates(state):
                 field_name=name, source_page=document.info.source_pages[name],
                 source_snippet=document.info.source_snippets[name], trace_id=state["trace_id"])
     if event.kind == "confirm_information" and event.document_id == "__declarations__":
-        if set(event.confirmed_fields) - set(CONTEXT_FIELDS):
+        allowed_declarations=declaration_fields(state)
+        if set(event.confirmed_fields) - set(allowed_declarations):
             raise ValueError("Unsupported declaration field")
         entries = records.setdefault("__declarations__", {})
         for name,value in event.confirmed_fields.items():
-            kind=CONTEXT_FIELDS[name]
+            kind=allowed_declarations[name]
             if value is not None:
+                if kind=="str":
+                    if not isinstance(value,str):raise ValueError("Declarations require text or unknown")
+                    value=value.strip() or None
                 if kind=="bool" and type(value) is not bool: raise ValueError("Declarations require Yes, No or unknown")
                 if kind=="insurance_type" and value not in INSURANCE_TYPES: raise ValueError("Choose an accepted insurance evidence type")
                 if kind=="date":

@@ -9,6 +9,11 @@ def prohibit_live_ollama(monkeypatch):
         raise AssertionError("Automated tests must mock Ollama")
     monkeypatch.setattr("ollama.Client.chat", denied)
     monkeypatch.setattr("ollama.chat", denied)
+    def denied_openai(*args, **kwargs):
+        raise AssertionError("Automated tests must mock OpenAI")
+    monkeypatch.setattr("src.document_processing.providers._create_openai_client",denied_openai)
+    monkeypatch.setattr("src.document_processing.processor.LLM_PROVIDER","ollama")
+    monkeypatch.setattr("src.document_processing.processor.DOCUMENT_FALLBACK_PROVIDER","none")
     def denied_ocr(*args, **kwargs):
         raise AssertionError("Automated tests must mock OCR")
     from src.document_processing.extractor import get_ocr_engine

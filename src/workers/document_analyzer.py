@@ -8,8 +8,8 @@ TYPE_MAP = {"student_enrollment_certificate": "student_certificate",
 
 
 def document_analyzer(state: AgentState, *, processor=None) -> dict:
-    # Optional provider callable must return the existing typed observations.
-    # No cloud provider or automatic fallback is configured.
+    # Optional processor callable keeps the same typed observation contract;
+    # document-provider selection/fallback stays inside the canonical processor.
     analyze = processor or process_document
     documents, facts = [], {}
     existing=state.get("documents", [])

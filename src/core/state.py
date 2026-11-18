@@ -8,7 +8,7 @@ The state has two parts:
 Pydantic models give every item an explicit, validated schema. The TypedDict is
 what LangGraph uses to merge the partial updates returned by each node.
 """
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Any, Literal, TypedDict
 from uuid import uuid4
 from unicodedata import normalize
@@ -248,11 +248,43 @@ class ResidencePermitContext(BaseModel):
     missing_required_documents_count: int | None = None
 
 
+ProcedureStage = Literal[
+    "DOCUMENT_COLLECTION", "EIKAMET_PREPARATION", "EIKAMET_READY", "PAYMENT",
+    "FINGERPRINT", "IRO_REVIEW", "SUBMISSION", "TRACKING", "COMPLETE",
+]
+StageStatus = Literal[
+    "NOT_STARTED", "IN_PROGRESS", "BLOCKED", "READY", "WAITING_CONFIRMATION",
+    "COMPLETED", "NOT_APPLICABLE",
+]
+
+
+class StageHistoryEntry(BaseModel):
+    """Recorded procedure change; recorded_at is not an official-event timestamp."""
+    model_config = ConfigDict(extra="forbid")
+
+    stage: ProcedureStage
+    status: StageStatus
+    trace_id: str
+    recorded_at: datetime
+    reason_refs: list[str] = Field(default_factory=list)
+
+
+class ProcedureState(BaseModel):
+    """Persistent lifecycle contract only; no inference or transitions in Phase 1."""
+    model_config = ConfigDict(extra="forbid")
+
+    current_stage: ProcedureStage = "DOCUMENT_COLLECTION"
+    stage_status: StageStatus = "NOT_STARTED"  # Current stage only.
+    completed_stages: list[ProcedureStage] = Field(default_factory=list)  # Confirmed stages, not plan steps.
+    stage_blockers: list[str] = Field(default_factory=list)  # References, not facts/results.
+    stage_history: list[StageHistoryEntry] = Field(default_factory=list)
+
+
 # Pydantic classes stored by the in-memory and SQLite checkpointers.
 CHECKPOINT_TYPES = [(cls.__module__, cls.__name__) for cls in
                     (UserEvent, Document, VerifiedInput, DocumentInfo, StudentCertificate, HealthInsurance,
                      IkametApplicationForm, UnknownDocument, PassportIdentity, EntryStamp, DeclarationControl, CardFeeReceipt, Requirement, PlanStep,
-                     ActionPlan, ValidationIssue, ResidencePermitContext)]
+                     ActionPlan, ValidationIssue, ResidencePermitContext, StageHistoryEntry, ProcedureState)]
 
 
 # ----------------------------------------------------------------- reducers --
@@ -288,6 +320,7 @@ class AgentState(TypedDict, total=False):
     approved_plan_origin: str
     approved_plan: ActionPlan | None
     active_procedure: str                                     # e.g. "ikamet"
+    procedure: ProcedureState | None                          # Absent/None until explicitly initialized.
     documents: Annotated[list[Document], upsert_documents]
     extracted_facts: Annotated[dict[str, Any], merge_facts]   # e.g. {"appointment_date": date(...)}
     completed_steps: list[str]
@@ -323,6 +356,8 @@ def new_run(event: UserEvent, user_id: str, procedure: str = "ikamet", *, scope:
 
     Only run-memory fields are reset, so the Digital Twin loaded from the
     checkpointer (documents, facts, completed steps, blockers) is preserved.
+    The procedure argument names active_procedure; the optional ProcedureState
+    component is initialized separately and omitted from these reset updates.
     """
     result = {
         "user_id": user_id,

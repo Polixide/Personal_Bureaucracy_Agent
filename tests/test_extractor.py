@@ -277,3 +277,64 @@ def test_rapidocr_insurance_text_uses_labelled_evidence_reconciliation(tmp_path)
     assert any("policy_number" in note for note in info.correction_notes)
     assert not info.validation_issues
     assert info.source_evidence and all(e.page_number == 1 for e in info.source_evidence)
+
+
+
+def test_scan_quality_records_short_malformed_low_confidence_ocr(tmp_path):
+    from unittest.mock import Mock
+    from types import SimpleNamespace
+    path=tmp_path/"poor.pdf";scanned_pdf(path)
+    engine=Mock(return_value=SimpleNamespace(txts=["???"],scores=[0.1]))
+    with patch("src.document_processing.extractor._create_ocr_engine",return_value=engine):
+        page=extract_pages(path)[0]
+    assert page.ocr_used and page.extraction_method=="rapidocr" and page.native_text_character_count==0
+    assert {"insufficient_text","malformed_text","low_ocr_confidence"}<=set(page.quality_issues)
+    assert page.ocr_confidence==0.1 and page.ocr_duration_seconds>=0 and engine.call_count==4
+
+
+def test_pdf_rendering_caps_image_dimensions_and_keeps_original_page_numbers(tmp_path):
+    from src.document_processing.extractor import render_pdf_pages
+    from config import DOCUMENT_MAX_IMAGE_SIDE
+    path=tmp_path/"large.pdf"
+    with pymupdf.open() as doc:
+        doc.new_page(width=4000,height=5000)
+        doc.new_page()
+        doc.save(path)
+    images=render_pdf_pages(path,[1])
+    assert list(images)==[1]
+    pixmap=pymupdf.Pixmap(images[1])
+    assert max(pixmap.width,pixmap.height)<=DOCUMENT_MAX_IMAGE_SIDE+1
+    assert images[1].startswith(b"\x89PNG")
+
+
+def test_native_page_diagnostics_do_not_initialize_ocr(tmp_path):
+    path=tmp_path/"native.pdf"
+    with pymupdf.open() as doc:
+        doc.new_page().insert_text((72,72),"Student certificate with enough readable embedded text")
+        doc.save(path)
+    with patch("src.document_processing.extractor._create_ocr_engine") as initialize:
+        page=extract_pages(path)[0]
+    initialize.assert_not_called()
+    assert page.extraction_method=="native_text" and not page.ocr_used
+    assert page.native_text_character_count==len(page.text) and page.ocr_duration_seconds==0
+
+
+def test_ocr_failure_can_be_retained_as_metadata_only_for_explicit_recovery(tmp_path):
+    from unittest.mock import Mock
+    path=tmp_path/"failed-scan.pdf";scanned_pdf(path)
+    with patch("src.document_processing.extractor._create_ocr_engine",return_value=Mock(side_effect=RuntimeError("synthetic failure"))):
+        page=extract_pages(path,allow_ocr_failure=True)[0]
+    assert page.ocr_used and page.text=="" and "ocr_failed" in page.quality_issues
+
+
+
+def test_malformed_embedded_text_on_raster_page_can_use_existing_ocr(tmp_path):
+    from unittest.mock import Mock
+    path=tmp_path/"malformed-text.pdf"
+    text="Native alphabetic text repeated several times\n"+("!"*60+"\n")*4
+    scanned_pdf(path,embedded_text=text)
+    engine=Mock(return_value=ocr_result("Recovered readable text from this scanned document page"))
+    with patch("src.document_processing.extractor._create_ocr_engine",return_value=engine):
+        page=extract_pages(path)[0]
+    assert page.ocr_used and page.extraction_method=="rapidocr"
+    assert page.text.startswith("Recovered readable") and page.native_text_character_count>30

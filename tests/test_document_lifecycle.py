@@ -154,7 +154,7 @@ def test_passport_pdf_bundle_creates_two_logical_documents_with_original_pages(t
 def test_low_confidence_scanned_page_tries_rotations_and_retains_page_number(tmp_path):
     from src.document_processing.extractor import extract_pages
     path=tmp_path/"rotated.pdf";path.write_bytes(b"synthetic")
-    page=MagicMock();page.get_text.return_value="";page.get_images.return_value=[True]
+    page=MagicMock();page.rect=pymupdf.Rect(0,0,595,842);page.get_text.return_value="";page.get_images.return_value=[True]
     page.get_pixmap.return_value.tobytes.return_value=b"image"
     document=MagicMock();document.needs_pass=False;document.__iter__.return_value=iter([page])
     results=[SimpleNamespace(txts=["x"],scores=[0.1]),SimpleNamespace(txts=["CARD FEE PAYMENT RECEIPT"],scores=[0.99]),SimpleNamespace(txts=[],scores=[]),SimpleNamespace(txts=[],scores=[])]

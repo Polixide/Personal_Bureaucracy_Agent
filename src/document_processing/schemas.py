@@ -1,6 +1,6 @@
 """Document-specific observations and deterministic quality checks, never legal decisions."""
 from datetime import date
-from typing import Annotated, ClassVar, Literal, Self
+from typing import Annotated, Any, ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -36,6 +36,7 @@ class DocumentInfo(BaseModel):
     source_snippets: dict[str, str] = Field(default_factory=dict)
     source_evidence: list[SourceEvidence] = Field(default_factory=list)
     correction_notes: list[str] = Field(default_factory=list)
+    extraction_diagnostics: dict[str, Any] = Field(default_factory=dict)
 
     REQUIRED: ClassVar[tuple[str, ...]] = ()
     DATES: ClassVar[tuple[str, ...]] = ()
@@ -45,7 +46,7 @@ class DocumentInfo(BaseModel):
     def observation_fields(cls):
         return set(cls.model_fields) - {"document_type", "missing_fields", "ambiguous_fields",
                                       "validation_issues", "source_pages", "selected_pages",
-                                      "source_snippets", "source_evidence", "correction_notes"}
+                                      "source_snippets", "source_evidence", "correction_notes", "extraction_diagnostics"}
 
     @model_validator(mode="before")
     @classmethod

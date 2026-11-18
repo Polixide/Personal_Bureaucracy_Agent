@@ -104,6 +104,15 @@ def rules_engine(state: AgentState) -> dict:
     results = evaluate_requirements({**state, **updates})
     # Assessment must remain accurate even when planning fails or approval is
     # never reached. This records blockers, not completed or approved actions.
-    return {**updates, "relevant_requirements": results,
-            "blockers": [r.rule_id for r in results
-                         if r.severity == "blocking" and r.passed is not True]}
+    result = {**updates, "relevant_requirements": results,
+              "blockers": [r.rule_id for r in results
+                           if r.severity == "blocking" and r.passed is not True]}
+    # Procedure sequencing stays outside legal evaluation. Only factual/review
+    # events refresh V2 collection status; chat, planning and approval do not.
+    if state.get("procedure") is not None and event and event.kind in {
+        "analyze_document","confirm_information","resolve_conflict","reevaluate",
+        "delete_document","replace_document","cancel_document","reprocess_document","remove_correction",
+    }:
+        from src.core.procedure import document_collection_update
+        result.update(document_collection_update({**state,**result}))
+    return result

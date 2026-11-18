@@ -106,3 +106,118 @@ explicit manual Ollama smoke test; it never downloads a model automatically.
 `sqlite_checkpointer()` for persistent state. `docs/INTEGRATION_REPORT.md` is a
 historical integration snapshot, not the current runtime specification. Temporary
 integration implementations have been removed. No MCP or RAG is included.
+
+
+## Document providers, diagnostics and local evaluation
+
+Document classification/extraction uses a single provider boundary. `LLM_PROVIDER`
+defaults to `ollama`; existing `OLLAMA_MODEL` configuration remains unchanged.
+This selector applies to documents only, not Planner or Reflection.
+`DOCUMENT_FALLBACK_PROVIDER` defaults to `none`. Ollama-only operation requires
+neither an OpenAI SDK installation nor credentials.
+
+Optional OpenAI image fallback uses the official SDK and must be explicitly enabled:
+
+```powershell
+python -m pip install -r requirements-openai.txt
+$env:DOCUMENT_FALLBACK_PROVIDER="openai"
+$env:OPENAI_MODEL="your-compatible-vision-model"
+# Set OPENAI_API_KEY locally; never put a real key in repository files.
+```
+
+Restart Python after configuration changes. `LLM_PROVIDER=openai` can also select
+OpenAI as the primary document provider. Use a model supporting image inputs and
+structured JSON output. Enabling cloud fallback permits selected page images/text
+to leave the machine, only for inadequate PDFs: poor OCR, unresolved expected fields
+or validation issues. It is disabled by default. Fallback makes one bounded attempt;
+`DOCUMENT_FALLBACK_MAX_PAGES` defaults to 2 (maximum 4).
+
+PyMuPDF renders at `DOCUMENT_OCR_DPI` (default 200, supported 200-300) with
+`DOCUMENT_MAX_IMAGE_SIDE` (default 3000 pixels) limiting oversized pages. Existing
+RapidOCR orientation handling remains local. Vision can recover page-labelled text
+for poor scans; recovered text is untrusted, not independent proof of authenticity.
+The same source candidates, normalization, Pydantic checks and provenance audit
+apply. Readable native text is not replaced by vision-generated evidence. A fallback
+that does not improve a partial local result leaves that local result in place.
+
+`Document.info.extraction_diagnostics` persists method, provider/model, native text
+counts, OCR use/confidence/duration, selected fallback pages, quality signals,
+missing expected fields and invalid-field counts. These are technical metadata,
+not observations or verified context inputs. Diagnostics log counts/field names to
+stderr, never full document text or keys. Existing JSON stdout remains usable.
+
+Store private evaluation manifests/documents in ignored `data/local_samples/` or
+`.local/`. For example, a local `cases.json` contains:
+
+```json
+[
+  {
+    "document_path": "insurance.pdf",
+    "expected_document_type": "health_insurance_certificate",
+    "expected_critical_fields": {"policy_number": "DEMO-123"}
+  }
+]
+```
+
+Paths are relative to the manifest. Run an explicit local/model evaluation with:
+
+```powershell
+python -m src.document_processing.processor --evaluate data/local_samples/cases.json
+```
+
+Reports contain classification correctness, per-field exact-match booleans,
+missing/invalid counts, method, fallback usage and latency; source values and paths
+are omitted. This CLI uses the configured providers; automated tests mock all model
+and OCR calls. No live OCR/OpenAI accuracy is established by those mocks.
+
+
+## V2 pre-e-Ikamet collection readiness
+
+Only explicitly initialized V2 threads (`procedure=ProcedureState()`) use
+`src/core/procedure.py`. Legacy threads and the seven-document Milestone-1
+checklist remain unchanged. Factual/review events refresh only collection
+status/blocker references; readiness never advances a stage automatically.
+
+Collection requires accepted passport identity fields (name, number, nationality,
+expiry and page presence), latest Turkish entry-page evidence and an explicitly
+confirmed latest entry date, an accepted student certificate (name, student ID,
+institution, issue date), address-proof category, insurance and biometric-photo
+readiness. Source-grounded observations or explicit confirmations count; bare
+context flags, unreviewed extraction, action completion and plan approval do not.
+Relevant unresolved verification conflicts block readiness. R008 supports the
+passport/entry portion only; visa applicability and the full legal R008 remain
+separate assessments.
+
+The local `V2_PRE_EIKAMET_INSURANCE_READINESS` policy accepts a confirmed exemption,
+or policy end covering either the accepted requested permit end or academic
+program end (inclusive). Start date and `insurance_valid_for_ikamet` are not gates
+in this specific end-coverage policy. Nonexempt cases also need accepted policy
+holder/insurer/number/end evidence and an accepted R016 insurance category.
+General/legal R015 and existing Milestone checks are unchanged.
+
+V2 collection adds backend confirmation support through the existing
+`confirm_information` / `__declarations__` event for `address_proof_type`
+(`dorm_certificate`, `rental_agreement`, `notarized_commitment`, evaluated by R017)
+and `biometric_photo` (explicit boolean). These are user-confirmed statements with
+user/trace provenance, not document-authenticity checks or ICAO/photo analysis.
+No Streamlit controls or photo-analysis system are added in this phase.
+
+An explicit caller can apply the first transition with the existing graph API:
+
+```python
+from datetime import datetime, timezone
+from src.core.procedure import advance_procedure_if_ready
+
+state = graph.get_state(config).values
+update = advance_procedure_if_ready(state, recorded_at=datetime.now(timezone.utc))
+if update:
+    graph.update_state(config, update)
+```
+
+The function recomputes readiness and returns only a ProcedureState update.
+Success completes DOCUMENT_COLLECTION, enters EIKAMET_PREPARATION/NOT_STARTED,
+removes only collection blocker references and appends a traceable history entry.
+The supplied time records the transition, not an official event. No documents,
+verified inputs, source evidence or requirements are changed. No later transition,
+generated form, payment, fingerprint/GI, declaration, IRO confirmation or submission
+is required or implemented here. This readiness decision is not legal approval.
