@@ -63,6 +63,15 @@ def test_follow_up_goal_keeps_the_original_goal_the_question_and_the_answer():
     assert text.splitlines() == ["I want a permit", "You asked: Which permit?", "My answer: the first one"]
 
 
+def test_step_rows_hide_an_empty_thought_column():
+    steps = [{"step": 1, "thought": "", "action": "read_twin", "ok": True, "error": None},
+             {"step": 2, "thought": "", "action": "evaluate_rules", "ok": False, "error": "repeated call"}]
+    rows = app.step_rows({"steps": steps})
+    assert list(rows[0]) == ["step", "tool", "ok"] and rows[1]["ok"] == "❌ repeated call"
+    steps[0]["thought"] = "Look at the Twin."
+    assert list(app.step_rows({"steps": steps})[0]) == ["step", "thought", "tool", "ok"]
+
+
 def test_fact_rows_say_where_each_value_came_from():
     with TwinStore(":memory:") as store:
         service.record_app_value(store, IKAMET, "u", "age", 22)

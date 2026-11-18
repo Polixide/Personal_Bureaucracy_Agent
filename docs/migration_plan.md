@@ -84,6 +84,13 @@ must match a row in this file, or update this file first.
     public handbook nothing used). The `.txt` samples stay as demo uploads for the app.
   - Legacy names in `config.py` (`KNOWLEDGE_DIR`, `OLLAMA_MODEL`, `MAX_REFLECTION_ATTEMPTS`, `PLANNER_*`) and
     dead code (`schemas.ExtractedDocument`, `tools.common.Role`, `codec.FACT_TYPES`, `TwinStore.close_fact`).
+- **Full manual test in the browser (2026-11-18, qwen3:4b + bge-m3).** Every app step worked (upload read in
+  9 s, answers, checklist approval, sandbox, outcome, Twin deletion). Two agent runs fell back to the
+  deterministic workflow: qwen3:4b sent `section_id: "null"` and then repeated `evaluate_rules`. The fallback
+  also kept the active procedure for the goal "I want to extend my İkamet". Fixes, with tests:
+  `"null"`/`"none"`/`"all"` mean all sections; a repeated call is answered with the next section to delegate;
+  the prompt says to search again when the goal names another procedure; the fallback follows a goal that
+  `search_procedures` matches unambiguously.
 - **App simplified (2026-11-18).** `app.py` was rebuilt around the presentation's three questions: a goal box
   and the tabs *Where am I?*, *What is missing?*, *What next?* (see `docs/modules/app.md`). Same functions as
   before; the seven stacked panels, raw field names and the stage-id sandbox panel are gone.

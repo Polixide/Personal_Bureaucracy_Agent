@@ -45,6 +45,11 @@ also collects what the run created: proposals, findings and the question.
 python -m pytest -q tests/test_tools.py
 ```
 
+## Argument shapes from small models
+Seen live from `qwen3:4b` and accepted because their meaning is unambiguous: `evaluate_rules` with
+`section_id` `""`, `"null"`, `"none"` or `"all"` (all sections), and `read_twin` with `fields` as one string
+instead of a list. Anything else that does not validate becomes an error observation.
+
 ## Known limits
 - **`search_procedures` matches words.** It matches alias phrases literally; synonyms need to be added as
   aliases in the pack.

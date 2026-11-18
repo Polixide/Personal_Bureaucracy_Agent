@@ -45,7 +45,11 @@ decide/act → fallback → END                               (2 invalid steps i
 - **Failure is normal for a 4B model.** Invalid decisions and arguments become error observations. Two in a
   row, a loop, or running out of steps switch to the **deterministic workflow** (`fallback.py`). That workflow
   evaluates every section, builds findings and a checklist answer, and passes Gate 1 by construction (tested
-  on every pack scenario).
+  on every pack scenario). It first runs the deterministic `search_procedures` on the goal, so a goal that
+  clearly names another procedure is answered for that procedure; a tie or no match keeps the active one.
+- **A repeated call gets a way out.** The error names the next section that still needs a worker
+  (`delegate_section` with its id) or says to give the final answer. A 4B model tends to repeat a call
+  rather than move on.
 - **Workers have fewer tools.** They only read: `read_twin`, `evaluate_rules`, `extract_document`,
   `search_sources`. Writing statements, asking the user, simulating and proposing artifacts belong to the
   orchestrator.

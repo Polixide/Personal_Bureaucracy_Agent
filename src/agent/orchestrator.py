@@ -26,6 +26,7 @@ from src.llm import Backend, short_validation_error, to_json
 from src.memory.episodes import lessons_for, record_repairs
 from src.models import Issue, Pack
 from src.tools.common import ToolContext, ToolSpec
+from src.tools.evaluate_rules import current_results
 from src.tools.registry import build_registry, run_tool, tools_for
 from src.twin.codec import utc_now
 from src.twin.models import RunRecord
@@ -49,6 +50,7 @@ class RunState(TypedDict, total=False):
     records: list[dict]
     gate_issues: list[dict]
     rejected: list[list[dict]]
+    goal: str
 
 
 def repair_message(issues: list[Issue], lessons: list[dict]) -> dict:
@@ -75,7 +77,7 @@ class Orchestrator:
         intro = orchestrator_intro(goal, self.ctx, self.tools, lessons)
         return RunState(messages=[{"role": "system", "content": ORCHESTRATOR_SYSTEM}, {"role": "user", "content": intro}],
                         decision=None, final=None, status="running", steps=0, failures=0, llm_calls=0, repairs=0,
-                        loops=0, invalid=0, seen={}, last_call="", records=[], gate_issues=[], rejected=[])
+                        loops=0, invalid=0, seen={}, last_call="", records=[], gate_issues=[], rejected=[], goal=goal)
 
     @staticmethod
     def _record(state: RunState, decision: Decision | None, ok: bool, error: str | None = None) -> list[dict]:
@@ -104,7 +106,7 @@ class Orchestrator:
             return self._accept_final(state, decision, messages)
         key = call_key(decision)
         if key == state["last_call"] or state["seen"].get(key, 0) >= 2:
-            error = f"You already called {decision.action} with these arguments. Use that result or give the final_answer."
+            error = f"You already called {decision.action} with these arguments. {self._next_step_hint()}"
             return {"messages": messages + [error_message(error)], "decision": None, "failures": state["failures"] + 1,
                     "loops": state["loops"] + 1, "records": self._record(state, decision, ok=False, error="repeated call")}
         observation = run_tool(self.tools, decision.action, decision.args, self.ctx, "orchestrator")
@@ -119,6 +121,19 @@ class Orchestrator:
             update["seen"] = {**state["seen"], key: state["seen"].get(key, 0) + 1}
             update["last_call"] = key
         return update
+
+    def _next_step_hint(self) -> str:
+        """A concrete way out of a loop: the next section that still needs a worker, else the final answer."""
+        pack = self.ctx.pack()
+        if pack is None:
+            return "Call search_procedures with the user's goal, or give the final_answer."
+        delegated = {finding.section_id for finding in self.ctx.findings.values()}
+        results = current_results(self.ctx)
+        for section in sorted(pack.procedure.sections, key=lambda s: s.order):
+            still_open = any(r.section == section.id and r.status != "pass" for r in results)
+            if section.delegate and still_open and section.id not in delegated:
+                return f'Next: call delegate_section with section_id "{section.id}", or give the final_answer.'
+        return "Use the results you have and give the final_answer now."
 
     def _accept_final(self, state: RunState, decision: Decision, messages: list[dict]) -> dict:
         try:
@@ -152,7 +167,7 @@ class Orchestrator:
 
     def fallback(self, state: RunState) -> dict:
         """Deterministic workflow: evaluate all sections and answer with the checklist."""
-        answer, findings = deterministic_answer(self.ctx)
+        answer, findings = deterministic_answer(self.ctx, state.get("goal", ""))
         for finding in findings:
             self.ctx.findings.setdefault(finding.finding_id, finding)
         issues = verify(answer, build_gate_context(self.ctx))

@@ -10,14 +10,18 @@ from src.rules import evaluate_rules as evaluate
 from src.tools.common import ToolContext, ToolError, ToolSpec, require_pack
 
 
+# What small models send when they mean "no particular section" (seen live from qwen3:4b: "" and "null").
+ALL_SECTIONS_WORDS = ("", "null", "none", "all")
+
+
 class EvaluateRulesInput(BaseModel):
     section_id: str | None = Field(default=None, description="One section id, or empty for all rules")
 
     @field_validator("section_id", mode="before")
     @classmethod
     def empty_means_all(cls, value):
-        """Small models send "" for 'all sections'; treat it like no section."""
-        if isinstance(value, str) and not value.strip():
+        """Small models send "" or "null" for 'all sections'; treat them like no section."""
+        if isinstance(value, str) and value.strip().lower() in ALL_SECTIONS_WORDS:
             return None
         return value
 

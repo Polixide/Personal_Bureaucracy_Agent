@@ -9,6 +9,8 @@ from src.agent.findings import build_finding, question_for
 from src.models import Pack, RuleResult
 from src.tools.common import ToolContext
 from src.tools.evaluate_rules import current_results
+from src.tools.search_procedures import SearchProceduresInput
+from src.tools.search_procedures import run as search
 
 
 def no_procedure_answer(ctx: ToolContext) -> FinalAnswer:
@@ -40,8 +42,20 @@ def _summary(pack: Pack, results: list[RuleResult]) -> str:
     return text
 
 
-def deterministic_answer(ctx: ToolContext) -> tuple[FinalAnswer, list[Finding]]:
+def follow_goal(ctx: ToolContext, goal: str) -> None:
+    """Without the model, the goal still decides the procedure when search_procedures finds exactly one best match.
+
+    Otherwise (no match, a tie) the active procedure stays. search_procedures is deterministic, so this is code
+    doing what the orchestrator's first step would have done.
+    """
+    if len(goal.strip()) < 2:
+        return
+    search(SearchProceduresInput(query=goal), ctx)
+
+
+def deterministic_answer(ctx: ToolContext, goal: str = "") -> tuple[FinalAnswer, list[Finding]]:
     """The fallback answer and the findings it is based on."""
+    follow_goal(ctx, goal)
     pack = ctx.pack()
     if pack is None:
         return no_procedure_answer(ctx), []

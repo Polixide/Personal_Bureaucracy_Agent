@@ -50,6 +50,27 @@ def test_repeated_calls_are_detected_as_a_loop(store):
     assert "already called read_twin" in backend.calls[2]["messages"][-1]["content"]
 
 
+def test_a_repeated_call_is_answered_with_the_next_section_to_delegate(store):
+    seed(store, PASSPORT_TOO_SHORT)
+    result, backend = run(store, [d("evaluate_rules"), d("evaluate_rules"), correct_final()])
+    hint = backend.calls[2]["messages"][-1]["content"]
+    assert 'delegate_section with section_id "eligibility"' in hint and result.loops_detected == 1
+
+
+def test_fallback_follows_a_goal_that_names_another_procedure(store):
+    seed(store, {}, procedure_id="ikamet_first")
+    result, _ = run(store, [d("no_such_tool"), d("no_such_tool")], goal="I want to extend my İkamet")
+    assert result.status == "fallback" and result.procedure_id == "ikamet_extension"
+    assert "unverified" in result.answer.summary
+    assert store.active_procedure(USER) == "ikamet_extension"
+
+
+def test_fallback_keeps_the_active_procedure_when_the_goal_names_none(store):
+    seed(store, {}, procedure_id="ikamet_first")
+    result, _ = run(store, [d("no_such_tool"), d("no_such_tool")], goal="What should I do now?")
+    assert result.status == "fallback" and result.procedure_id == "ikamet_first"
+
+
 def test_wrong_claim_is_caught_by_gate_1_and_repaired(store):
     seed(store, PASSPORT_TOO_SHORT)
     wrong = d("final_answer", {"summary": "Your passport is fine.", "claims": [{"rule_id": "R006", "status": "pass"}],

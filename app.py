@@ -343,11 +343,20 @@ def show_answer(store: TwinStore, packs: dict[str, Pack], user_id: str, today: d
 
 
 def step_rows(result: dict) -> list[dict]:
-    """The orchestrator's steps: what it thought, which tool it called, whether the call worked."""
+    """The orchestrator's steps: what it thought, which tool it called, whether the call worked.
+
+    Small models often leave the thought empty; the column is shown only when there is something in it.
+    """
+    steps = result.get("steps", [])
+    show_thoughts = any(step["thought"] for step in steps)
     rows = []
-    for step in result.get("steps", []):
-        rows.append({"step": step["step"], "thought": step["thought"], "tool": step["action"],
-                     "ok": "✅" if step["ok"] else f"❌ {step.get('error') or ''}"})
+    for step in steps:
+        row = {"step": step["step"]}
+        if show_thoughts:
+            row["thought"] = step["thought"]
+        row["tool"] = step["action"]
+        row["ok"] = "✅" if step["ok"] else f"❌ {step.get('error') or ''}"
+        rows.append(row)
     return rows
 
 

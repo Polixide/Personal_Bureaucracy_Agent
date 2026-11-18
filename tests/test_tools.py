@@ -215,6 +215,12 @@ def test_empty_section_id_means_all_sections(ctx):
     assert output["section_id"] is None and sum(output["counts"].values()) == 29
 
 
+@pytest.mark.parametrize("word", ["null", "None", " all "])
+def test_null_none_and_all_mean_all_sections(ctx, word):
+    output = call(ctx, "evaluate_rules", {"section_id": word}).output
+    assert output["section_id"] is None and sum(output["counts"].values()) == 29
+
+
 def test_a_single_field_name_is_accepted_as_a_list(ctx):
     service.record_app_value(ctx.store, ctx.pack(), USER, "age", 22)
     assert [row["field"] for row in call(ctx, "read_twin", {"fields": "age"}).output["facts"]] == ["age"]
