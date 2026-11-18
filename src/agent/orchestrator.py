@@ -23,6 +23,7 @@ from src.agent.loop import ask_decision, assistant_message, call_key, error_mess
 from src.agent.prompts import ORCHESTRATOR_SYSTEM, orchestrator_intro
 from src.agent.worker import DELEGATE_SPEC, run_worker
 from src.llm import Backend, short_validation_error, to_json
+from src.memory.episodes import lessons_for, record_repairs
 from src.models import Issue, Pack
 from src.tools.common import ToolContext, ToolSpec
 from src.tools.registry import build_registry, run_tool, tools_for
@@ -144,7 +145,10 @@ class Orchestrator:
                 "repairs": state["repairs"] + 1, "gate_issues": dumped, "rejected": state["rejected"] + [dumped]}
 
     def _on_accepted(self, state: RunState, answer: FinalAnswer) -> None:
-        """Hook for episodic memory (phase 8): called when an answer passes Gate 1."""
+        """Episodic memory: a repaired answer that passed Gate 1 turns its rejections into lessons."""
+        if state["rejected"] and self.ctx.procedure_id in self.ctx.packs:
+            record_repairs(self.ctx.store, self.ctx.packs[self.ctx.procedure_id], self.ctx.user_id,
+                           state["rejected"], self.ctx.trace_id)
 
     def fallback(self, state: RunState) -> dict:
         """Deterministic workflow: evaluate all sections and answer with the checklist."""
@@ -232,9 +236,22 @@ def run_agent(goal: str, store: TwinStore, packs: dict[str, Pack], user_id: str,
     started = utc_now()
     ctx = make_context(store, packs, user_id, today, backend, outbox_dir)
     registry = build_registry([DELEGATE_SPEC])
-    ctx.run_worker = lambda section_id, focus: run_worker(section_id, focus, ctx, backend, registry)
+
+    def worker_for_section(section_id: str, focus: str):
+        """delegate_section calls this: one worker run on the shared context."""
+        return run_worker(section_id, focus, ctx, backend, registry)
+
+    def lessons_for_codes(codes: list[str]) -> list[dict]:
+        """Lessons for the failure types of a rejected answer (active procedure read at call time)."""
+        return lessons_for(store, ctx.procedure_id, codes)
+
+    ctx.run_worker = worker_for_section
+    if lessons is None:
+        lessons = lessons_for(store, ctx.procedure_id)
+    if lesson_finder is None:
+        lesson_finder = lessons_for_codes
     orchestrator = (orchestrator_class or Orchestrator)(ctx, backend, registry, lesson_finder)
-    state = orchestrator.graph().invoke(orchestrator.initial_state(goal, lessons or []),
+    state = orchestrator.graph().invoke(orchestrator.initial_state(goal, lessons),
                                         {"recursion_limit": AGENT_RECURSION_LIMIT})
     result = orchestrator.result(state)
     log_result(store, user_id, goal, result, started)
