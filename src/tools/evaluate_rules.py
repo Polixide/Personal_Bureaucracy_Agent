@@ -3,7 +3,7 @@
 The observation is grouped by status (compact enough for a small model's context): passing ids,
 failing ids with their sources, unknown ids with the missing fields.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.models import RuleResult
 from src.rules import evaluate_rules as evaluate
@@ -12,6 +12,14 @@ from src.tools.common import ToolContext, ToolError, ToolSpec, require_pack
 
 class EvaluateRulesInput(BaseModel):
     section_id: str | None = Field(default=None, description="One section id, or empty for all rules")
+
+    @field_validator("section_id", mode="before")
+    @classmethod
+    def empty_means_all(cls, value):
+        """Small models send "" for 'all sections'; treat it like no section."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class EvaluateRulesOutput(BaseModel):

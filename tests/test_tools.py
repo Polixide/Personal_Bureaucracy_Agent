@@ -207,3 +207,16 @@ def test_extract_document_module_exposes_its_spec():
 def test_tool_error_type_is_shared():
     with pytest.raises(ToolError):
         raise ToolError("x")
+
+
+# ------------------------------------------- shapes seen from qwen3:4b live --
+def test_empty_section_id_means_all_sections(ctx):
+    output = call(ctx, "evaluate_rules", {"section_id": ""}).output
+    assert output["section_id"] is None and sum(output["counts"].values()) == 29
+
+
+def test_a_single_field_name_is_accepted_as_a_list(ctx):
+    service.record_app_value(ctx.store, ctx.pack(), USER, "age", 22)
+    assert [row["field"] for row in call(ctx, "read_twin", {"fields": "age"}).output["facts"]] == ["age"]
+    assert call(ctx, "read_twin", {"fields": ""}).ok
+    assert not call(ctx, "read_twin", {"fields": 5}).ok

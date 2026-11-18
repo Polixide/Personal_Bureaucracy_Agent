@@ -1,5 +1,5 @@
 """read_twin tool: a compact snapshot of what the Digital Twin knows right now."""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.tools.common import ToolContext, ToolSpec
 from src.twin.facts import FactView
@@ -9,6 +9,14 @@ MAX_ISSUES = 3
 
 class ReadTwinInput(BaseModel):
     fields: list[str] = Field(default_factory=list, description="Only these facts (empty means all known facts)")
+
+    @field_validator("fields", mode="before")
+    @classmethod
+    def one_name_is_a_list(cls, value):
+        """Small models send "age" instead of ["age"], or "" for 'all'; accept both unambiguous forms."""
+        if isinstance(value, str):
+            return [value] if value.strip() else []
+        return value
 
 
 class DocumentRow(BaseModel):

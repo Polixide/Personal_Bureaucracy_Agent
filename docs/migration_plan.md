@@ -63,6 +63,14 @@ must match a row in this file, or update this file first.
     procedure id) of any pack.
   - **One fix outside `src/`.** In `eval/run_eval.py`, goal scenarios now run only when their expected pack is
     loaded (needed for `--procedure`).
+- **Live smoke test (2026-11-18, qwen3:4b on the GTX 1650, scenario `02-passport-buffer`).**
+  - **First run.** Two invalid arguments (`section_id: ""` and `fields` sent as a string) plus a repeated call
+    triggered the deterministic fallback. The answer was correct and passed Gate 1.
+  - **Fix.** Both tools now accept those two unambiguous shapes, with tests.
+  - **Second run.** status `answered`, no fallback, 9 model calls, 217 s, 2 Gate 1 repairs, correct claims.
+  - **Open issue.** The accepted summary contained a wrong sentence (it called confirmed dates "not
+    confirmed"). Gate 1 cannot judge the meaning of free prose (agent module doc, known limits). The full
+    `python -m eval.run_eval --live` measurement is still to be run.
 
 ## 1. What was audited
 
