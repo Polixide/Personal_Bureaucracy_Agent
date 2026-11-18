@@ -8,7 +8,7 @@ from time import perf_counter
 
 import httpx
 from ollama import Client, ResponseError
-from src.core.llm_diagnostics import logged_chat
+from src.llm import logged_chat
 from pydantic import ValidationError
 
 from config import (
