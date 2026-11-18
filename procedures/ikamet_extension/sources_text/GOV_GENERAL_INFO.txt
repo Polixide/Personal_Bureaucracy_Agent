@@ -1,0 +1,10 @@
+SOURCE: Residence Permit General Information (Presidency of Migration Management)
+URL: https://www.goc.gov.tr/ikamet-genel-bilgiler/
+RETRIEVED: 2026-11-05
+
+NOTE: This file is NOT a copy of the official page. It lists the DRAFT (unverified) extension rules
+of procedures/ikamet_extension/rules.json that cite this source. Replace it with the saved page text,
+then verify each rule against it (draft-rules-from-source skill).
+
+Draft requirements that cite this source:
+- EXT006 (official_eikamet_channel): The extension application is made through the official e-İkamet channel.

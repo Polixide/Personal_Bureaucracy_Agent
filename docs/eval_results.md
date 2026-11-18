@@ -6,15 +6,15 @@
 
 | system | runs | verdict_accuracy | date_errors | invented | valid_answer_rate | pass_k | avg_llm_calls | avg_seconds |
 |---|---|---|---|---|---|---|---|---|
-| A | 21 | 0.828 | 0 | 0 | 0.429 | 1/7 | 0.0 | 0.011 |
+| A | 39 | 0.782 | 0 | 0 | 0.231 | 1/13 | 0.0 | 0.005 |
 | B | not run offline (needs --live) |  |  |  |  |  |  |  |
-| D | 21 | 1.0 | 0 | 0 | 1.0 | 7/7 | 4.29 | 0.042 |
+| D | 39 | 1.0 | 0 | 0 | 1.0 | 13/13 | 4.31 | 0.025 |
 
 ## Agent behaviour (D)
 
 | valid_tool_call_rate | avg_steps | loops_detected | fallback_rate | gate1_first_rejections |
 |---|---|---|---|---|
-| 1.0 | 3.14 | 0 | 0.0 | 0 |
+| 1.0 | 3.15 | 0 | 0.0 | 0 |
 
 ## Procedure identification (D)
 
@@ -23,6 +23,7 @@
 | G01-first-ikamet | ikamet_first | ikamet_first | answered | True |
 | G02-no-procedure | None | None | answered | True |
 | G03-other-wording | ikamet_first | ikamet_first | answered | True |
+| G04-extension | ikamet_extension | ikamet_extension | answered | True |
 
 ## Scenarios where D failed
 

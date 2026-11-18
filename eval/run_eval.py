@@ -98,6 +98,8 @@ def evaluate(packs: dict[str, Pack], backend: Backend, k: int, live: bool, live_
                     runs.append(run_b(pack, packs, scenario, live_backend or backend))
                 runs.append(run_d(pack, packs, scenario, backend))
     goals = json.loads(GOALS_FILE.read_text(encoding="utf-8"))
+    # With --procedure only some packs are loaded; skip goals that expect a pack that is not loaded.
+    goals = [g for g in goals if g["expected_procedure"] is None or g["expected_procedure"] in packs]
     identification = [run_goal(packs, scenario, backend) for scenario in goals]
     return {"runs": runs, "identification": identification}
 

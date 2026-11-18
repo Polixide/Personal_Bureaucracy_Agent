@@ -1,0 +1,38 @@
+[
+  {
+    "source_id": "SAB_EXCHANGE_CURRENT",
+    "title": "Exchange Students Short-Term Residence Permit - First and Extension Application Guidelines",
+    "url": "https://iro.sabanciuniv.edu/en/exchange-students-short-term-residence-permit-first-and-extension-application-guidelines",
+    "retrieved_at": "2026-11-05",
+    "authority": "sabanci_operational",
+    "organization": "Sabancı University IRO",
+    "notes": "Entry copied from knowledge/sources.json. Its extension part has not been checked rule by rule."
+  },
+  {
+    "source_id": "GOV_FAQ",
+    "title": "Frequently Asked Questions about Foreigners",
+    "url": "https://en.goc.gov.tr/frequently-asked-questions-about-foreigners",
+    "retrieved_at": "2026-11-05",
+    "authority": "government_primary",
+    "organization": "Presidency of Migration Management",
+    "notes": "Entry copied from knowledge/sources.json."
+  },
+  {
+    "source_id": "GOV_RESIDENCE_TYPES",
+    "title": "Residence Permit Types",
+    "url": "https://en.goc.gov.tr/residence-permit-types",
+    "retrieved_at": "2026-11-05",
+    "authority": "government_primary",
+    "organization": "Presidency of Migration Management",
+    "notes": "Entry copied from knowledge/sources.json."
+  },
+  {
+    "source_id": "GOV_GENERAL_INFO",
+    "title": "Residence Permit General Information",
+    "url": "https://www.goc.gov.tr/ikamet-genel-bilgiler/",
+    "retrieved_at": "2026-11-05",
+    "authority": "government_primary",
+    "organization": "Presidency of Migration Management",
+    "notes": "Entry copied from knowledge/sources.json."
+  }
+]

@@ -1,0 +1,66 @@
+{
+  "id": "ikamet_extension",
+  "title": "Short-term residence permit (İkamet) extension for Sabancı University incoming exchange students",
+  "status": "unverified",
+  "version": "0.1",
+  "aliases": ["ikamet extension", "extend my ikamet", "extend ikamet", "extend my residence permit",
+              "extend residence permit", "residence permit extension", "renew my residence permit",
+              "renew residence permit", "ikamet uzatma"],
+  "scope": "Sabancı University incoming exchange students who already hold a short-term residence permit and need to extend it.",
+  "excluded": ["first applications", "transfers between permit types", "family permits", "work permits", "minors"],
+  "scope_conditions": [
+    {"op": "eq", "field": "institution", "value": "Sabancı University"},
+    {"op": "is_true", "field": "exchange_student"}
+  ],
+  "sections": [
+    {"id": "current_permit", "title": "Current residence permit", "order": 1},
+    {"id": "eligibility", "title": "Exchange status", "order": 2},
+    {"id": "passport_insurance", "title": "Passport and health insurance", "order": 3},
+    {"id": "application", "title": "Online extension application", "order": 4},
+    {"id": "guardrails", "title": "Authority", "order": 5, "delegate": false}
+  ],
+  "stages": [
+    {"id": "extension_application", "title": "Online e-İkamet extension application",
+     "requires": ["EXT001", "EXT002", "EXT003", "EXT004", "EXT005", "EXT006", "EXT007"]}
+  ],
+  "fields": [
+    {"name": "application_date", "type": "date", "question": "On which date do you plan to apply for the extension?"},
+    {"name": "current_permit_expiry_date", "type": "date", "question": "When does your current residence permit card expire?"},
+    {"name": "residence_permit_card_present", "type": "bool", "question": "Do you have a copy of your current residence permit card?"},
+    {"name": "exchange_student", "type": "bool", "question": "Are you still an exchange student for the extension period?"},
+    {"name": "passport_expiry_date", "type": "date", "question": "When does your passport expire?"},
+    {"name": "requested_permit_end_date", "type": "date", "question": "Until which date do you need the extended permit?"},
+    {"name": "insurance_end_date", "type": "date", "question": "When does your health insurance coverage end?"},
+    {"name": "application_form_signed", "type": "bool", "question": "Have you signed the extension application form?"},
+    {"name": "application_channel", "type": "str", "question": "Which channel will you use for the online application?"},
+    {"name": "approval_status", "type": "str", "question": ""},
+    {"name": "holder_name", "type": "str", "question": "What is your full name as written in your passport?"},
+    {"name": "passport_or_foreign_id", "type": "str", "question": "What is your passport or foreigner id number?"},
+    {"name": "student_id", "type": "str", "question": "What is your student id?"},
+    {"name": "institution", "type": "str", "question": "Which university hosts you?",
+     "aliases": {"sabanci university": "Sabancı University", "sabancı university": "Sabancı University"}},
+    {"name": "current_date", "type": "date", "question": ""}
+  ],
+  "documents": [
+    {"doc_type": "residence_permit_card", "description": "Current residence permit card (both sides)",
+     "extracts": ["holder_name", {"field": "current_permit_expiry_date", "from_field": "valid_until"},
+                  {"field": "passport_or_foreign_id", "from_field": "foreigner_id"}]},
+    {"doc_type": "passport_identity_page", "description": "Passport identity page",
+     "extracts": ["holder_name", {"field": "passport_or_foreign_id", "from_field": "passport_number"},
+                  {"field": "passport_expiry_date", "from_field": "expiry_date"}]},
+    {"doc_type": "health_insurance_certificate", "description": "Health insurance policy or certificate",
+     "extracts": ["holder_name", {"field": "insurance_end_date", "from_field": "coverage_end_date"}]},
+    {"doc_type": "student_enrollment_certificate", "description": "Current student certificate",
+     "extracts": ["holder_name", "student_id", "institution", "exchange_student"]}
+  ],
+  "derived": [
+    {"field": "current_date", "op": "today"},
+    {"field": "residence_permit_card_present", "op": "document_complete", "doc_type": "residence_permit_card",
+     "required": ["holder_name", "valid_until"]}
+  ],
+  "contacts": [
+    {"role": "IRO", "name": "Sabancı University International Relations Office", "email": null},
+    {"role": "Migration Management", "name": "Presidency of Migration Management (e-İkamet)", "email": null}
+  ],
+  "forms": []
+}

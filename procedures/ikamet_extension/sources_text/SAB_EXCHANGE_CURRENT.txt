@@ -1,0 +1,15 @@
+SOURCE: Exchange Students Short-Term Residence Permit - First and Extension Application Guidelines (Sabancı University IRO)
+URL: https://iro.sabanciuniv.edu/en/exchange-students-short-term-residence-permit-first-and-extension-application-guidelines
+RETRIEVED: 2026-11-05
+
+NOTE: This file is NOT a copy of the official page. It lists the DRAFT (unverified) extension rules
+of procedures/ikamet_extension/rules.json that cite this source. Replace it with the saved page text,
+then verify each rule against it (draft-rules-from-source skill).
+
+Draft requirements that cite this source:
+- EXT001 (apply_before_current_permit_expires): The extension application is made while the current residence permit is still valid.
+- EXT002 (current_permit_card_available): A copy of the current residence permit card is available for the extension file.
+- EXT003 (still_exchange_student): The applicant is still an exchange student at the host institution for the extension period.
+- EXT005 (insurance_covers_extension): Health insurance covers the whole requested extension period.
+- EXT006 (official_eikamet_channel): The extension application is made through the official e-İkamet channel.
+- EXT007 (extension_form_signed): The generated extension application form is signed.

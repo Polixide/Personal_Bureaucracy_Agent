@@ -1,0 +1,11 @@
+SOURCE: Residence Permit Types (Presidency of Migration Management)
+URL: https://en.goc.gov.tr/residence-permit-types
+RETRIEVED: 2026-11-05
+
+NOTE: This file is NOT a copy of the official page. It lists the DRAFT (unverified) extension rules
+of procedures/ikamet_extension/rules.json that cite this source. Replace it with the saved page text,
+then verify each rule against it (draft-rules-from-source skill).
+
+Draft requirements that cite this source:
+- EXT003 (still_exchange_student): The applicant is still an exchange student at the host institution for the extension period.
+- EXT005 (insurance_covers_extension): Health insurance covers the whole requested extension period.

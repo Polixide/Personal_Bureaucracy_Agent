@@ -53,6 +53,16 @@ must match a row in this file, or update this file first.
     - `langgraph-checkpoint-sqlite` was removed from the requirements.
   - **Historical scripts.** `scripts/convert_knowledge.py` and `scripts/snapshot_legacy_verdicts.py` are now
     historical one-offs (they need commit `486917b`).
+- **Phase 10 done.** `procedures/ikamet_extension` was added with the add-procedure skill, with **zero
+  changes in `src/`**.
+  - **Rules.** It has 8 rules, all `unverified`, with a review list in the pack's README.md. The 4 sources are
+    copied from `knowledge/sources.json`.
+  - **Coverage.** Its residence permit card has no typed schema, so it uses the generic extraction path and a
+    `document_complete` derived field. It has 6 scenarios.
+  - **Generalization test.** `tests/test_generalization.py` fails if `src/` mentions any rule id (or
+    procedure id) of any pack.
+  - **One fix outside `src/`.** In `eval/run_eval.py`, goal scenarios now run only when their expected pack is
+    loaded (needed for `--procedure`).
 
 ## 1. What was audited
 

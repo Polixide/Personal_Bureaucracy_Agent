@@ -1,0 +1,11 @@
+SOURCE: Frequently Asked Questions about Foreigners (Presidency of Migration Management)
+URL: https://en.goc.gov.tr/frequently-asked-questions-about-foreigners
+RETRIEVED: 2026-11-05
+
+NOTE: This file is NOT a copy of the official page. It lists the DRAFT (unverified) extension rules
+of procedures/ikamet_extension/rules.json that cite this source. Replace it with the saved page text,
+then verify each rule against it (draft-rules-from-source skill).
+
+Draft requirements that cite this source:
+- EXT004 (passport_validity_buffer): Passport validity extends at least 60 days beyond the requested end of the extended permit.
+- EXT008 (approval_not_guaranteed): A complete extension file does not guarantee approval; Migration Management decides.
