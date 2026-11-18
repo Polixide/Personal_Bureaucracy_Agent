@@ -26,6 +26,8 @@ WORKER_STEPS = 5         # worker ReAct steps per section
 MAX_REPAIRS = 3          # Gate 1 repair rounds before "needs human review"
 MAX_CONSECUTIVE_FAILURES = 2   # invalid decisions in a row before the deterministic fallback
 MAX_NEXT_ACTIONS = 5
+OBSERVATION_MAX_CHARS = 6000   # tool observations are cut to this size before the model sees them
+AGENT_RECURSION_LIMIT = 100    # LangGraph node visits per run (well above MAX_STEPS + repairs)
 
 # ------------------------------------------------------ document processing --
 DOCUMENT_OLLAMA_TIMEOUT = 180.0

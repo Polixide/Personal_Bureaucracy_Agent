@@ -137,6 +137,13 @@ class Condition(StrictModel):
             raise ValueError("'in' needs a list 'value'")
         return self
 
+    def nodes(self) -> list["Condition"]:
+        """This node and every node below it."""
+        found = [self]
+        for child in list(self.args) + ([self.arg] if self.arg else []):
+            found.extend(child.nodes())
+        return found
+
     def leaf_fields(self) -> list[str]:
         """Every field name this condition reads (used by validation and workers)."""
         names: list[str] = []
