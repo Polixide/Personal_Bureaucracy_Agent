@@ -11,8 +11,8 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from src.llm import short_validation_error
-from src.tools import (ask_user, evaluate_rules, extract_document, read_twin, record_fact,
-                       search_procedures)
+from src.tools import (ask_user, build_checklist, create_ics, draft_email, evaluate_rules, extract_document,
+                       fill_pdf, read_twin, record_fact, search_procedures, simulate_submission)
 from src.tools.common import Observation, ToolContext, ToolError, ToolSpec
 
 
@@ -25,8 +25,8 @@ def base_tools() -> list[ToolSpec]:
 
 
 def _optional_tools() -> list[ToolSpec]:
-    """Sandbox, artifact and retrieval tools (added in phases 6 and 7)."""
-    return []
+    """Sandbox and artifact tools (phase 6); retrieval is added in phase 7."""
+    return [simulate_submission.SPEC, draft_email.SPEC, create_ics.SPEC, fill_pdf.SPEC, build_checklist.SPEC]
 
 
 def build_registry(extra: list[ToolSpec] | None = None) -> dict[str, ToolSpec]:

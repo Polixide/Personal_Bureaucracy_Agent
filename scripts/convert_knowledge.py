@@ -173,6 +173,14 @@ CONTACTS = [
     {"role": "Migration Management", "name": "Presidency of Migration Management (e-İkamet)", "email": None},
 ]
 
+# Synthetic preparation sheet made by scripts/make_synthetic_form.py (not an official form).
+FORMS = [{"form_id": "preparation_sheet", "title": "Personal preparation sheet (synthetic, not an official form)",
+          "template": "forms/preparation_sheet.pdf",
+          "fields": {"holder_name": "holder_name", "passport_number": "passport_or_foreign_id",
+                     "nationality": "nationality", "passport_expiry": "passport_expiry_date",
+                     "permit_start": "requested_start_date", "permit_end": "requested_permit_end_date",
+                     "insurance_end": "insurance_end_date", "institution": "institution"}}]
+
 PROCEDURE_ALIASES = ["ikamet", "ikamet izni", "residence permit", "short-term residence permit",
                      "short term residence permit", "first residence permit", "residence permit application",
                      "oturma izni"]
@@ -225,7 +233,7 @@ def build_procedure() -> dict:
                   f"{scope['procedure']} in {scope['country']}."),
         "excluded": scope["excluded"], "scope_conditions": SCOPE_CONDITIONS,
         "sections": sections, "stages": STAGES, "fields": build_fields(), "documents": build_documents(),
-        "derived": DERIVED, "contacts": CONTACTS, "forms": [],
+        "derived": DERIVED, "contacts": CONTACTS, "forms": FORMS,
     }
 
 

@@ -757,5 +757,21 @@
       "email": null
     }
   ],
-  "forms": []
+  "forms": [
+    {
+      "form_id": "preparation_sheet",
+      "title": "Personal preparation sheet (synthetic, not an official form)",
+      "template": "forms/preparation_sheet.pdf",
+      "fields": {
+        "holder_name": "holder_name",
+        "passport_number": "passport_or_foreign_id",
+        "nationality": "nationality",
+        "passport_expiry": "passport_expiry_date",
+        "permit_start": "requested_start_date",
+        "permit_end": "requested_permit_end_date",
+        "insurance_end": "insurance_end_date",
+        "institution": "institution"
+      }
+    }
+  ]
 }
