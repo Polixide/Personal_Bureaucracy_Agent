@@ -1,4 +1,7 @@
-"""Write tests/data/legacy_verdicts.json: the milestone-1 engine's verdicts on fixed contexts.
+"""HISTORICAL ONE-OFF (phase 1). It imports milestone-1 modules that were deleted in phase 9, so it only
+runs on a checkout of commit 486917b or earlier. Its output is committed and must not be edited by hand.
+
+Write tests/data/legacy_verdicts.json: the milestone-1 engine's verdicts on fixed contexts.
 
 Run once, before the old engine is deleted: python -m scripts.snapshot_legacy_verdicts
 The file is generated, never edited by hand. tests/test_rules_oracle.py compares the new

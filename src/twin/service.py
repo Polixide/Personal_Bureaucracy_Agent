@@ -78,7 +78,7 @@ def _store_observation(store: TwinStore, pack: Pack, user_id: str, original: Twi
     store.close_source(user_id, pack.id, part_id, provenance="document")
     saved = store.save_document(user_id, TwinDocument(
         doc_id=part_id, file_path=original.file_path, status="analyzed", doc_type=observation.doc_type,
-        observation=observation.model_dump(mode="json", exclude={"info"}), processing_error=None))
+        observation=observation.model_dump(mode="json"), processing_error=None))
     for proposal in observation.facts:
         store.add_fact(Fact(user_id=user_id, procedure_id=pack.id, field=proposal.field, value=proposal.value,
                             provenance="document", source_ref=part_id, page=proposal.page, snippet=proposal.snippet,

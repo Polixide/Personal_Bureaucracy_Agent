@@ -80,9 +80,8 @@ def test_evaluate_rules_for_one_section(ctx):
     service.record_app_value(ctx.store, ctx.pack(), USER, "passport_expiry_date", "2027-07-15")
     service.record_app_value(ctx.store, ctx.pack(), USER, "requested_permit_end_date", "2027-06-01")
     output = call(ctx, "evaluate_rules", {"section_id": "passport_photo"}).output
-    by_id = {row["rule_id"]: row for row in output["results"]}
-    assert set(by_id) == {"R006", "R008", "R009"}
-    assert by_id["R006"]["status"] == "fail" and by_id["R006"]["source_ids"]
+    assert set(output["failing"]) | set(output["unknown"]) | set(output["passing"]) == {"R006", "R008", "R009"}
+    assert list(output["failing"]) == ["R006"] and output["failing"]["R006"]
     assert output["counts"] == {"pass": 0, "fail": 1, "unknown": 2}
 
 
@@ -94,8 +93,7 @@ def test_evaluate_rules_rejects_unknown_section_and_missing_procedure(store, ctx
 def test_unconfirmed_statement_does_not_change_the_verdict(ctx):
     call(ctx, "record_fact", {"field": "is_in_turkiye", "value": "yes"})
     call(ctx, "record_fact", {"field": "entered_with_passport", "value": True})
-    r003 = next(r for r in call(ctx, "evaluate_rules", {"section_id": "eligibility"}).output["results"] if r["rule_id"] == "R003")
-    assert r003["status"] == "unknown"
+    assert "R003" in call(ctx, "evaluate_rules", {"section_id": "eligibility"}).output["unknown"]
 
 
 # -------------------------------------------------------- record_fact --

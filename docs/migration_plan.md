@@ -26,6 +26,33 @@ must match a row in this file, or update this file first.
   - `load_rule_cases` moved into `tests/test_knowledge.py` unchanged.
 
   The old `test_*` files that still exercise the milestone-1 graph keep running until phase 9.
+- **Phase 9 done.** The milestone-1 pipeline was deleted once its replacements were green.
+  - **Source deleted:** `src/core/` (graph, state, llm_diagnostics), `src/agents/`, `src/guardrails/`,
+    `src/workers/`, `src/memory/{checkpointer,reflection,state_update}.py`, `streamlit_app.py`,
+    `scripts/run_demo.py`.
+  - **Tests deleted:** `test_action_planner`, `test_hybrid_planning`, `test_plan_validator`, `test_reflection`,
+    `test_requirement_engine`, `test_evaluation`, `test_verification`, `test_document_lifecycle`,
+    `test_milestone_documents`, `test_document_types`, `test_persistence`, `test_required_documents`,
+    `test_rule_loader` and `test_streamlit_helpers`. Where their guarantees went:
+    - rule verdicts: `tests/data/legacy_verdicts.json` + `test_rules_oracle.py`, plus `test_rules.py`;
+    - provenance: `test_twin_facts.py`;
+    - Gate 1: `test_gate1.py`;
+    - repairs, approval and the loop: `test_agent.py` and `test_sandbox.py`;
+    - persistence: `test_twin_store.py`;
+    - UI helpers: `test_app.py`;
+    - scenarios: `procedures/ikamet_first/eval/scenarios.json` + `test_eval.py`.
+  - **Ported in place, same names and guarantees:**
+    `test_processor.py::test_hybrid_observations_and_correction_notes_survive_sqlite` and
+    `::test_correction_notes_alone_do_not_block_gate_1`, and
+    `test_extractor.py::test_ocr_failure_leaves_document_rejected_not_analyzed`.
+  - **Interface changes:**
+    - `evaluate_rules` now returns a compact grouped observation (10.9k → 2.2k characters, so it is not cut
+      for the model);
+    - `search_procedures` returns the selected procedure's sections;
+    - the Ollama backend sets `num_ctx` (`LLM_NUM_CTX`);
+    - `langgraph-checkpoint-sqlite` was removed from the requirements.
+  - **Historical scripts.** `scripts/convert_knowledge.py` and `scripts/snapshot_legacy_verdicts.py` are now
+    historical one-offs (they need commit `486917b`).
 
 ## 1. What was audited
 

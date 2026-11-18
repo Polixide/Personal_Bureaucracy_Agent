@@ -199,16 +199,26 @@ def test_ocr_initializes_once_for_multiple_scanned_pages(tmp_path):
 
 
 def test_ocr_failure_leaves_document_rejected_not_analyzed(tmp_path):
+    """Ported in phase 9 from the milestone-1 document analyzer to the extract_document tool."""
+    from datetime import date
     from unittest.mock import Mock
-    from src.core.state import Document
-    from src.workers.document_analyzer import document_analyzer
+    from src.pack import load_all_packs
+    from src.tools.common import ToolContext
+    from src.tools.registry import build_registry, run_tool
+    from src.twin import service
+    from src.twin.store import TwinStore
     path = tmp_path / "scan.pdf"; scanned_pdf(path)
     engine = Mock(side_effect=RuntimeError("synthetic inference failure"))
-    with patch("src.document_processing.extractor._create_ocr_engine", return_value=engine):
-        result = document_analyzer({"documents":[Document(doc_id="scan",file_path=str(path))]})
-    assert result["documents"][0].status == "rejected"
-    assert "RapidOCR failed" in result["documents"][0].processing_error
-    assert not result["extracted_facts"]
+    with TwinStore(tmp_path / "twin.sqlite") as store,          patch("src.document_processing.extractor._create_ocr_engine", return_value=engine):
+        service.register_upload(store, "u", "scan", str(path))
+        ctx = ToolContext(store=store, packs=load_all_packs(), user_id="u", today=date(2026, 11, 18),
+                          procedure_id="ikamet_first")
+        output = run_tool(build_registry(), "extract_document", {"doc_id": "scan"}, ctx, "orchestrator").output
+        document = store.get_document("u", "scan")
+        facts = store.current_facts("u", "ikamet_first")
+    assert document.status == "rejected"
+    assert "RapidOCR failed" in document.processing_error
+    assert not facts and output["error"]
 
 
 def test_empty_ocr_result_is_a_controlled_failure(tmp_path):

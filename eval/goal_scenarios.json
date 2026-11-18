@@ -1,0 +1,8 @@
+[
+  {"scenario_id": "G01-first-ikamet", "goal": "I want to apply for İkamet", "today": "2026-11-18",
+   "expected_procedure": "ikamet_first"},
+  {"scenario_id": "G02-no-procedure", "goal": "I want to open a bank account", "today": "2026-11-18",
+   "expected_procedure": null},
+  {"scenario_id": "G03-other-wording", "goal": "How do I get my first residence permit?", "today": "2026-11-18",
+   "expected_procedure": "ikamet_first"}
+]

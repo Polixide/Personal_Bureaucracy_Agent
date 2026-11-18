@@ -1,4 +1,7 @@
-"""One-off data conversion: knowledge/ (milestone 1) -> procedures/ikamet_first/ (Procedure Pack).
+"""HISTORICAL ONE-OFF (phase 1). It imports milestone-1 modules that were deleted in phase 9, so it only
+runs on a checkout of commit 486917b or earlier. Its output is committed and must not be edited by hand.
+
+One-off data conversion: knowledge/ (milestone 1) -> procedures/ikamet_first/ (Procedure Pack).
 
 Run: python -m scripts.convert_knowledge
 Nothing here is new knowledge. Every value comes from:

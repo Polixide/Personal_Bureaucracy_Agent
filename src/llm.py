@@ -23,7 +23,7 @@ import httpx
 from ollama import Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
-from config import EMBED_MODEL, LLM_MODEL, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT
+from config import EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT
 
 TRANSPORT_ERRORS = (ResponseError, ConnectionError, httpx.HTTPError, TimeoutError)
 
@@ -83,7 +83,7 @@ class OllamaBackend:
         client = Client(host=self.host, timeout=self.timeout)
         try:
             response = logged_chat(client, component=component, model=self.model, messages=messages,
-                                   format=schema, options={"temperature": LLM_TEMPERATURE},
+                                   format=schema, options={"temperature": LLM_TEMPERATURE, "num_ctx": LLM_NUM_CTX},
                                    think=False, stream=False)
         except TRANSPORT_ERRORS as error:
             raise LLMError(f"Ollama unavailable: {error}") from error

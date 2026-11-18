@@ -19,6 +19,8 @@ EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")   # alternative if slow:
 OLLAMA_HOST = "http://127.0.0.1:11434"
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120.0"))
 LLM_TEMPERATURE = 0.0
+# Ollama's default context window is small; 8192 tokens fits qwen3:4b plus its cache in 4 GB of VRAM.
+LLM_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
 # ------------------------------------------------------------ agent loop --
 MAX_STEPS = 8            # orchestrator ReAct steps

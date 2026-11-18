@@ -27,6 +27,14 @@ class SearchProceduresOutput(BaseModel):
     matches: list[ProcedureMatch]
     selected: str | None
     message: str
+    sections: list[dict] = Field(default_factory=list, description="Sections of the selected procedure, with rule ids")
+
+
+def section_list(pack: Pack) -> list[dict]:
+    """Delegable sections of a pack, in order, with their rule ids (what the orchestrator needs to delegate)."""
+    ordered = sorted(pack.procedure.sections, key=lambda s: s.order)
+    return [{"id": s.id, "title": s.title, "rules": [r.rule_id for r in pack.rules_in_section(s.id)]}
+            for s in ordered if s.delegate]
 
 
 def plain(text: str) -> str:
@@ -64,7 +72,8 @@ def run(args: SearchProceduresInput, ctx: ToolContext) -> SearchProceduresOutput
                               direction="internal", payload={"query_words": len(args.query.split())}))
     note = "" if chosen.status == "verified" else " Its rules are UNVERIFIED: say so in the answer."
     return SearchProceduresOutput(matches=matches, selected=chosen.procedure_id,
-                                  message=f"Active procedure: {chosen.procedure_id}.{note}")
+                                  message=f"Active procedure: {chosen.procedure_id}.{note}",
+                                  sections=section_list(ctx.packs[chosen.procedure_id]))
 
 
 SPEC = ToolSpec(
