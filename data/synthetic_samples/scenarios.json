@@ -1,0 +1,170 @@
+{
+  "dataset_version": "1.0.0",
+  "notes": [
+    "Synthetic students only; no real personal data.",
+    "Each session runs in a fresh process state: new database connection and newly compiled graph, so every expectation is checked on what was persisted, i.e. after a simulated restart.",
+    "Dates are typed: {\"$date\": \"YYYY-MM-DD\"}. A bare string is a string, never a date.",
+    "File names match the canned Document Analyzer stub (src/core/stubs.py MOCK_EXTRACTIONS); any other name is rejected by the stub analyzer.",
+    "Not covered yet (needs the real Rules Engine / Planner / Reflection): deadline pressure, housing branches, stale or conflicting rules, bounded replanning."
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "S01_normal_path_two_sessions",
+      "description": "Student uploads valid insurance, closes the app, comes back and uploads the student certificate. Both documents and the shrinking blocker list must survive the restart.",
+      "user_id": "synthetic_student_01",
+      "initial_twin": {
+        "active_procedure": "ikamet",
+        "extracted_facts": {"appointment_date": {"$date": "2026-11-20"}}
+      },
+      "sessions": [
+        {
+          "event": {"kind": "upload", "file_path": "insurance_valid.pdf"},
+          "expect": {
+            "outcome": "pass",
+            "error_codes": [],
+            "path_includes": ["document_analyzer", "state_update"],
+            "blockers": ["REQ_STUDENT_CERTIFICATE"],
+            "documents": {
+              "insurance_valid.pdf": {"status": "analyzed", "doc_type": "health_insurance",
+                                      "issue_date": {"$date": "2026-11-01"},
+                                      "expiry_date": {"$date": "2027-11-01"}}
+            }
+          }
+        },
+        {
+          "event": {"kind": "upload", "file_path": "student_certificate.pdf"},
+          "expect": {
+            "outcome": "pass",
+            "error_codes": [],
+            "blockers": [],
+            "facts": {"appointment_date": {"$date": "2026-11-20"}},
+            "documents": {
+              "insurance_valid.pdf": {"status": "analyzed", "expiry_date": {"$date": "2027-11-01"}},
+              "student_certificate.pdf": {"status": "analyzed", "doc_type": "student_certificate",
+                                          "issue_date": {"$date": "2026-10-15"}, "expiry_date": null}
+            },
+            "runs": {"pass": 2, "fail": 0}
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "S02_question_without_documents",
+      "description": "A new student only asks what to do. Nothing is uploaded; both requirements become blockers and are remembered.",
+      "user_id": "synthetic_student_02",
+      "initial_twin": {"active_procedure": "ikamet"},
+      "sessions": [
+        {
+          "event": {"kind": "message", "text": "What should I do next?"},
+          "expect": {
+            "outcome": "pass",
+            "error_codes": [],
+            "path_excludes": ["document_analyzer"],
+            "blockers": ["REQ_HEALTH_INSURANCE", "REQ_STUDENT_CERTIFICATE"],
+            "documents": {}
+          }
+        },
+        {
+          "event": {"kind": "message", "text": "Remind me what is missing."},
+          "expect": {
+            "outcome": "pass",
+            "blockers": ["REQ_HEALTH_INSURANCE", "REQ_STUDENT_CERTIFICATE"],
+            "runs": {"pass": 2, "fail": 0}
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "S03_insurance_expires_before_appointment",
+      "description": "Insurance expires on 10 Nov, the appointment is on 20 Nov. Gate 1 must fail; after a restart the expiring document and the failed run are remembered, but blockers are not changed by a failed run. A later valid insurance unblocks the plan.",
+      "user_id": "synthetic_student_03",
+      "initial_twin": {
+        "active_procedure": "ikamet",
+        "extracted_facts": {"appointment_date": {"$date": "2026-11-20"}},
+        "blockers": ["REQ_HEALTH_INSURANCE", "REQ_STUDENT_CERTIFICATE"]
+      },
+      "sessions": [
+        {
+          "event": {"kind": "upload", "file_path": "insurance_expiring.pdf"},
+          "expect": {
+            "outcome": "fail",
+            "error_codes": ["DATE_CONFLICT"],
+            "path_includes": ["gate_1"],
+            "path_excludes": ["state_update"],
+            "blockers": ["REQ_HEALTH_INSURANCE", "REQ_STUDENT_CERTIFICATE"],
+            "documents": {
+              "insurance_expiring.pdf": {"status": "analyzed", "expiry_date": {"$date": "2026-11-10"}}
+            },
+            "runs": {"pass": 0, "fail": 1}
+          }
+        },
+        {
+          "event": {"kind": "upload", "file_path": "insurance_valid.pdf"},
+          "expect": {
+            "outcome": "pass",
+            "error_codes": [],
+            "blockers": ["REQ_STUDENT_CERTIFICATE"],
+            "documents": {
+              "insurance_expiring.pdf": {"status": "analyzed"},
+              "insurance_valid.pdf": {"status": "analyzed", "expiry_date": {"$date": "2027-11-01"}}
+            },
+            "runs": {"pass": 1, "fail": 1}
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "S04_unreadable_document_is_remembered",
+      "description": "An unrecognised document is rejected by the analyzer. After a restart it stays rejected and is not analysed again.",
+      "user_id": "synthetic_student_04",
+      "initial_twin": {"active_procedure": "ikamet"},
+      "sessions": [
+        {
+          "event": {"kind": "upload", "file_path": "blurry_scan.pdf"},
+          "expect": {
+            "outcome": "pass",
+            "error_codes": [],
+            "path_includes": ["document_analyzer"],
+            "blockers": ["REQ_HEALTH_INSURANCE", "REQ_STUDENT_CERTIFICATE"],
+            "documents": {"blurry_scan.pdf": {"status": "rejected", "doc_type": null}}
+          }
+        },
+        {
+          "event": {"kind": "message", "text": "Did my scan work?"},
+          "expect": {
+            "outcome": "pass",
+            "path_excludes": ["document_analyzer"],
+            "documents": {"blurry_scan.pdf": {"status": "rejected"}}
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "S05_invalid_input_rejected_at_gate_0",
+      "description": "An unsupported file type is refused before any worker runs. Nothing is added to the twin, but the failed run is logged.",
+      "user_id": "synthetic_student_05",
+      "initial_twin": {"active_procedure": "ikamet"},
+      "sessions": [
+        {
+          "event": {"kind": "upload", "file_path": "photo.exe"},
+          "expect": {
+            "outcome": "fail",
+            "error_codes": ["INVALID_INPUT"],
+            "path_excludes": ["supervisor"],
+            "documents": {},
+            "blockers": [],
+            "runs": {"pass": 0, "fail": 1}
+          }
+        },
+        {
+          "event": {"kind": "message", "text": "   "},
+          "expect": {
+            "outcome": "fail",
+            "error_codes": ["INVALID_INPUT"],
+            "runs": {"pass": 0, "fail": 2}
+          }
+        }
+      ]
+    }
+  ]
+}

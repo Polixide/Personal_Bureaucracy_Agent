@@ -2,14 +2,22 @@ other/
 __pycache__/
 *.pyc
 .venv/
+.DS_Store
 .pytest_cache/
 .test-temp/
 pytest-cache-files-*/
+
+# Local Digital Twin databases and their SQLite side files (may hold personal data)
 data/digital_twin.db
 data/digital_twin.db-wal
 data/digital_twin.db-shm
 data/digital_twin.db-journal
+*.sqlite
+*.sqlite-journal
+
+# Personal documents and generated artifacts never leave the machine through git
 data/uploads/
+data/outbox/
 .local/
 data/local_samples/
 data/synthetic_samples/Basvuru_Formu-*.pdf
