@@ -9,7 +9,7 @@ from typing import Any
 
 from src.models import Pack
 from src.pack import coerce_fact
-from src.tools.extract_document import ExtractionResult
+from src.document_processing.observations import ExtractionResult
 from src.twin.facts import FactView, build_view
 from src.twin.models import (APP_REF, CHAT_REF, OUTCOME_PREFIX, RESOLUTION_REF, Event, Fact, TwinDocument)
 from src.twin.store import TwinStore
