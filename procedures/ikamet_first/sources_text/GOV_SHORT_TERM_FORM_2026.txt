@@ -2,7 +2,7 @@ SOURCE: Declaration for Short Term Residence Permit Registration Form (Presidenc
 URL: https://e-ikamet.goc.gov.tr/Ikamet/BasvuruFormuOrnegi/BasvuruFormuBos?tur=0
 RETRIEVED: 2026-11-05
 
-NOTE: This file is NOT a copy of the official page. It was compiled from knowledge/rules.json
+NOTE: This file is NOT a copy of the official page. It was compiled from the pack's rules.json
 (the rule descriptions and notes that cite this source). Replace it with the saved page text.
 
 Requirements recorded from this source:

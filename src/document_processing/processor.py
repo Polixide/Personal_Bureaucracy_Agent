@@ -12,7 +12,7 @@ from src.llm import logged_chat
 from pydantic import ValidationError
 
 from config import (
-    OLLAMA_MODEL, OLLAMA_HOST, DOCUMENT_OLLAMA_TIMEOUT,
+    LLM_MODEL, OLLAMA_HOST, DOCUMENT_OLLAMA_TIMEOUT,
     DOCUMENT_MAX_CHUNKS, DOCUMENT_CHUNK_CHARS, DOCUMENT_MAX_INPUT_CHARS,
 )
 from src.document_processing.extractor import TextPage, extract_pages
@@ -150,7 +150,7 @@ def request_json(client, prompt, schema, chunks, *, stage, max_context_chars, de
     started = perf_counter()
     try:
         response = logged_chat(client, component=f"document_{stage}",
-            model=OLLAMA_MODEL,
+            model=LLM_MODEL,
             messages=[{"role": "system", "content": prompt},
                       {"role": "user", "content": text}],
             format=response_schema, options={"temperature": 0}, think=False, stream=False,

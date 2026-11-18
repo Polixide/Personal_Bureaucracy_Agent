@@ -4,7 +4,6 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from config import OLLAMA_MODEL
 
 import pymupdf
 

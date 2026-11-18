@@ -71,6 +71,22 @@ must match a row in this file, or update this file first.
   - **Open issue.** The accepted summary contained a wrong sentence (it called confirmed dates "not
     confirmed"). Gate 1 cannot judge the meaning of free prose (agent module doc, known limits). The full
     `python -m eval.run_eval --live` measurement is still to be run.
+- **Clean-up after phase 10 (2026-11-18).** Everything below was unused by the code and tests, or duplicated
+  elsewhere; git history keeps it.
+  - `knowledge/` (8 files) and `tests/test_knowledge.py`. The pack replaced the data: the 15 test cases live on
+    as `knowledge-<id>` contexts in `tests/data/legacy_verdicts.json`, volatility is in `rules.json`, the
+    change-monitoring policy is summarised in `docs/modules/pack.md`, and `tests/test_pack.py` runs the same
+    consistency checks (unique ids, known sources, known dependencies, no cycle) on every pack.
+  - `scripts/convert_knowledge.py`, `scripts/snapshot_legacy_verdicts.py`: one-off scripts that could no longer
+    run (their inputs are gone). `scripts/make_synthetic_form.py` stays.
+  - `docs/INTEGRATION_REPORT.md`, `docs/memory_and_evaluation.md`: they described deleted milestone-1 code.
+  - `README_KIT.md` (one-time kit setup), `docs/modules/.gitkeep`, `data/synthetic_samples/example.pdf` (a 2 MB
+    public handbook nothing used). The `.txt` samples stay as demo uploads for the app.
+  - Legacy names in `config.py` (`KNOWLEDGE_DIR`, `OLLAMA_MODEL`, `MAX_REFLECTION_ATTEMPTS`, `PLANNER_*`) and
+    dead code (`schemas.ExtractedDocument`, `tools.common.Role`, `codec.FACT_TYPES`, `TwinStore.close_fact`).
+- **App simplified (2026-11-18).** `app.py` was rebuilt around the presentation's three questions: a goal box
+  and the tabs *Where am I?*, *What is missing?*, *What next?* (see `docs/modules/app.md`). Same functions as
+  before; the seven stacked panels, raw field names and the stage-id sandbox panel are gone.
 
 ## 1. What was audited
 
@@ -155,9 +171,9 @@ Decision values: **keep** (no behaviour change, may move), **adapt** (reuse the 
 | `knowledge/sources.json` | adapt → pack `sources.json` | Rename `authority_level` → `authority`. Keep URLs and dates as they are. `GOV_RESIDENCE_INFO` has a truncated URL (`https://en.goc.gov.tr/residence-`): flag it, do not invent a fix | test_knowledge | 1 |
 | `knowledge/dependencies.json` | adapt → merged into `depends_on` | Disagrees with inline `dependencies` (example: edge R001→R002 exists only here). Marco's engine uses the union, so the pack uses the union | rule_loader | 1 |
 | `knowledge/scope.json` | adapt → `procedure.json` `scope` + `scope_conditions` | Same content, also machine-checkable | Gate 0 | 1 |
-| `knowledge/test_cases.json` | keep (as oracle) → copied to pack `eval/` | 15 verdict cases, part of the regression oracle | tests | 1 |
-| `knowledge/change_monitoring.json` | keep (docs) | Policy for rule updates (real → twin path). Informs phase 7 and the rule-update flow; not executed | none | 7 |
-| `knowledge/rule_catalog.md`, `knowledge/README.md` | keep (docs) | Human-readable catalogue. Regenerate from the pack later so the two cannot drift | none | 1 |
+| `knowledge/test_cases.json` | keep (as oracle) → captured in `tests/data/legacy_verdicts.json`; deleted after phase 10 | 15 verdict cases, part of the regression oracle | tests | 1 |
+| `knowledge/change_monitoring.json` | keep (docs) → summarised in `docs/modules/pack.md`; deleted after phase 10 | Policy for rule updates (real → twin path). Informs phase 7 and the rule-update flow; not executed | none | 7 |
+| `knowledge/rule_catalog.md`, `knowledge/README.md` | keep (docs) → deleted after phase 10 (the pack is the catalogue) | Human-readable catalogue. Regenerate from the pack later so the two cannot drift | none | 1 |
 
 ### 3.3 Facts, documents, extraction
 
@@ -189,12 +205,12 @@ Decision values: **keep** (no behaviour change, may move), **adapt** (reuse the 
 | `scripts/run_demo.py` | adapt | Offline demo with mocked transport. Re-pointed to the agent | none | 9 |
 | `pytest.ini`, `requirements*.txt` | adapt | Merge the two. Add `numpy` (phase 7). pytest stays in `requirements-dev.txt`. Pin LangGraph `>=1.2.20` (venv has 1.2.22; Neda pinned 1.2.18) | — | 0 |
 | `.gitignore` | adapt | Union of both. **Must ignore `data/uploads/` and `data/digital_twin.db` before any `git add`** (see risk 3). Also ignore `procedures/*/outbox/` (artifacts) | — | 0 |
-| `data/synthetic_samples/*.txt` | keep | Synthetic fixtures used by tests | tests | — |
+| `data/synthetic_samples/*.txt` | keep | Synthetic fixtures; after phase 9 they are demo uploads for the app | tests | — |
 | 5 fixtures only on `integration-abc` (`enrollment_ambiguous/invalid_date`, `insurance_multiline_layout/numeric_dates/turkish`) | keep (salvage) | Extra extraction coverage. Bring them over with their tests if they pass on the kept processor | — | 2 |
 | `data/synthetic_samples/prova.txt` | delete | Empty file | none | 0 |
-| `data/synthetic_samples/example.pdf` | keep (review) | A public university orientation handbook (58 pages), not personal data and not synthetic. No test references it. Could be removed to slim the repo | none | — |
+| `data/synthetic_samples/example.pdf` | keep (review) → deleted after phase 10 | A public university orientation handbook (58 pages), not personal data and not synthetic. No test references it. Could be removed to slim the repo | none | — |
 | `integration-abc` root modules (`document_evidence.py`, `processor.py`, `extractor.py`, `schemas.py`) and its `src/workers/*` | delete (do not merge) | Superseded: Marco's `src/document_processing/` already adopts them | none | — |
-| `docs/INTEGRATION_REPORT.md`, `docs/memory_and_evaluation.md` | keep (history) | Accurate history of milestone 1 | none | — |
+| `docs/INTEGRATION_REPORT.md`, `docs/memory_and_evaluation.md` | keep (history) → deleted after phase 10 (described deleted code) | Accurate history of milestone 1 | none | — |
 | `docs/architecture_diagram.png`, `docs/*pres1.pdf`, `other/` (git-ignored) | keep | Course material | none | — |
 | `README.md` | adapt | Rewrite after phase 9 | — | 9 |
 

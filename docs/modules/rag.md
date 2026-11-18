@@ -33,7 +33,7 @@ python -m pytest -q tests/test_rag.py
   without Ollama.
 
 ## Known limits
-- **The text files are placeholders.** `sources_text/` holds summaries compiled from `knowledge/rules.json`,
+- **The text files are placeholders.** `sources_text/` holds summaries compiled from the pack's `rules.json`,
   not copies of the official pages; each file says so. Retrieval only becomes truly useful after someone saves
   the real page texts there.
 - **No live retrieval measurement yet.** Quality with `bge-m3` (or `qwen3-embedding:0.6b`) still needs a run

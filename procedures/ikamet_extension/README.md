@@ -6,7 +6,8 @@ to show that a second procedure needs **no change in `src/`** (checked by `tests
 ## Status
 - **Draft rules.** All 8 rules and the procedure are `"status": "unverified"`. The agent must say so in every
   answer, and Gate 1 enforces it (`UNVERIFIED_NOT_LABELLED`).
-- **Sources.** The 4 sources are copied unchanged from `knowledge/sources.json`. No URL or date was invented.
+- **Sources.** The 4 sources are copied unchanged from `procedures/ikamet_first/sources.json` (originally the
+  milestone-1 `knowledge/sources.json`). No URL or date was invented.
 - **Source texts.** `sources_text/` holds placeholders that list the draft rules, not the official text.
 
 ## Review list for a person (before switching any rule to `verified`)

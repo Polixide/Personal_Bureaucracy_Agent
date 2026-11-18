@@ -64,9 +64,22 @@ python -m eval.run_eval --live           # with the local model
 python -m src.pack validate ikamet_first # check a Procedure Pack
 ```
 
+### The app
+The page answers the three questions of the Digital Twin from our presentation:
+- **Goal box.** Type your goal and press *Ask the agent* (2-4 minutes with `qwen3:4b` on a laptop). If the agent
+  asks a question, answer it in the box that appears.
+- **Where am I?** Requirements met per section, your documents, and everything the Twin knows.
+- **What is missing?** Add a document, confirm uncertain values, see the problems, and answer the open questions.
+- **What next?** Actions waiting for your approval, the sandbox (a mock portal; nothing is submitted), and
+  *Something happened?* to report an outcome.
+
+To try it without personal documents, upload the files in `data/synthetic_samples/` (for example
+`health_insurance.txt`). To keep a demo apart from your own Twin, set `TWIN_DATABASE` to another file:
+`$env:TWIN_DATABASE = "data/demo_twin.sqlite"; streamlit run app.py`.
+
 ## Procedures
 - `ikamet_first`: first short-term residence permit for Sabancı incoming exchange students. It has 29 verified
-  rules, converted from the milestone-1 `knowledge/` data.
+  rules, converted from the milestone-1 `knowledge/` data (that folder was removed once the pack replaced it).
 - `ikamet_extension`: short-term residence permit extension. Its rules are **unverified** until a person checks
   them against the official text.
 

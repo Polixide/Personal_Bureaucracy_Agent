@@ -20,7 +20,6 @@ from src.twin.service import twin_view
 from src.twin.store import TwinStore
 
 ToolKind = Literal["read", "sandbox", "artifact", "ask", "orchestrator"]
-Role = Literal["orchestrator", "worker"]
 BOTH_ROLES: tuple[str, ...] = ("orchestrator", "worker")
 
 

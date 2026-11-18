@@ -6,7 +6,7 @@
     "retrieved_at": "2026-11-05",
     "authority": "sabanci_operational",
     "organization": "Sabancı University IRO",
-    "notes": "Entry copied from knowledge/sources.json. Its extension part has not been checked rule by rule."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json). Its extension part has not been checked rule by rule."
   },
   {
     "source_id": "GOV_FAQ",
@@ -15,7 +15,7 @@
     "retrieved_at": "2026-11-05",
     "authority": "government_primary",
     "organization": "Presidency of Migration Management",
-    "notes": "Entry copied from knowledge/sources.json."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json)."
   },
   {
     "source_id": "GOV_RESIDENCE_TYPES",
@@ -24,7 +24,7 @@
     "retrieved_at": "2026-11-05",
     "authority": "government_primary",
     "organization": "Presidency of Migration Management",
-    "notes": "Entry copied from knowledge/sources.json."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json)."
   },
   {
     "source_id": "GOV_GENERAL_INFO",
@@ -33,6 +33,6 @@
     "retrieved_at": "2026-11-05",
     "authority": "government_primary",
     "organization": "Presidency of Migration Management",
-    "notes": "Entry copied from knowledge/sources.json."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json)."
   }
 ]

@@ -5,8 +5,8 @@ from pathlib import Path
 # ---------------------------------------------------------------- paths --
 PROJECT_ROOT = Path(__file__).resolve().parent
 PROCEDURES_DIR = PROJECT_ROOT / "procedures"          # one Procedure Pack per sub-folder
-KNOWLEDGE_DIR = PROJECT_ROOT / "knowledge"            # legacy rule data (old engine and oracle only)
-DATABASE_PATH = PROJECT_ROOT / "data" / "digital_twin.db"   # the Digital Twin (SQLite)
+# The Digital Twin (SQLite). TWIN_DATABASE points the app at another file, e.g. a demo database.
+DATABASE_PATH = Path(os.getenv("TWIN_DATABASE", PROJECT_ROOT / "data" / "digital_twin.db"))
 UPLOAD_DIR = PROJECT_ROOT / "data" / "uploads"        # user documents (git-ignored)
 OUTBOX_DIR = PROJECT_ROOT / "data" / "outbox"         # approved artifacts (git-ignored)
 
@@ -40,10 +40,3 @@ DOCUMENT_MAX_INPUT_CHARS = 3400
 # ------------------------------------------------------------------- RAG --
 RAG_CHUNK_CHARS = 800
 RAG_TOP_K = 3
-
-# ------------------------------------------- legacy names (milestone-1 code) --
-# The milestone-1 planner/processor import these names. They are removed with that code (phase 9).
-OLLAMA_MODEL = LLM_MODEL
-MAX_REFLECTION_ATTEMPTS = MAX_REPAIRS
-PLANNER_MAX_OUTPUT_TOKENS = int(os.getenv("PLANNER_MAX_OUTPUT_TOKENS", "900"))
-PLANNER_MAX_ACTIONS = int(os.getenv("PLANNER_MAX_ACTIONS", "3"))

@@ -9,7 +9,7 @@ import pymupdf
 import pytest
 from pydantic import ValidationError
 
-from config import OLLAMA_MODEL, OLLAMA_HOST
+from config import LLM_MODEL, OLLAMA_HOST
 from src.document_processing.extractor import TextPage
 from src.document_processing.processor import (
     CHUNK_CHARS, MAX_INPUT_CHARS, MAX_CHUNKS, DocumentProcessingError,
@@ -84,7 +84,7 @@ def test_student_type_fields_and_source_page(tmp_path):
     assert info.source_pages["student_id"] == 1
     assert set(calls[1].kwargs["format"]["properties"]) == set(StudentCertificate.model_fields) - {"missing_fields", "validation_issues", "source_evidence", "correction_notes", "selected_pages"}
     assert "SourceEvidence" not in calls[1].kwargs["format"].get("$defs", {})
-    assert all(call.kwargs["model"] == OLLAMA_MODEL for call in calls)
+    assert all(call.kwargs["model"] == LLM_MODEL for call in calls)
 
 
 def test_insurance_uses_specific_schema_and_identity_field(tmp_path):
@@ -205,7 +205,7 @@ def test_model_and_host_configuration(tmp_path):
         client.return_value.chat.side_effect = [response({"document_type":"student_enrollment_certificate"}),response(STUDENT)]
         process_document(path,timeout=10)
         client.assert_called_once_with(host=OLLAMA_HOST,timeout=10)
-        assert all(c.kwargs["model"] == OLLAMA_MODEL for c in client.return_value.chat.call_args_list)
+        assert all(c.kwargs["model"] == LLM_MODEL for c in client.return_value.chat.call_args_list)
 
 
 @pytest.mark.parametrize("content",["not JSON","[]",'{"document_type":"invented"}'])

@@ -30,13 +30,20 @@ A part of `procedure.json`:
   `"Sabancı University"` (through a field alias).
 
 ## Why it is built this way
-- **The İkamet pack was converted, not written by hand.** `scripts/convert_knowledge.py` reads `knowledge/`
-  and the milestone-1 code (field types, document mappings, scope test, stage prerequisites). Each condition
+- **The İkamet pack was converted, not written by hand.** A one-off script (`scripts/convert_knowledge.py`,
+  commit fdc5ebd, deleted afterwards) read `knowledge/` and the milestone-1 code (field types, document
+  mappings, scope test, stage prerequisites). Each condition
   mirrors the original `deterministic_condition` text, which is kept as `legacy_condition` for audit.
 - **Strict models.** `extra="forbid"` means a typo such as `"sevrity"` is an error instead of a silently
   ignored key.
 - **Unverified rules.** A rule with no source must say `"status": "unverified"`, and answers that use it
   must label it.
+
+## Rule volatility and updates
+Each rule has a `volatility` (from the milestone-1 change-monitoring policy). Re-check its sources: `very_high`
+before an active submission, `high` weekly, `medium` monthly, `low` each semester or when a source changes. A
+changed source never edits a rule automatically: a person reviews it, bumps the rule `version`, runs the tests,
+and reports it with `twin.service.record_rule_update`, which retires the lessons tied to the old rule.
 
 ## How to test it
 ```

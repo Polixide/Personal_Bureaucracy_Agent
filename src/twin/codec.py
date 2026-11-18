@@ -25,8 +25,6 @@ from typing import Any
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
-FACT_TYPES = ("null", "bool", "int", "float", "str", "date", "datetime", "json")
-
 
 class EncodingError(ValueError):
     """A value cannot be stored (or read back) without losing meaning."""
