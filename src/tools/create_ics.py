@@ -14,10 +14,10 @@ FOLD_OCTETS = 75
 
 
 class CreateIcsInput(BaseModel):
-    title: str = Field(min_length=3, max_length=120, description="Event title, e.g. 'Legal stay ends'")
-    date_field: str = Field(description="A date field of the procedure whose value is known (e.g. legal_stay_expiry_date)")
-    description: str = Field(default="", max_length=500, description="Short reminder text (no other dates)")
-    rule_ids: list[str] = Field(default_factory=list, description="Rules this date matters for")
+    title: str = Field(min_length=3, max_length=120, description="Event title")
+    date_field: str = Field(description="A known date field (not a date)")
+    description: str = Field(default="", max_length=500, description="Reminder text")
+    rule_ids: list[str] = Field(default_factory=list, description="Related rule ids")
 
 
 def ics_escape(text: str) -> str:

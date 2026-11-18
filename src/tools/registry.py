@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from src.llm import short_validation_error
 from src.tools import (ask_user, build_checklist, create_ics, draft_email, evaluate_rules, extract_document,
-                       fill_pdf, read_twin, record_fact, search_procedures, simulate_submission)
+                       fill_pdf, read_twin, record_fact, search_procedures, search_sources, simulate_submission)
 from src.tools.common import Observation, ToolContext, ToolError, ToolSpec
 
 
@@ -25,8 +25,9 @@ def base_tools() -> list[ToolSpec]:
 
 
 def _optional_tools() -> list[ToolSpec]:
-    """Sandbox and artifact tools (phase 6); retrieval is added in phase 7."""
-    return [simulate_submission.SPEC, draft_email.SPEC, create_ics.SPEC, fill_pdf.SPEC, build_checklist.SPEC]
+    """Sandbox, artifact and retrieval tools (phases 6 and 7)."""
+    return [simulate_submission.SPEC, draft_email.SPEC, create_ics.SPEC, fill_pdf.SPEC, build_checklist.SPEC,
+            search_sources.SPEC]
 
 
 def build_registry(extra: list[ToolSpec] | None = None) -> dict[str, ToolSpec]:
@@ -77,6 +78,6 @@ def _arg_summary(model: type[BaseModel]) -> dict[str, str]:
 
 
 def describe_tools(registry: dict[str, ToolSpec]) -> list[dict[str, Any]]:
-    """Compact tool list for the model: name, kind, what it does, its arguments."""
-    return [{"name": spec.name, "kind": spec.kind, "description": spec.description,
-             "args": _arg_summary(spec.input_model)} for spec in registry.values()]
+    """Compact tool list for the model: name, what it does, its arguments (kinds are enforced by code)."""
+    return [{"name": spec.name, "description": spec.description, "args": _arg_summary(spec.input_model)}
+            for spec in registry.values()]

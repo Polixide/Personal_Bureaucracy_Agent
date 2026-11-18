@@ -9,9 +9,9 @@ from src.twin import service
 
 
 class RecordFactInput(BaseModel):
-    field: str = Field(description="A field name of the procedure (see the missing_fields of evaluate_rules)")
-    value: str | int | bool = Field(description="The value exactly as the user stated it (dates YYYY-MM-DD)")
-    note: str = Field(default="", max_length=200, description="Where in the conversation the user said it")
+    field: str = Field(description="A procedure field name")
+    value: str | int | bool = Field(description="Value as stated (dates YYYY-MM-DD)")
+    note: str = Field(default="", max_length=200, description="Context of the statement")
 
 
 class RecordFactOutput(BaseModel):
@@ -35,6 +35,5 @@ def run(args: RecordFactInput, ctx: ToolContext) -> RecordFactOutput:
 
 SPEC = ToolSpec(
     name="record_fact",
-    description="Store a fact the user stated in the conversation (for example their entry date). It is kept as "
-                "unconfirmed until the user confirms it.",
+    description="Store a fact the user stated in the chat; it stays unconfirmed until the user confirms it.",
     input_model=RecordFactInput, output_model=RecordFactOutput, fn=run, kind="read", roles=("orchestrator",))

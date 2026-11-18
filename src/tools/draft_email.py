@@ -14,9 +14,9 @@ UNKNOWN_ADDRESS = "(address not in the procedure sources: fill it in yourself)"
 class DraftEmailInput(BaseModel):
     to_role: str = Field(description="A contact role of the procedure (e.g. IRO)")
     subject: str = Field(min_length=3, max_length=150)
-    body: str = Field(min_length=10, max_length=3000, description="Polite, factual text; no promises, no invented dates")
-    rule_ids: list[str] = Field(default_factory=list, description="Rules the e-mail is about")
-    stage_id: str | None = Field(default=None, description="If the e-mail starts an official stage, its stage id")
+    body: str = Field(min_length=10, max_length=3000, description="Factual text, no promises")
+    rule_ids: list[str] = Field(default_factory=list, description="Related rule ids")
+    stage_id: str | None = Field(default=None, description="Stage it starts, if any")
 
 
 def run(args: DraftEmailInput, ctx: ToolContext) -> ProposalOutput:
@@ -36,6 +36,5 @@ def run(args: DraftEmailInput, ctx: ToolContext) -> ProposalOutput:
 
 SPEC = ToolSpec(
     name="draft_email",
-    description="Propose an e-mail draft to a contact of the procedure (for example IRO). It is saved as a draft "
-                "file after approval and never sent by the agent.",
+    description="Propose an e-mail draft to a procedure contact (e.g. IRO). Saved as a file after approval; never sent.",
     input_model=DraftEmailInput, output_model=ProposalOutput, fn=run, kind="artifact", roles=("orchestrator",))
