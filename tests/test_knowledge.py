@@ -9,7 +9,20 @@ from pathlib import Path
 
 import pytest
 
-from src.evaluation.harness import load_rule_cases
+from src.twin.codec import decode_date
+
+
+def load_rule_cases() -> list[dict]:
+    """knowledge/test_cases.json with every `*_date` input parsed strictly to a `date`.
+
+    Moved here from Neda's src/evaluation/harness.py (retired in phase 3) without changes.
+    """
+    path = Path(__file__).resolve().parents[1] / "knowledge" / "test_cases.json"
+    cases = json.loads(path.read_text())["tests"]
+    for case in cases:
+        case["input"] = {k: decode_date(v) if k.endswith("_date") else v
+                         for k, v in case["input"].items()}
+    return cases
 
 KNOWLEDGE = Path(__file__).resolve().parents[1] / "knowledge"
 

@@ -15,6 +15,18 @@ must match a row in this file, or update this file first.
 | Docs language | English. |
 | Retired stub tests | `tests/test_scenarios.py` and `tests/test_restart.py` are deselected in `pytest.ini` (phase 0) and deleted in phase 3. |
 
+### Progress log
+- **Phase 3 done.** Deleted: `src/memory/twin_store.py` (v1 store), `src/memory/session.py`,
+  `src/memory/schema.sql`, `src/evaluation/`, `scripts/run_eval.py`, `data/synthetic_samples/scenarios.json`,
+  `tests/test_store.py`, `tests/test_restart.py`, `tests/test_scenarios.py`. What replaced them:
+  - `src/twin/store.py` + `schema.sql` v2 (`codec.py` moved unchanged),
+  - `tests/test_twin_store.py`, which ports every v1 store guarantee plus the restart-in-a-new-process check,
+  - `tests/test_twin_facts.py`, which ports the provenance guarantees of `test_verification.py`,
+    `test_document_lifecycle.py` and `test_milestone_documents.py`,
+  - `load_rule_cases` moved into `tests/test_knowledge.py` unchanged.
+
+  The old `test_*` files that still exercise the milestone-1 graph keep running until phase 9.
+
 ## 1. What was audited
 
 There is no single integrated branch. The repository has four separate lines of work that all start from the

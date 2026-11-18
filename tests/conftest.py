@@ -5,7 +5,7 @@ import tempfile
 import pytest
 
 from config import PROJECT_ROOT
-from src.memory.twin_store import TwinStore
+from src.twin.store import TwinStore
 
 
 @pytest.fixture(autouse=True)
