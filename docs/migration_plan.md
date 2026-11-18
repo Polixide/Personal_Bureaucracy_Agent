@@ -1,0 +1,264 @@
+# Migration plan: prototype to ReAct Orchestrator-Workers agent
+
+Phase A (audit) for the v2 work described in `CLAUDE.md`. Written 2026-11-18. Every later rewrite or deletion
+must match a row in this file, or update this file first.
+
+## 0. Decisions approved on 2026-11-18
+
+| Question | Decision |
+|---|---|
+| Branch | Work on **`dani-version-two`** (instead of a new branch). It was fast-forwarded to `origin/feature/marco-milestone1` and then merged with `origin/main` (commit `2c58f76`). Never pushed to `main`. |
+| Model | `LLM_MODEL = "qwen3:4b"` by default (4 GB GPU). `qwen3:8b` / `gemma4:e4b` are documented alternatives. `EMBED_MODEL = "bge-m3"`. `OLLAMA_HOST` is written as `127.0.0.1` (same as localhost, avoids an IPv6 lookup on Windows). |
+| R015 | The `rules.json` version is canonical. Marco's code-only "Milestone-1 scoped" variant is dropped. |
+| Facts from chat | `record_fact` stores `user_stated` with `confirmed=False`. Unconfirmed facts never reach the rule evaluator until the user confirms them in the app. |
+| Second procedure | İkamet extension (`procedures/ikamet_extension`). Its rules are `unverified` until a person checks them against the official text. |
+| Docs language | English. |
+| Retired stub tests | `tests/test_scenarios.py` and `tests/test_restart.py` are deselected in `pytest.ini` (phase 0) and deleted in phase 3. |
+
+## 1. What was audited
+
+There is no single integrated branch. The repository has four separate lines of work that all start from the
+same Workstream A stub graph (`8a7ee37`):
+
+| Branch (commit) | Author | Content | Offline tests (run on 2026-11-18) |
+|---|---|---|---|
+| `dani-version-two` = local `main` (`8a7ee37`) | Daniele | Stub graph only (`src/core/{state,graph,stubs}.py`) + `knowledge/` | none |
+| `origin/main` (`b71ac92`) | Neda | Stub graph + **SQLite Twin tables** (`TwinStore`), codec, run log, lessons, eval harness, 5 stub scenarios | **104 passed** |
+| `origin/feature/marco-milestone1` (`225aad7`) | Marco | **Most integrated**: real graph, Gate 0/1, 29-rule engine, fact verification, LLM planner + repair, document processing with OCR, LangGraph SQLite checkpoints, Streamlit app | **489 passed** |
+| `origin/test/integration-abc` (`2ca7d6e`) | Andrea | Earlier A+B+C integration (R014 only, root-level modules). Marco's branch already adopts its evidence logic | 95 passed + 79 subtests |
+| `origin/feature/document-processing` (`c9121fb`) | Andrea | Ancestor of `integration-abc` | (contained in the above) |
+
+How the tests were run: each branch was exported with `git archive` to a scratch folder and run with the project
+`.venv` (Python 3.13.2). pytest is **not installed** in `.venv`, so a scratch copy was used and the venv was not
+modified. Marco's suite needs its temp folder **inside the project root**, because Gate 0 rejects paths outside it.
+Run it as `python -m pytest -q --basetemp=.test-temp/x`. With pytest's default temp folder, 73 tests fail.
+
+**Merge check.** `git merge-tree` of Marco's branch with `origin/main` gives 6 conflicts: `.gitignore`, `config.py`,
+`requirements.txt`, `pytest.ini`, `tests/conftest.py` (trivial unions) and `src/memory/checkpointer.py`. The last
+is a real add/add conflict: Marco's LangGraph `SqliteSaver` wrapper and Neda's `TwinStore` have the same filename.
+A simulated merge kept Marco's file and moved `TwinStore` to `src/memory/twin_store.py`. Result: **584 passed,
+9 failed**. All 9 failures are Neda's graph-level scenario/restart tests. They were written against the stub
+graph (stub Gate 1 with an "appointment" date conflict, no checkpointer `thread_id`). See section 5.
+
+**Recommendation:** start `feature/react-agent-v2` from `origin/feature/marco-milestone1` and merge `origin/main` into it
+(Phase 0). This needs confirmation (question 1).
+
+## 2. Target layout (after phase 10)
+
+```
+config.py                      all settings (LLM_MODEL, EMBED_MODEL, OLLAMA_HOST, MAX_STEPS, WORKER_STEPS, MAX_REPAIRS, DATABASE_PATH, ...)
+app.py                         Streamlit (adapted from streamlit_app.py)
+procedures/<id>/               procedure.json, rules.json, sources.json, sources_text/, eval/scenarios.json
+src/models.py                  pack models (Procedure, Field, Rule, Condition, Source) and RuleResult
+src/pack.py                    load + validate a pack; CLI `python -m src.pack validate <id>`
+src/rules.py                   three-valued evaluator (no rule ids)
+src/llm.py                     every Ollama chat/embedding call (schema output, Pydantic, 1 retry, fallback)
+src/document_processing/       existing extraction (kept), plus a generic pack-driven extraction path
+src/twin/                      SQLite Twin: schema.sql, codec.py, store.py, facts.py (provenance, valid_from/to)
+src/tools/                     registry.py (ToolSpec) + one file per tool
+src/agent/                     decision.py, worker.py, orchestrator.py, gate1.py, fallback.py, graph.py
+src/sandbox/                   mock world + simulate_submission + promotion gate
+src/rag/                       chunk, embed, cosine search, vector cache in SQLite
+src/memory/                    episodes (validated repairs)
+eval/                          run_eval.py, baselines A/B/D
+tests/
+```
+
+## 3. Module table
+
+Decision values: **keep** (no behaviour change, may move), **adapt** (reuse the logic and change the interface),
+**replace** (new module, the old one is deleted when its replacement is green), **delete**.
+"Depended on by" lists importers in the merged tree (tests are counted by file).
+
+### 3.1 Core, orchestration, guardrails
+
+| Module | Decision | Reason | Depended on by | Phase |
+|---|---|---|---|---|
+| `config.py` (Marco + Neda) | adapt | Merge the two. Add the kickoff settings. Keep `DATABASE_PATH = data/digital_twin.db` (used by the app and the local DB). Neda's `DB_PATH`/`PBA_DB_PATH` is folded into it. Document timeouts and chunk limits stay. `PLANNER_*` settings go when the planner goes | everything | 0 |
+| `src/core/state.py` | adapt | Keep `UserEvent`, `Document`, `ValidationIssue` and the reducers. Make `AgentState` procedure-independent. `ResidencePermitContext` (70 hard-coded İkamet fields) is replaced by pack-declared facts. `Requirement` is replaced by `RuleResult`. `PlanStep`/`ActionPlan` are replaced by `FinalAnswer`/`ProposedAction`. The 13 event kinds are reduced: chat goal plus upload go to the agent, and document lifecycle events become direct Twin calls (decision D8) | 33 files | 5 |
+| `src/core/graph.py` | adapt | Keep the LangGraph `StateGraph`, bounded-repair routing and `respond`. The graph becomes `orchestrator_decide -> act -> decide`, with `final -> gate_1 -> repair/accept`. The rule-driven `supervisor` is removed | app, demo, 9 test files | 5 |
+| `src/core/llm_diagnostics.py` | adapt | Its content-free logging (`logged_chat`) moves into `src/llm.py`. The `R\d{3}` regexes are removed (no rule-id format in `src/`) | planner, processor, gate_1, reflection | 2 |
+| `src/core/stubs.py` (only on `dani-version-two`) | delete | Already deleted on Marco's branch, replaced by real nodes | none | 0 |
+| `src/guardrails/gate_0.py` | adapt | Keep the input/path checks (uploads must be existing PDF/TXT inside the project). The hard-coded Sabancı scope test moves to `procedure.json` `scope_conditions`, evaluated by `src/rules.py` (D6) | graph, 2 test files | 4 |
+| `src/guardrails/gate_1.py` | adapt | Becomes `src/agent/gate1.py` on `FinalAnswer`. Keep: completion/approval/unknown-as-failure phrase checks, unknown rule ids and fields, deadline-key matching, duplicate ids. Add: every structured claim equals the latest `evaluate_rules` result; every date comes from facts or rules; every action cites a rule or finding; unverified rules labelled. Remove the hard-coded prerequisite sets (official_application → R001–R006, etc.), which move to `procedure.json` `stages[].requires` (D7) | graph, 6 test files | 5 |
+| `src/guardrails/human_approval.py` | replace | LangGraph `interrupt()` approval of a whole plan becomes per-action approval of PROPOSED actions stored in the Twin (D2). This survives restarts with no checkpointer | graph | 6 |
+| `src/agents/planner.py` | replace | Replaced by orchestrator + workers + `FinalAnswer`. **Reused idea:** the model may only pick ids from a closed enum (`planner_output_schema`), and Python rebuilds the metadata. The same technique constrains `Decision.action` and `next_actions[].ref`. The repair bookkeeping (locked actions, slot reuse, ~300 lines) is not carried over | graph, gate_1, app, 5 test files | 5 |
+| `src/agents/planning_policy.py` | replace | The stage logic and "immediate/future/outside_scope" categories hard-code 23 lines of rule ids. They become per-section `stage` metadata in `procedure.json`. `fallback_plan` becomes the deterministic workflow fallback (evaluate all sections, build the checklist) | planner, app, 4 test files | 5 |
+| `src/memory/reflection.py` | replace | Repair = Gate 1 structured errors fed back to the model, max `MAX_REPAIRS`, then a "needs human review" flag. Validated repairs are stored as episodes (phase 8) | graph, planner, 2 test files | 5, 8 |
+| `src/memory/state_update.py` | delete | Approved-plan bookkeeping becomes Twin proposal-status updates | graph | 6 |
+| `src/memory/checkpointer.py` (Marco, `SqliteSaver`) | delete (after phase 6) | Only needed for `interrupt()`. Once approval lives in Twin proposals, the Twin DB is the only store. Kept until then so the old app keeps working | app, demo, 6 test files | 6 |
+
+### 3.2 Rules and knowledge
+
+| Module | Decision | Reason | Depended on by | Phase |
+|---|---|---|---|---|
+| `src/workers/rules_engine.py` | replace (by `src/rules.py`) | 29 hand-written lambdas (32 lines mention rule ids) plus a code-only R015 variant. The new JSON-tree evaluator must reproduce its verdicts first (section 5). It is deleted only after the oracle test is green and the verdict snapshot is committed | graph, 10 test files | 1 |
+| `src/workers/rule_loader.py` | replace (by `src/pack.py`) | Hard-codes the set `R001..R029`. Its dependency union (inline + `dependencies.json`) is kept as data in `rules.json` `depends_on` | rules_engine, gate_1, planning_policy | 1 |
+| `knowledge/rules.json` | adapt → `procedures/<ikamet>/rules.json` | Data conversion of all 29 rules into condition trees. Ids, versions, severity, sources and descriptions are unchanged (notes in section 4) | rule_loader, test_knowledge | 1 |
+| `knowledge/sources.json` | adapt → pack `sources.json` | Rename `authority_level` → `authority`. Keep URLs and dates as they are. `GOV_RESIDENCE_INFO` has a truncated URL (`https://en.goc.gov.tr/residence-`): flag it, do not invent a fix | test_knowledge | 1 |
+| `knowledge/dependencies.json` | adapt → merged into `depends_on` | Disagrees with inline `dependencies` (example: edge R001→R002 exists only here). Marco's engine uses the union, so the pack uses the union | rule_loader | 1 |
+| `knowledge/scope.json` | adapt → `procedure.json` `scope` + `scope_conditions` | Same content, also machine-checkable | Gate 0 | 1 |
+| `knowledge/test_cases.json` | keep (as oracle) → copied to pack `eval/` | 15 verdict cases, part of the regression oracle | tests | 1 |
+| `knowledge/change_monitoring.json` | keep (docs) | Policy for rule updates (real → twin path). Informs phase 7 and the rule-update flow; not executed | none | 7 |
+| `knowledge/rule_catalog.md`, `knowledge/README.md` | keep (docs) | Human-readable catalogue. Regenerate from the pack later so the two cannot drift | none | 1 |
+
+### 3.3 Facts, documents, extraction
+
+| Module | Decision | Reason | Depended on by | Phase |
+|---|---|---|---|---|
+| `src/workers/verification.py` | adapt (split) | This is the real → twin logic: only source-grounded values are accepted, explicit user confirmation is kept separate, derived values are labelled, name conflicts need resolution, and the document lifecycle is handled. All of that is kept. The İkamet tables (`MAPPINGS`, `IMPORTANT_FIELDS`, `ATTESTATIONS`, `CONTEXT_QUESTIONS`, `MILESTONE_DOCUMENTS` with rule ids) move into `procedure.json` `documents[].extracts`/`fields[].question`. The generic code moves to `src/twin/facts.py`. `verification_updates` is 168 lines and must be split | rules_engine, gate_0, planner, policy, app, 5 test files | 3, 4 |
+| `src/workers/document_analyzer.py` | adapt → `extract_document` tool | Same adapter (pending document → typed observation, passport bundle split). Returns a tool observation and writes facts with `provenance=document` | graph, 2 test files | 2 |
+| `src/document_processing/extractor.py` | keep | PDF/TXT text with page numbers, local RapidOCR only for scanned pages. Generic, pinned by tests | processor, 5 test files | 2 |
+| `src/document_processing/processor.py` | keep + adapt calls | Classification → typed extraction → grounding. Only the Ollama calls change, to go through `src/llm.py`. Keyword tables stay | analyzer, 4 test files | 2 |
+| `src/document_processing/evidence.py` | keep | 724 lines of deterministic evidence (MRZ check digits, labelled dates, insurance rows, snippet audit). Pinned by ~71 pure tests. No refactor unless time allows (it breaks the style rules but works) | processor, verification | 2 |
+| `src/document_processing/schemas.py` | keep + extend | 7 typed document kinds stay as reusable kinds (a passport is a passport in any procedure). Add one generic `FieldObservation{field, value, page, snippet}` path for new document types declared in a pack, with no dynamic model classes (D4) | state, processor, verification, app, 8 test files | 2 |
+
+### 3.4 Memory, Twin DB, evaluation (Neda)
+
+| Module | Decision | Reason | Depended on by | Phase |
+|---|---|---|---|---|
+| `src/memory/checkpointer.py` (Neda, `TwinStore`) | adapt → `src/twin/store.py` | Clean, transactional, readable. Kept as the base of the Twin. Schema v2 adds `facts` with `provenance` (document / user_stated / tool / derived), `source_ref`, `confirmed`, `valid_from/valid_to`; `events`; `proposed_actions`; `simulations`; `episodes` (= today's `lessons`). The `CHECK` lists on `documents.status` and `runs.event_kind` must be widened (Marco has 5 statuses and 13 event kinds) | session, harness, 3 test files | 3 |
+| `src/memory/schema.sql` | adapt | As above. Keep the date `CHECK (date(x) IS x)` guards | TwinStore | 3 |
+| `src/memory/codec.py` | keep | Strict date/timestamp/fact encoding, 100% reusable | TwinStore, harness, 2 test files | 3 |
+| `src/memory/session.py` | replace | `run_event()` (load twin → stub graph → save). The agent entry point takes over this job | harness, test_restart | 5 |
+| `src/evaluation/harness.py` + `scripts/run_eval.py` | adapt → `eval/run_eval.py` | Keep the scenario runner with simulated restarts and the report format. Swap the stub graph for the agent. Add baselines A/B/D and the `run-evals` metrics | 2 test files | 9 |
+| `data/synthetic_samples/scenarios.json` (S01–S05) | replace | Its expectations encode stub behaviour (an "appointment" date conflict that the real rules do not have). Ideas kept: S04 "unreadable document remembered" and S05 "Gate 0 rejection logged" are rewritten as pack scenarios | test_scenarios | 9 |
+
+### 3.5 App, scripts, data, docs
+
+| Module | Decision | Reason | Depended on by | Phase |
+|---|---|---|---|---|
+| `streamlit_app.py` | adapt → `app.py` | Reuse the upload saving (content-hashed names), field review/confirm forms, identity-conflict form, lifecycle buttons and error messages. Add the goal box, agent status, and proposed actions with approve/deny. `render_state` (141 lines) is split | 3 test files | 9 |
+| `scripts/run_demo.py` | adapt | Offline demo with mocked transport. Re-pointed to the agent | none | 9 |
+| `pytest.ini`, `requirements*.txt` | adapt | Merge the two. Add `numpy` (phase 7). pytest stays in `requirements-dev.txt`. Pin LangGraph `>=1.2.20` (venv has 1.2.22; Neda pinned 1.2.18) | — | 0 |
+| `.gitignore` | adapt | Union of both. **Must ignore `data/uploads/` and `data/digital_twin.db` before any `git add`** (see risk 3). Also ignore `procedures/*/outbox/` (artifacts) | — | 0 |
+| `data/synthetic_samples/*.txt` | keep | Synthetic fixtures used by tests | tests | — |
+| 5 fixtures only on `integration-abc` (`enrollment_ambiguous/invalid_date`, `insurance_multiline_layout/numeric_dates/turkish`) | keep (salvage) | Extra extraction coverage. Bring them over with their tests if they pass on the kept processor | — | 2 |
+| `data/synthetic_samples/prova.txt` | delete | Empty file | none | 0 |
+| `data/synthetic_samples/example.pdf` | keep (review) | A public university orientation handbook (58 pages), not personal data and not synthetic. No test references it. Could be removed to slim the repo | none | — |
+| `integration-abc` root modules (`document_evidence.py`, `processor.py`, `extractor.py`, `schemas.py`) and its `src/workers/*` | delete (do not merge) | Superseded: Marco's `src/document_processing/` already adopts them | none | — |
+| `docs/INTEGRATION_REPORT.md`, `docs/memory_and_evaluation.md` | keep (history) | Accurate history of milestone 1 | none | — |
+| `docs/architecture_diagram.png`, `docs/*pres1.pdf`, `other/` (git-ignored) | keep | Course material | none | — |
+| `README.md` | adapt | Rewrite after phase 9 | — | 9 |
+
+## 4. Converting the 29 rules: issues found
+
+1. **R015 has two versions.** `rules.json` says `insurance_start <= requested_start AND insurance_end >= requested_end`.
+   Marco's engine swaps in a code-only "Milestone-1 scoped" variant whenever `planning_scope` is set (always, in the
+   app): `insurance_end >= requested_permit_end OR program_end`, with the start date ignored. The variant has no
+   source and is not in `rules.json`. With the three-valued `any`, it also gives UNKNOWN where the old code gives
+   FAIL (one target present, the other missing). It cannot be reproduced exactly with the kickoff operators (question 3).
+2. **R009** in `rules.json` is `photo_age_months <= 6`. The engine checks `0 <= v <= 6`. Proposal: encode
+   `all[gte 0, lte 6, ...]`, which reproduces the engine and adds no new meaning.
+3. **R006** = `gte passport_expiry_date other_field requested_permit_end_date offset_days 60`. Boundary tests exist.
+4. **R024** says "within current window". The engine uses the fields `iro_window_start`/`iro_window_end`, so the
+   rule becomes `all[gte current_date other_field iro_window_start, lte current_date other_field iro_window_end]`.
+5. **R027** `approval_status != 'guaranteed'` = `not(eq ...)`. **R025** = `eq` with `other_field`.
+6. **Dependencies:** `depends_on` = union of inline `dependencies` and `dependencies.json`, which is what the old
+   engine uses. Verdicts stay independent of dependencies (as today). Dependencies only drive "blocked by" and the
+   stage prerequisites.
+7. **Derived fields.** `planned_stay_months` (whole calendar months between program dates),
+   `exchange_program_evidence_present`, `student_certificate_present` and `application_form_generated` are computed
+   in Python today. The pack declares them under `derived` with a small fixed set of deterministic operations
+   (`months_between`, `document_complete`). Dates are computed only by code, never by the LLM (D5).
+8. **Sections (new structure, needs your OK in phase 1).** Proposed from `category` and the 7-document checklist,
+   kept to about 6 because `MAX_STEPS = 8` limits how many sections can be delegated:
+   eligibility (R001–R004), passport_photo (R006, R008, R009), application_fees (R005, R007, R010–R012),
+   student_insurance (R013–R016), address_declaration (R017–R019), iro_submission (R020–R026). Guardrails
+   (R027–R029) are always evaluated deterministically and never delegated.
+9. **Fields.** The 70 `ResidencePermitContext` fields become `procedure.json` `fields` (bool/int/str/date). The 11
+   user questions and the scope aliases (for example "sabanci university") become data too.
+10. **`sources_text/` does not exist yet.** No official page has been saved as text. RAG (phase 7) is blocked until
+    someone saves them. Nothing is fetched or invented.
+
+## 5. Tests and the regression oracle
+
+Counts are collected test items in Marco's branch, plus Neda's.
+
+| Test file | Items | Role | Why |
+|---|---|---|---|
+| `test_requirement_engine.py` | 83 | **Oracle, phase 1** | 15 `test_cases.json` cases, 29 all-unknown cases, PASS+FAIL branch for every rule, 60-day and deadline boundaries, conditional alternatives, missing-field names |
+| `test_evaluation.py` | 10 | **Oracle, phase 1** (verdict part); port, phase 5 (graph part) | 10 end-to-end scenarios, each pinning the **full 29-rule status vector** and the blockers |
+| `knowledge/test_cases.json` | 15 | **Oracle, phase 1** | Original rule-team cases |
+| `test_processor.py` (73 functions, 71 pure) | 118 | **Oracle, phase 2**: must stay green unchanged | Extraction and grounding behaviour. 2 graph-coupled tests are ported |
+| `test_extractor.py` | 19 | **Oracle, phase 2** | PDF/TXT/OCR. The autouse fixture in `conftest.py` already fails on any real Ollama/OCR call; it is extended to embeddings |
+| `test_store.py`, `test_codec.py` (Neda) | 22 + 36 | **Oracle, phase 3** | Twin storage, atomicity, date guards, lesson rules |
+| `test_knowledge.py` (Neda) | 34 | adapt → pack validation tests, phase 1 | Sources exist, ids unique, no dependency cycle |
+| `test_persistence.py` | 10 | port, phase 3 | Behaviour to keep: state survives a new process, threads/users isolated, upserts survive reopen |
+| `test_verification.py`, `test_document_lifecycle.py`, `test_milestone_documents.py`, `test_document_types.py` | 109 | port, phases 3–4 (behaviour specs) | Provenance guarantees: unconfirmed stays UNKNOWN, confirmation never overwrites the observation, derived values labelled, conflicts need explicit resolution, deletion needs confirmation, entry date only after confirmation. The assertions move to the Twin/facts API; the guarantees do not change |
+| `test_plan_validator.py` | 25 | port, phase 5 | Gate 1 checks (completion claims, unknown-as-failure, approval waiver, deadlines, dependency order) re-expressed on `FinalAnswer` |
+| `test_reflection.py` | 9 | port, phase 5 | Bounded repairs, stop after 3, denial blocks write-back, no self-approval |
+| `test_action_planner.py`, `test_hybrid_planning.py` | 77 | retire with the planner, phase 5 | They test planner internals (locked actions, candidate grouping, slot ids). The safety ideas (no invented rule ids, closed-enum selection, unchanged invalid output stops repair) are rewritten as agent tests with the scripted fake LLM |
+| `test_rule_loader.py`, `test_required_documents.py` | 5 | retire / port, phase 1 | Replaced by pack tests; the 2 readiness cases become rule tests |
+| `test_streamlit_helpers.py` | 24 | port, phase 9 | Pure display helpers |
+| `test_scenarios.py`, `test_restart.py` (Neda) | 9 + 3 | retire, phase 3/9 | Stub-graph behaviour; 9 of these 12 are the failures after merging. Replaced by pack scenarios and a real restart test |
+
+**How phase 1 proves the new evaluator matches.** One test runs old `evaluate_requirements` and new `src/rules.py`
+on the same contexts and asserts equal status and equal `missing_fields` for all 29 rules. The contexts are:
+the 15 knowledge cases, the 58 branch contexts, the empty context, the boundaries, the 10 scenario contexts, and
+~500 deterministic perturbations of the "ready" context (seeded: drop/flip fields). Then the old engine's output
+is saved as a golden snapshot (`tests/data/legacy_verdicts.json`, generated, never hand-edited), the old engine is
+deleted, and the test checks the snapshot from then on. Known divergence: only the scoped R015 variant (section 4.1).
+
+No expected value is changed anywhere. A test is retired only with a row above.
+
+## 6. Design decisions proposed (deviations or details not fixed by the kickoff)
+
+- **D1 Base branch.** Marco's branch plus a merge of `origin/main`. `TwinStore` moves out of the clashing filename.
+- **D2 Approval lives in the Twin.** Artifact tools write `proposed_actions`. Approve/deny updates the row, and only
+  then is the artifact written to an outbox folder. No LangGraph `interrupt()`, so the `SqliteSaver` can go and
+  the Twin DB is the single source of truth (which is Neda's design reason). LangGraph keeps the in-run cycle.
+- **D3 Fact provenance.** Marco's `source_grounded / user_confirmed / derived` maps to `document / user_stated
+  (confirmed=True) / derived`. `record_fact` from chat writes `user_stated, confirmed=False` (question 4).
+- **D4 Extraction.** Keep the 7 typed extractors as reusable document kinds. New pack document types use a generic
+  path: the LLM proposes `{field, value, page, snippet}`, and code keeps only values whose snippet is really in the
+  page text (reusing `audit_snippets`/`snippet_in_source`) and that parse as the declared type.
+- **D5 Derived fields.** Declared in the pack and computed by a fixed set of Python operations.
+- **D6 Scope gate.** `scope_conditions` in the pack, evaluated by the same three-valued evaluator: FALSE = out of
+  scope, UNKNOWN = ask.
+- **D7 Stage prerequisites.** `procedure.json` `stages: [{id, requires: [rule ids]}]` replaces the rule ids
+  hard-coded in Gate 1 and in the planning policy. The sandbox promotion gate uses the same data.
+- **D8 Document lifecycle stays deterministic.** Confirm, delete, replace, reprocess and resolve-conflict are direct
+  Twin operations from the UI (real → twin). They are not LLM tools: no model in the loop where the user is
+  already explicit.
+- **D9 Style.** 16 of 148 functions are over 40 lines and many lines are packed one-liners. Every module marked
+  *adapt* is rewritten in small functions with its tests pinned first. `evidence.py` is left alone (see 3.3).
+- **D10 LLM call budget.** The orchestrator delegates only sections that are not all-PASS and belong to the
+  current stage. The worker's first observation already contains its section's `evaluate_rules` result, so a
+  typical worker finishes in 1–2 calls.
+
+## 7. Main risks
+
+1. **Hardware and latency.** This laptop: GTX 1650 **4 GB VRAM**, 16 GB RAM, i5-9300H. Pulled models: `qwen3:4b`,
+   `qwen2.5:3b`. `qwen3:8b` (~5 GB) does not fit in VRAM, so it would run partly on CPU. A goal can take 10–40
+   model calls, which could mean several minutes per answer. `bge-m3` is not pulled. All tests mock the LLM, so
+   development is not blocked; live evaluation and the demo are.
+2. **Small-model reliability.** 4B–8B models with schema-constrained `Decision` output fail tool arguments often,
+   and the 2-failure fallback may trigger frequently. Mitigations: tool names as an enum in the schema, short
+   prompts, `think=False`, temperature 0. The fallback rate is measured in phase 9.
+3. **Private data in the working tree.** On the current branch `data/uploads/` (7 PDFs) and `data/digital_twin.db`
+   (LangGraph checkpoints, 2 threads) are untracked and **not ignored**. A careless `git add .` would commit them.
+   I did not open the PDFs. Phase 0 fixes `.gitignore` before anything else. They were never committed (checked
+   with `git log --all`).
+4. **Team divergence.** Four lines of work, local `main` behind `origin/main`, and the kit copied onto the least
+   integrated branch. If teammates keep pushing to their branches, v2 will need repeated merges.
+5. **R015 behaviour change** for the app if the `rules.json` version becomes canonical (section 4.1).
+6. **Size.** About 8k lines and 489 tests are being restructured. Behaviour encoded only in tests could be lost.
+   Mitigation: port behaviour tests before deleting a module (section 5).
+7. **RAG and the second procedure need real sources.** `sources_text/` is empty, one URL is truncated, and
+   phase 10 needs official texts for a new procedure. Nothing will be invented; unverifiable rules are marked
+   `unverified`.
+8. **Gate 1 text checks are English regex heuristics.** Structured `claims` reduce reliance on them, but free-text
+   `summary` checks remain best-effort (Marco's report already says this).
+9. **Python version.** `CLAUDE.md` says 3.11; the venv is 3.13.2. Code stays 3.11-compatible and is tested on 3.13.
+
+## 8. Phase 0 preview (after approval)
+
+1. Add the `.gitignore` entries for `data/uploads/` and `data/digital_twin.db` first.
+2. `git switch -c feature/react-agent-v2 origin/feature/marco-milestone1`, then `git merge origin/main`. Resolve the
+   6 conflicts as in section 1. Move `TwinStore` to `src/memory/twin_store.py`, to be moved to `src/twin/` in phase 3.
+3. Bring over `CLAUDE.md`, `.claude/skills/`, `README_KIT.md` and this file.
+4. Add the kickoff settings to `config.py`. Delete `prova.txt`. Create empty `procedures/`, `eval/`, `src/tools/`,
+   `src/agent/`.
+5. Mark the 9 stub-coupled tests as retired (`pytest.ini` deselect with a comment pointing here) so the suite is green.
+6. Put pytest in the venv from `requirements-dev.txt`. Run `python -m pytest -q`. Commit "Phase 0".
