@@ -25,3 +25,30 @@ def pytest_configure(config):
     tempfile.tempdir = str(root)
     if config.option.basetemp is None:
         config.option.basetemp = str(root / "pytest")
+
+
+# ------------------------------------------------- twin record fixtures --
+from datetime import datetime, timedelta, timezone
+
+
+class FakeClock:
+    """Deterministic clock: starts at a fixed instant, advances 1 s per call."""
+
+    def __init__(self, start=datetime(2026, 11, 18, 9, 0, tzinfo=timezone.utc)):
+        self.now = start
+
+    def __call__(self) -> datetime:
+        self.now += timedelta(seconds=1)
+        return self.now
+
+
+@pytest.fixture
+def db_path(tmp_path):
+    return tmp_path / "twin_record.db"
+
+
+@pytest.fixture
+def store(db_path):
+    from src.memory.twin_store import TwinStore
+    with TwinStore(db_path, clock=FakeClock()) as s:
+        yield s

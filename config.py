@@ -15,3 +15,7 @@ DOCUMENT_MAX_INPUT_CHARS = 3400
 MAX_REFLECTION_ATTEMPTS = 3
 
 PLANNER_MAX_ACTIONS = int(os.getenv("PLANNER_MAX_ACTIONS", "3"))
+
+# Permanent record of each student's state, run log and lessons (src/memory/twin_store.py).
+# Separate file from DATABASE_PATH, which holds LangGraph's own checkpoint tables.
+TWIN_RECORD_PATH = PROJECT_ROOT / "data" / "twin_record.db"

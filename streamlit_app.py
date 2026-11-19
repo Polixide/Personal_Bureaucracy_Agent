@@ -7,11 +7,14 @@ import streamlit as st
 from langgraph.types import Command
 from pydantic import BaseModel
 
-from config import MAX_REFLECTION_ATTEMPTS, PROJECT_ROOT
+from config import MAX_REFLECTION_ATTEMPTS, PROJECT_ROOT, TWIN_RECORD_PATH
 from src.core.graph import build_graph
 from src.core.state import Document, UserEvent, new_run
 from src.workers.verification import document_review, CONTEXT_QUESTIONS, CONTEXT_FIELDS, INSURANCE_TYPES, conflict_details, MILESTONE_SCOPE, MILESTONE_DOCUMENTS, CONTEXT_GROUPS, milestone_checklist
 from src.memory.checkpointer import sqlite_checkpointer, reset_thread
+from src.memory.codec import utc_now
+from src.memory.twin_store import TwinStore
+from src.memory.twin_sync import record_after_invoke
 from src.document_processing.schemas import DOCUMENT_SCHEMAS
 
 
@@ -146,6 +149,7 @@ def show_error(message):
 
 
 def invoke(graph, payload, config):
+    started = utc_now()
     try:
         with st.spinner("Processing with the local agent. This may take a few minutes..."):
             graph.invoke(payload, config)
@@ -153,7 +157,19 @@ def invoke(graph, payload, config):
         # UI boundary only: checkpoints remain the source of truth after failure.
         show_error(error)
         return False
+    finally:
+        record_run(graph, config, started)
     return True
+
+
+def record_run(graph, config, started):
+    """Mirror the checkpoint into the twin record. Never blocks the UI: the
+    checkpoint is already saved, and the next successful sync heals the record."""
+    try:
+        with TwinStore(TWIN_RECORD_PATH) as store:
+            record_after_invoke(store, graph, config, started)
+    except Exception as error:
+        st.warning(f"Your progress is saved, but the twin record could not be updated: {error}")
 
 
 def user_action(step):

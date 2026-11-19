@@ -32,8 +32,16 @@ def sqlite_checkpointer(db_path: str | Path = DATABASE_PATH):
 
 
 
-def reset_thread(thread_id: str, confirmation: str, db_path: str | Path = DATABASE_PATH):
-    """Delete only the named thread checkpoints. Upload files are retained safely."""
+def reset_thread(thread_id: str, confirmation: str, db_path: str | Path = DATABASE_PATH,
+                 record_path: str | Path | None = None):
+    """Delete the named thread's checkpoints AND its twin record (state, run log,
+    lessons). Upload files are retained safely."""
+    from config import TWIN_RECORD_PATH
+    from src.memory.twin_store import TwinStore
+
     if not thread_id or confirmation!=thread_id: raise ValueError("Type the exact current thread ID to confirm reset")
     with sqlite_checkpointer(db_path) as saver:
         saver.delete_thread(thread_id)
+    # The record lives next to the checkpoint database it mirrors.
+    with TwinStore(record_path or Path(db_path).with_name(TWIN_RECORD_PATH.name)) as store:
+        store.delete_user(thread_id)
