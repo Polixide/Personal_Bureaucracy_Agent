@@ -1,138 +1,108 @@
-# Personal Bureaucracy Agent: Stateful Agentic Assistant
+# Personal Bureaucracy Digital Twin - Milestone 1
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Framework: LangGraph](https://img.shields.io/badge/Framework-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![Course: CS58012](https://img.shields.io/badge/Course-CS58012%20Agentic%20AI-blue.svg)](https://www.sabanciuniv.edu/)
-[![Status: Milestone 1](https://img.shields.io/badge/Status-In%20Development-green.svg)](/)
+Local prototype for Sabancı University incoming exchange students: adults staying
+at least three months, preparing a **first short-term residence permit / İkamet
+application**. Other procedures and applicant categories are outside scope.
+Root `knowledge/` contains the authoritative 29-rule dataset.
 
----
+## Setup (Windows PowerShell)
 
-## 📌 Introduction
+Use Python 3.11+ and a local Ollama installation with the desired model installed.
+From the project root:
 
-This repository contains the official implementation of the **Personal Bureaucracy Agent**, a stateful hybrid agentic assistant designed to guide international students through complex, multi-week administrative workflows (such as obtaining a Turkish residence permit / *İkamet*).
-
-Bureaucratic procedures are inherently dependency-driven and time-sensitive. Standard conversational LLMs or static checklists fail because they lack persistent long-term memory, make errors in date logic, and cannot recover safely from runtime failures.
-
-> [!IMPORTANT]
-> **Core Architectural Rule:** Use LLMs strictly for semantic interpretation and flexible planning, but rely on **deterministic Python code** for exact rules, date arithmetic, and schema validations.
-
----
-
-## 🚀 Key Features
-
-- **LangGraph Orchestrator-Workers Topology:** A Central Supervisor dynamically evaluates the user state and delegates execution to specialized workers (*Document Analyzer*, *Requirement Engine*, *Action Planner*).
-- **Zero-Token & Deterministic Guardrails:** Pre-checks (**Gate 0**) reject malformed inputs before spending LLM tokens, while post-checks (**Gate 1**) enforce strict prerequisite and date consistency.
-- **Persistent Digital Twin State:** SQLite-backed checkpointing maintains state continuity across sessions, tracking uploaded documents, validity dates, active blockers, and completed steps.
-- **Grounded & Bounded Reflexion Loop:** When Gate 1 detects an invalid plan, a structured error feedback loop triggers bounded replanning, strictly capped by a **Hard Circuit Breaker** ($t \le 3$).
-- **Human-in-the-Loop Approval:** Consequential or official submissions require explicit user confirmation before execution.
-
-> [!NOTE]
-> This prototype is specifically targeted at the Turkish residence permit (*İkamet*) workflow, but the orchestration engine is domain-agnostic and can be adapted to other procedures by swapping the rule base.
-
----
-
-## 🏗️ System Architecture
-
-The workflow combines semantic LLM planning with deterministic safety gates:
-
-![System Architecture](docs/architecture_diagram.png)
-
-> [!WARNING]
-> **Safety Guardrail:** The system will never autonomously submit official forms, make payments, or bypass authentication on government portals. Human approval is mandatory.
-
----
-
-## 📂 Project Structure
-
-The codebase is organized into clean, modular workstreams designed for parallel collaboration across our team of 4 data science engineers:
-
-```text
-Personal_Bureaucracy_Agent/
-├── config.py                 # Global configurations (paths, DB settings, circuit breaker thresholds)
-│
-├── docs/                     # Documentation, presentations, and reports
-│   ├── architecture_diagram.png # High-resolution architecture graph image
-│   ├── presentations/        # Slides & pitch decks (.pptx, .pdf)
-│   └── reports/              # Milestone progress reports and documentation
-│
-├── data/
-│   ├── rules_ikamet.json     # Versioned, authoritative administrative rule base
-│   └── synthetic_samples/    # Test document samples and mock student profiles
-│
-├── src/
-│   ├── core/
-│   │   ├── state.py          # AgentState definition, Pydantic schemas, and state reducers
-│   │   └── graph.py          # LangGraph graph definition, nodes, and conditional edges
-│   │
-│   ├── agents/
-│   │   ├── supervisor.py     # Central Orchestrator node
-│   │   └── planner.py        # Action & Deadline Planner node
-│   │
-│   ├── workers/
-│   │   ├── document_analyzer.py # Document parsing & Pydantic structured output extraction
-│   │   └── rules_engine.py      # Deterministic requirement and date logic checker
-│   │
-│   ├── guardrails/
-│   │   ├── gate_0.py         # Zero-token input and schema validator
-│   │   └── gate_1.py         # Deterministic post-execution validator
-│   │
-│   ├── memory/
-│   │   ├── checkpointer.py   # SQLite persistence layer for Digital Twin state
-│   │   └── reflection.py     # Bounded reflection mechanism and episodic memory
-│   │
-│   └── utils/
-│       └── helpers.py        # Date formatting, logging, and helper utilities
-│
-├── tests/                    # Synthetic scenario runner & automated unit tests
-│   ├── test_rules.py
-│   ├── test_gateways.py
-│   └── test_scenarios.py
-│
-├── scripts/                  # Execution scripts
-│   └── run_demo.py           # End-to-end CLI scenario runner
-│
-├── requirements.txt
-├── LICENSE                   # MIT License
-└── README.md
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
 ```
 
----
+`requirements.txt` contains runtime dependencies; `requirements-dev.txt` also
+installs pytest. RapidOCR and ONNX Runtime provide local CPU OCR for scanned PDF
+pages without a separate executable or PATH configuration. Text PDFs use
+PyMuPDF directly; OCR initializes only when needed. Standalone image uploads
+are unsupported. OCR and model text follow the same grounding/validation path.
 
-## 🛠️ Installation & Quickstart
+The default model is `qwen3:4b`. To use another installed model, set the environment
+before starting the app:
 
-### Prerequisites
-- Python 3.11+
-- SQLite3
-
-### Setup
-
-```bash
-# Clone repository
-git clone [https://github.com/your-username/Personal_Bureaucracy_Agent.git](https://github.com/your-username/Personal_Bureaucracy_Agent.git)
-cd Personal_Bureaucracy_Agent
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+```powershell
+$env:OLLAMA_MODEL="qwen3:8b"
 ```
 
-### Running a Test Scenario
+Restart the app after changing it. `config.py` centralizes the model, Ollama host,
+general/Planner/Reflection timeout (120 seconds), document timeout (180 seconds),
+context limits, SQLite path and maximum repair attempts (3).
 
-To test the system against a sample event (e.g., uploading a tuition payment receipt):
+## Run Streamlit
 
-```bash
-python -m scripts.run_demo --scenario tuition_receipt
+Start local Ollama, activate the environment, then run:
+
+```powershell
+python -m streamlit run streamlit_app.py --server.address 127.0.0.1 --browser.gatherUsageStats false
 ```
 
----
+1. Enter a thread ID to restore or create a Digital Twin.
+2. Upload a PDF/TXT file and select **Analyze document**.
+3. Review source-grounded observations and explicitly confirm unresolved values.
+4. Repeat for the seven-document checklist, then select **Generate / Update Plan**.
+5. Review the proposal and explicitly **Approve** or **Deny** it.
 
-## 👥 Authors
+The checklist covers the declaration control document, IKAMET form, passport
+identity page, latest Türkiye entry-stamp page, student certificate, health insurance
+and card/document-fee receipt. Analysis and confirmation recompute requirements
+without generating a plan. Raw observations remain separate from confirmed inputs.
 
-- **Neda Mohamed** — Sabancı University
-- **Daniele Catalano** ([@Polixide](https://github.com/Polixide)) — Politecnico di Torino / Sabancı University
-- **Andrea Brambilla** — Politecnico di Torino / Sabancı University
-- **Marco Belforti** — Politecnico di Torino / Sabancı University
+Rules deterministically identify problems. The LLM selects/prioritizes/groups
+canonical action candidates and writes titles/reasons; Python supplies structural
+metadata. Gate 1 validates each plan, and Reflection repairs rejected proposals
+with a three-attempt bound and early stopping for unchanged invalid output.
+Transport failures use a deterministic fallback through the same safety gates.
+
+All 29 assessments retain PASS, FAIL or missing_information. Later-stage and
+out-of-scope UNKNOWN checks remain UNKNOWN. A completed scoped checklist can
+produce a deterministic preparation-completion assessment without an LLM call.
+**Document preparation, Gate 1 validation and human plan approval never mean
+residence-permit approval or execution of official actions.**
+
+## Local state and private files
+
+SQLite checkpoints live at `data/digital_twin.db`. The same thread ID restores
+state across restarts; different threads remain isolated. Reopening a pending
+approval never approves it automatically. This is a synchronous local prototype
+without authentication or coordination for concurrent changes to one thread.
+
+Database/journal files, `data/uploads/`, `data/local_samples/`, `.local/`, caches
+and test artifacts are ignored. Keep private documents out of version control;
+new manual samples belong in `data/local_samples/`, not synthetic fixtures.
+Existing local administrative PDFs are ignored in place so saved source paths
+remain usable. Ignoring/removing files from the index does not erase Git history.
+
+## Verification and offline demo
+
+```powershell
+python -m pip check
+python -m pytest -q
+python -m scripts.run_demo --thread-id demo-user --persistence-demo
+```
+
+Automated tests prohibit live Ollama and OCR calls. The default synthetic demo
+mocks only model transport and exercises the graph, rules, Gate 1, SQLite and
+explicit approval. `--persistence-demo` closes/reopens SQLite before plan review.
+Use `--show-state` to inspect a saved thread without resuming it. `--live` is an
+explicit manual Ollama smoke test; it never downloads a model automatically.
+
+## Canonical structure
+
+- `src/core/`: shared AgentState, LangGraph orchestration and safe diagnostics.
+- `src/document_processing/`: PDF/TXT/RapidOCR extraction, schemas and evidence.
+- `src/workers/`: document adaptation, verified-input projection and rule evaluation.
+- `src/agents/`: canonical planning policy and LLM planning/repair generation.
+- `src/guardrails/`: Gate 0, Gate 1 and human approval.
+- `src/memory/`: SQLite checkpoints, repair context and approved-plan bookkeeping.
+- `streamlit_app.py`: the single presentation/input layer.
+- `tests/` and `data/synthetic_samples/`: offline regressions and synthetic fixtures.
+
+`build_graph()` defaults to isolated in-memory state for tests; applications use
+`sqlite_checkpointer()` for persistent state. `docs/INTEGRATION_REPORT.md` is a
+historical integration snapshot, not the current runtime specification. Temporary
+integration implementations have been removed. No MCP or RAG is included.

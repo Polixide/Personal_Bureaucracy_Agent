@@ -1,125 +1,102 @@
-# Memory & Evaluation
+# Memory & Evaluation (integrated with the Milestone-1 prototype)
 
-Workstream deliverable: SQLite tables and persistence functions for the Digital
-Twin, synthetic test cases, and test harnesses.
-
-**Acceptance criteria**
-- *User state survives application restart.* `tests/test_restart.py` runs each
-  session in a separate Python process, so only the SQLite file carries state.
-- *Initial unit tests run.* `pytest` passes 104 tests in about 2 seconds.
+This branch builds on Marco's Milestone-1 prototype (`feature/marco-milestone1`).
+It adds a permanent, queryable record of each student's state, a run log,
+validated reflection lessons, and a scored evaluation harness.
 
 ```bash
-pip install -r requirements.txt
-pytest                      # unit + restart + scenario + knowledge tests
-python -m scripts.run_eval  # scenario report (exit code 1 if a scenario fails)
+pip install -r requirements-dev.txt
+python -m pytest            # 603 tests, offline (model calls mocked)
+python -m scripts.run_eval  # scored report, exit code 1 if any scenario fails
 ```
 
-## Files
+## Two stores, two roles (team option B)
 
-| File | What it does |
+| Store | File | Role |
+|---|---|---|
+| LangGraph checkpoint (`src/memory/checkpointer.py`) | `data/digital_twin.db` | **Live source of truth.** The approval `interrupt()` needs it to pause and resume a run. |
+| Twin record (`src/memory/twin_store.py`) | `data/twin_record.db` | **Permanent record.** Independent tables mirroring each student's state after every graph invocation, plus the run log and lessons. Used for evaluation, inspection and per-student deletion. |
+
+After each `graph.invoke(...)` the sync step (`src/memory/twin_sync.py`)
+copies the checkpointed state into the twin record and logs the run. The sync
+is hooked into the Streamlit UI (`invoke()`) and `scripts/run_demo.py`.
+
+- **Sync failures never block the UI.** The checkpoint is already saved, and the next successful sync re-mirrors the whole twin.
+- **Reset deletes both.** `reset_thread()` removes the student's checkpoint thread and their record: state, run log and lessons.
+- **Moving to option C later.** In option C the tables become the source of truth and the agent loads from them. That changes only how state is loaded; the tables already exist.
+
+## Twin record tables (schema v2)
+
+| Table | Holds |
 |---|---|
-| `src/memory/schema.sql` | Table definitions with integrity checks (schema v1) |
-| `src/memory/codec.py` | Strict date / timestamp / fact encoding |
-| `src/memory/checkpointer.py` | `TwinStore`: load/save twin, run log, reflection lessons |
-| `src/memory/session.py` | `run_event()`: load twin → run graph → persist, atomically |
-| `src/evaluation/harness.py` | Scenario runner with simulated restarts + metrics report |
-| `data/synthetic_samples/scenarios.json` | 5 synthetic students, 10 sessions |
-| `scripts/run_eval.py` | Prints the evaluation report |
+| `users` | student id, procedure, approved-plan origin |
+| `documents` | id, status (5 values incl. `replacement_pending`, `deleted`), type, issue/expiry dates, processing error, extracted info (JSON) |
+| `facts` | `extracted_facts`, one row per key with a type tag |
+| `deadlines` | `deadlines`, real date columns |
+| `verification_records` | every `VerifiedInput`: value, origin, page, snippet, who confirmed, trace |
+| `completed_steps`, `blockers` | ordered lists |
+| `twin_objects` | `residence_permit_context`, `approved_plan`, `action_progress`, `identity_resolutions`, `verified_context_fields`, `verification_conflicts` as validated JSON |
+| `runs` | one row per run: event, `run_status`, outcome (`pass` / `fail` / `awaiting_approval` / `incomplete`), repairs, response, times |
+| `run_issues` | the run's validation errors |
+| `run_requirements` | the run's 29 rule results (status, severity, missing fields) |
+| `lessons` | validated reflection lessons (see below) |
 
-## Why independent tables (not a LangGraph checkpoint)
-
-LangGraph's `SqliteSaver` stores the whole state as one serialized blob per
-step. Separate tables are easier to query ("which users have insurance
-expiring before their appointment?"), inspect in any SQLite viewer, test
-column by column, and delete per user. The graph code is unchanged: the
-wrapper `run_event()` loads the twin into the input state and writes the final
-state back.
-
-Later, `human_approval` will use `interrupt()`, which needs a LangGraph
-checkpointer to pause and resume a run. The two can coexist. The LangGraph
-checkpointer would hold only the paused run, and these tables stay the
-Digital Twin.
-
-## Tables
-
-```
-users            user_id PK, active_procedure, created_at, updated_at
-documents        (user_id, doc_id) PK, file_path, status, doc_type, issue_date, expiry_date
-facts            (user_id, key) PK, value_type, value          ← extracted_facts
-completed_steps  (user_id, step_id) PK, position, completed_at
-blockers         (user_id, rule_id) PK, position
-runs             trace_id PK, user_id, event_*, outcome pass|fail, retry_count, started/finished_at
-run_issues       (trace_id, position) PK, code, message, source, item, rule_id
-lessons          lesson_id PK, user_id, procedure, failure_type, affected_item, validator_error,
-                 rule_or_source_id, rule_version, corrective_action, outcome,
-                 correction_validated (must be 1), trace_id, created_at, invalidated_at
-```
-
-All user rows cascade on `delete_user()`. Foreign keys are enforced.
-
-**Write semantics** follow the reducers in `src/core/state.py`:
-- `documents` and `facts` are upserted; nothing is dropped.
-- `completed_steps` and `blockers` are replaced by the list in the state.
-- A key missing from the state leaves its table untouched.
-
-**PASS vs FAIL runs.** Every run's final state is saved. Only `state_update`
-writes blockers and completed steps, and it runs on PASS only. So a FAIL run
-records what was observed (for example, an insurance that expires too early,
-so it is not asked for again) without changing the plan status. Every run is
-logged in `runs` / `run_issues`. Twin and log are saved in one transaction.
+**Mirror semantics.** The tables copy the checkpoint exactly. A document the
+agent deleted, or a fact set to `None`, disappears from the record too. A
+paused run is stored as `awaiting_approval`, and its row is updated in place
+when the user approves or denies, keeping its original start time.
 
 ## Dates
 
-| Kind | Python | Stored as | Guard |
-|---|---|---|---|
-| Calendar day (expiry, appointment) | `date` | `'YYYY-MM-DD'`, no time zone | `datetime` refused (it would lose its time); DB `CHECK (date(x) IS x)` |
-| Instant (`*_at`) | aware `datetime` | UTC ISO-8601 | naive datetimes refused |
-| Fact value | any of null/bool/int/float/str/date/datetime/list/dict | value + type tag | `"2026-11-20"` the string stays a string; dates inside list/dict facts refused |
+- **Calendar days** (expiry, deadlines, appointment) are stored as `YYYY-MM-DD` with no time zone. A `datetime` in a date field is refused.
+- **Database checks** reject impossible days (`2026-02-30`) and wrong formats (`2026/11/20`) even when the writer bypasses the store. The check is `date(x) IS x`; `=` would let NULL-producing garbage through.
+- **Timestamps** must be timezone-aware and are stored in UTC.
+- **Nested objects** are dumped by Pydantic against their `AgentState` type. They must read back to an equal value or the write is refused. This catches a date hidden in an untyped field such as `identity_resolutions`, which would otherwise come back as a string.
 
-The database checks reject `'2026-02-30'`, `'2026/11/20'` and `'20261120'`
-even when the writer bypasses `TwinStore`. They use `IS`, not `=`: `date()`
-returns NULL for garbage, and a NULL check passes.
+## Reflection memory (plan 3.3–3.4)
 
-Scenario files mark dates explicitly as `{"$date": "2026-11-20"}`.
-`load_rule_cases()` parses every `*_date` input in `knowledge/test_cases.json`
-into a `date` for the Rules Engine.
+- **When lessons are written:** when a run needed repairs and its final plan then passed Gate 1. The sync writes one lesson per distinct Gate 1 error: failure type, item, error message, rule id plus its `rules.json` version, corrective action and outcome. This happens once per run.
+- **What is refused:** unvalidated lessons, by both the code and a database CHECK.
+- **`find_lessons()`** filters by student, procedure, failure type and item, newest first.
+- **`invalidate_lessons(rule_id)`** retires lessons when a rule changes.
+- **Not yet done:** the planner does not read lessons yet. The next step is to add `find_lessons(...)` results to the planner's repair context.
 
-## Reflection memory (plan section 3.3–3.4)
+## Evaluation harness (`src/evaluation/`)
 
-- `add_lesson()` refuses unvalidated corrections, and so does the database.
-- `find_lessons()` filters by user, procedure, failure type and item, newest
-  first, with a limit.
-- `invalidate_lessons(rule_id)` retires lessons when a rule or source changes.
-- Lessons are stored per user.
+`scenarios.py` holds Marco's 10 curated scenarios, unchanged. `harness.py` runs
+them, plus 3 multi-session scenarios. Each run uses the real graph, rules
+engine, Gate 1, repair loop, approval interrupt and both databases; only model
+transport is mocked. Compared with the previous single-session test, it:
 
-## Evaluation harness
+- **restarts the app** (closes both databases, recompiles the graph) between the approval pause and the user's decision
+- **compares the record with the checkpoint** after reopening
+- **checks the run log**, including each run's 29 rule results
+- **checks lessons** are written exactly when a repair passed Gate 1
+- **collects every expectation** as a check and aggregates metrics instead of stopping at the first failed assert
 
-Each scenario seeds a twin, then runs each session with a new connection and
-a newly compiled graph (a simulated restart). It checks the outcome, error
-codes and nodes visited, then reopens the database and compares the stored
-documents, facts, blockers and run counts. The report gives:
-
-- scenarios passed
-- checks passed
-- persisted-state checks
-- failures caught by the gates
-- false alarms
-
-| Scenario | Covers |
+| Multi-session scenario | Covers |
 |---|---|
-| S01 normal path, two sessions | documents accumulate, blockers shrink across restarts |
-| S02 question only | no documents → both blockers, remembered |
-| S03 insurance expires before appointment | Gate 1 DATE_CONFLICT; FAIL keeps the document, leaves blockers |
-| S04 unreadable document | rejected status remembered, not re-analysed |
-| S05 unsupported file / blank message | Gate 0 INVALID_INPUT; nothing added, run logged |
+| M1 three sessions | upload → restart → approve → restart → re-evaluate. Documents persist. Re-evaluation clears the old approval (Marco's `new_run` rule), and the record follows. |
+| M2 denied after restart | the paused run is logged as `awaiting_approval`, then updated to `fail`/`APPROVAL_DENIED`; no approved plan in checkpoint or record |
+| M3 reset one student | reset removes one student's checkpoint, record and run log; another student is untouched |
 
-**Not covered yet.** These need the real Rules Engine, Planner and Reflection:
+Current report (offline):
 
-- deadline pressure
-- housing branches
-- stale or conflicting rules
-- bounded replanning (`retry_count` ≤ 3)
-- writing a lesson after a successful replan
+```
+Scenarios passed           : 13/13 (100%)
+Checks passed              : 169/169 (100%)
+Final status correct       : 10/10 (100%)
+Rule statuses correct      : 290/290 (100%)
+Invalid plans caught (G1)  : 5/5 (100%)
+False alarms (G1)          : 0
+Repaired, then passed G1   : 1 (expected 1)
+Stopped at 3-repair limit  : 1 (expected 1)
+Record == checkpoint       : 12/12 (100%)  (after restart; reset scenario excluded)
+Validated lessons written  : 2
+```
 
-Add them as scenarios when those nodes replace the stubs. The harness needs
-no changes.
+**What these numbers do not measure.** Model calls are mocked, so the report
+says nothing about extraction or planning quality with a live Qwen model. It
+measures the deterministic parts (rules, gates, repair limit, approval, memory)
+and the plumbing around the model. Live-model evaluation needs a running
+Ollama server and a labelled set of real-format synthetic documents.

@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from src.evaluation.harness import load_rule_cases
+from src.memory.codec import decode_date
+
 
 KNOWLEDGE = Path(__file__).resolve().parents[1] / "knowledge"
 
@@ -54,6 +55,15 @@ def test_dependency_graph_has_no_cycle():
 
     for node in graph:
         visit(node, [])
+
+
+def load_rule_cases():
+    """knowledge/test_cases.json with every `*_date` input parsed strictly to a date."""
+    cases = load("test_cases.json")["tests"]
+    for case in cases:
+        case["input"] = {k: decode_date(v) if k.endswith("_date") else v
+                         for k, v in case["input"].items()}
+    return cases
 
 
 def test_rule_test_cases_reference_known_rules_and_valid_outcomes():

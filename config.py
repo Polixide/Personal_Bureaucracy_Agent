@@ -1,8 +1,21 @@
-"""Global configuration."""
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent
+KNOWLEDGE_DIR = PROJECT_ROOT / "knowledge"
+DATABASE_PATH = PROJECT_ROOT / "data" / "digital_twin.db"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+OLLAMA_HOST = "http://127.0.0.1:11434"
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120.0"))
+PLANNER_MAX_OUTPUT_TOKENS = int(os.getenv("PLANNER_MAX_OUTPUT_TOKENS", "900"))
+DOCUMENT_OLLAMA_TIMEOUT = 180.0
+DOCUMENT_MAX_CHUNKS = 2
+DOCUMENT_CHUNK_CHARS = 1600
+DOCUMENT_MAX_INPUT_CHARS = 3400
+MAX_REFLECTION_ATTEMPTS = 3
 
-# Digital Twin database (src/memory/checkpointer.py). Override with PBA_DB_PATH.
-DB_PATH = Path(os.environ.get("PBA_DB_PATH", ROOT / "data" / "digital_twin.sqlite"))
+PLANNER_MAX_ACTIONS = int(os.getenv("PLANNER_MAX_ACTIONS", "3"))
+
+# Permanent record of each student's state, run log and lessons (src/memory/twin_store.py).
+# Separate file from DATABASE_PATH, which holds LangGraph's own checkpoint tables.
+TWIN_RECORD_PATH = PROJECT_ROOT / "data" / "twin_record.db"
