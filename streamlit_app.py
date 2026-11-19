@@ -1,4 +1,5 @@
 """Local presentation layer for the existing SQLite-backed Milestone-1 graph."""
+import threading
 from datetime import date
 from hashlib import sha256
 from pathlib import Path
@@ -148,18 +149,52 @@ def show_error(message):
         st.code(str(message))
 
 
+@st.cache_resource
+def _run_locks():
+    """One lock per profile, shared by every browser tab and device on this server.
+
+    There is one local model. Overlapping runs for a profile queue on it (each
+    waits for the others) and leave unfinished checkpoints, so only one runs at a time.
+    """
+    return {"guard": threading.Lock(), "profiles": {}}
+
+
+def profile_lock(thread_id: str) -> threading.Lock:
+    locks = _run_locks()
+    with locks["guard"]:
+        return locks["profiles"].setdefault(thread_id, threading.Lock())
+
+
 def invoke(graph, payload, config):
+    lock = profile_lock(config["configurable"]["thread_id"])
+    if not lock.acquire(blocking=False):
+        st.info("Still processing your last action. This page updates when it finishes.",
+                icon=":material/hourglass_top:")
+        return False
     started = utc_now()
     try:
-        with st.spinner("Processing with the local agent. This may take a few minutes..."):
+        with st.spinner("Processing with the local agent..."):
             graph.invoke(payload, config)
     except Exception as error:
         # UI boundary only: checkpoints remain the source of truth after failure.
         show_error(error)
         return False
     finally:
-        record_run(graph, config, started)
+        try:
+            record_run(graph, config, started)
+        finally:
+            lock.release()
     return True
+
+
+@st.fragment(run_every=2)
+def wait_for_run(thread_id):
+    """Shown instead of the views while another tab or device is running this profile."""
+    if profile_lock(thread_id).locked():
+        st.info("Still processing your last action. This page refreshes by itself when it finishes.",
+                icon=":material/hourglass_top:")
+    else:
+        st.rerun()
 
 
 def record_run(graph, config, started):
@@ -607,12 +642,18 @@ def main():
             with st.sidebar.expander("Reset this profile", icon=":material/delete:"):
                 st.caption("Deletes this profile's saved progress and record. Uploaded files and other profiles are kept.")
                 typed = st.text_input("Type the profile name to confirm", key=f"reset_typed_{thread_key}")
-                if st.button("Reset", type="primary", disabled=typed != thread_id, key=f"reset_{thread_key}"):
+                if st.button("Reset", type="primary", key=f"reset_{thread_key}",
+                             disabled=typed != thread_id or profile_lock(thread_id).locked()):
                     reset_thread(thread_id, typed)
                     for key in list(st.session_state):
                         if thread_key in key and not key.startswith("reset_"): del st.session_state[key]
                     st.rerun()
             st.title("Your residence permit")
+            if profile_lock(thread_id).locked():
+                # A run is in progress elsewhere: show where things stand, offer no actions.
+                render_status_bar({**snapshot.values, "planning_scope": MILESTONE_SCOPE}, snapshot)
+                wait_for_run(thread_id)
+                return
             render_state(snapshot, graph, config, thread_key, thread_id)
     except Exception as error:
         show_error(error)
