@@ -292,12 +292,21 @@ def declaration_form(state, graph, config, thread_key, disabled):
                 else:st.info("Answer at least one question to save.")
 
 
+CHECKLIST_ICONS = {"complete": ":green[:material/check_circle:]", "needs confirmation": ":orange[:material/rate_review:]",
+                   "missing": ":gray[:material/radio_button_unchecked:]", "ambiguous": ":orange[:material/help:]"}
+CHECKLIST_LABELS = {"complete": "Ready", "needs confirmation": "Needs your review", "missing": "Missing", "ambiguous": "Unclear"}
+
+
 def render_checklist(state):
-    st.caption("Document preparation only: complete does not mean legal acceptance or an approved residence permit.")
-    checklist=milestone_checklist(state)
-    labels={"complete":"Complete","needs confirmation":"Needs review","missing":"Missing","ambiguous":"Ambiguous"}
-    if all(row["status"]=="complete" for row in checklist):st.success("Supported document preparation complete; later legal steps remain separate.")
-    for row in checklist:st.write(f"{row['label']}: **{labels[row['status']]}**")
+    """Compact two-column checklist; same milestone_checklist() data as before."""
+    checklist = milestone_checklist(state)
+    if all(row["status"] == "complete" for row in checklist):
+        st.success("All supported documents are ready. Later legal steps remain separate.")
+    left, right = st.columns(2)
+    for index, row in enumerate(checklist):
+        (left if index % 2 == 0 else right).markdown(
+            f"{CHECKLIST_ICONS[row['status']]} {row['label']}  \n:gray[{CHECKLIST_LABELS[row['status']]}]")
+    st.caption("Ready means the document is prepared, not that the permit is approved.")
 
 
 def lifecycle_button(graph,config,thread_key,doc_id,kind,label,disabled=False,**kwargs):
@@ -344,161 +353,244 @@ def render_document(document,state,graph,config,thread_key,disabled):
                 lifecycle_button(graph,config,thread_key,doc_id,"reprocess_document","Reprocess selected profile",document_type_hint=profiles[selected])
             with st.expander("Technical details",expanded=False):
                 st.json(record);st.json(jsonable(state.get("verification_records",{}).get(doc_id,{})))
-        checked=st.checkbox("Confirm deletion of this logical document",key=f"delete_confirm_{thread_key}_{doc_id}_{state.get('trace_id','initial')}",disabled=disabled)
+        checked=st.checkbox("I want to delete this document",key=f"delete_confirm_{thread_key}_{doc_id}_{state.get('trace_id','initial')}",disabled=disabled)
         lifecycle_button(graph,config,thread_key,doc_id,"delete_document","Delete",disabled=disabled or not checked,confirmed=True)
 
 
-def render_state(snapshot, graph, config, thread_key):
-    state = {**snapshot.values,"planning_scope":MILESTONE_SCOPE}  # Display-only scope; factual edits go through graph events.
+VIEWS = {"next": ":material/flag: Next steps", "documents": ":material/description: Documents",
+         "details": ":material/person: Your details", "checks": ":material/fact_check: Checks",
+         "technical": ":material/code: Technical"}
+
+
+def run_event(graph, config, event):
+    """Send one UserEvent through the graph exactly as before, then refresh."""
+    if invoke(graph, ui_run(event, config["configurable"]["thread_id"]), config):
+        st.rerun()
+
+
+def plan_steps(state):
+    steps = state.get("candidate_plan")
+    approved = state.get("approved_plan")
+    if steps is None and approved:
+        steps = field(approved, "actions", [])
+    return steps
+
+
+def render_status_bar(state, snapshot):
+    """Three numbers that answer 'where am I?'."""
+    checklist = milestone_checklist(state)
+    ready = sum(row["status"] == "complete" for row in checklist)
+    counts = requirement_summary(display_records(state.get("relevant_requirements")))
+    evaluated = state.get("relevant_requirements") is not None
+    docs, checks, status = st.columns(3, border=True)
+    docs.metric("Documents ready", f"{ready} / {len(checklist)}")
+    checks.metric("Checks passed", f"{counts['PASS']} / 29" if evaluated else "Not run yet",
+                  delta=f"{counts['FAIL']} failing" if evaluated and counts["FAIL"] else None,
+                  delta_color="inverse")
+    status.caption("Status")             # text, not a metric: long labels must not be cut off
+    status.markdown(f"**{status_label(state.get('run_status', 'NOT_STARTED'))}**")
+
+
+def render_decision(state, snapshot, graph, config, thread_key):
+    """A pending approval or unfinished run comes first, before any view."""
+    interaction = interaction_state(snapshot)
+    if interaction["approval_pending"]:
+        steps = plan_steps(state)
+        with st.container(border=True):
+            st.markdown("#### :material/gavel: A plan is waiting for your decision")
+            if steps:
+                for index, step in enumerate(display_records(steps), 1):
+                    st.markdown(f"**{index}.** {user_action(step)}")
+            else:
+                st.write(state.get("plan_summary", ""))
+            st.caption("Approving records these next steps only. Nothing is submitted, paid or "
+                       "sent on your behalf. Deny the plan to edit your information.")
+            approve, deny, _ = st.columns([1, 1, 3])
+            decision = None
+            if approve.button("Approve", type="primary", key=f"approve_{thread_key}_{state.get('trace_id')}"):
+                decision = True
+            if deny.button("Deny", key=f"deny_{thread_key}_{state.get('trace_id')}"):
+                decision = False
+            if decision is not None and invoke(graph, Command(resume=decision), config):
+                st.rerun()
+    elif snapshot.next:
+        with st.container(border=True):
+            st.warning("Processing stopped before it finished. Retry to continue; editing is locked until then.")
+            if st.button("Retry unfinished processing", key=f"retry_{thread_key}") and invoke(graph, None, config):
+                st.rerun()
+
+
+def view_next_steps(state, snapshot, graph, config, thread_key):
     status = str(state.get("run_status", "NOT_STARTED"))
-    interaction=interaction_state(snapshot)
-    approval_pending=interaction["approval_pending"]
-    if interaction["message"]:
-        st.info(interaction["message"])
-    if approval_pending and st.button("Reject pending plan and unlock editing",key=f"unlock_{thread_key}"):
-        if invoke(graph,Command(resume=False),config): st.rerun()
-    documents=state.get("documents") or []
-    for document in documents:render_document(document,state,graph,config,thread_key,bool(snapshot.next))
-    if not documents:st.info("No documents yet. Upload a supported document, analyze it and review its fields.")
-    st.subheader("3. Information needing confirmation")
-    identity_review(state,graph,config,thread_key,bool(snapshot.next))
-    declaration_form(state, graph, config, thread_key, bool(snapshot.next))
+    busy = bool(snapshot.next)
+    st.markdown("##### Your documents")
+    render_checklist(state)
+
+    st.markdown("##### Recommended next steps")
+    if status == "PLANNING_UNAVAILABLE":
+        st.warning("The local model could not write a plan. Your documents and answers are saved; try again when Ollama is running.")
+    elif status == "HUMAN_REVIEW_REQUIRED":
+        st.error("The plan could not be fixed automatically after "
+                 f"{MAX_REFLECTION_ATTEMPTS} attempts. Review your information, then generate a new plan.")
+    elif status == "APPROVED":
+        st.success("You approved this plan. No official action was taken.")
+    elif status == "APPROVAL_DENIED":
+        st.info("You denied the last plan. Update your information and generate a new one.")
+    approved = state.get("approved_plan")
+    steps = plan_steps(state)
+    origin = state.get("plan_origin") or (state.get("approved_plan_origin") if approved else None)
+    if origin == "milestone_completion":
+        st.info(state.get("plan_summary") or field(approved, "summary", ""))
+    if steps is None:
+        st.caption("Upload documents and answer the questions in **Your details**, then generate a plan.")
+    for index, step in enumerate(display_records(steps), 1):
+        with st.container(border=True):
+            text, action = st.columns([5, 2])
+            text.markdown(f"**{index}. {user_action(step)}**")
+            if step.get("reason"):
+                text.caption(step["reason"])
+            if step.get("due_date") and status in {"VALIDATED", "APPROVED"}:
+                text.caption(f":material/event: Due {step['due_date']}")
+            if approved and not busy:
+                marked = any(row.get("action_id") == step.get("step_id") and row.get("action") == step.get("action")
+                             for row in state.get("action_progress", {}).values())
+                if marked:
+                    action.markdown(":green[:material/check: Marked done]")
+                elif action.button("Mark done", key=f"done_{thread_key}_{step.get('step_id')}",
+                                   help="Records your own declaration; requirements still depend on evidence."):
+                    run_event(graph, config, UserEvent(kind="record_progress", action_id=step.get("step_id")))
+    issues = display_records(state.get("validation_errors"))
+    if issues and status not in {"APPROVAL_DENIED"}:
+        st.warning(f"{len(issues)} issue(s) with the last plan: {issues[0].get('message', '')}")
+    if st.button("Generate plan" if steps is None else "Update plan", type="primary",
+                 disabled=busy, key=f"plan_{thread_key}"):
+        run_event(graph, config, UserEvent(kind="generate_plan"))
+
+
+def view_documents(state, snapshot, graph, config, thread_key, thread_id):
+    busy = bool(snapshot.next)
+    with st.form(f"upload_{thread_key}", border=True):
+        uploaded = st.file_uploader("Add a document (PDF or TXT)", type=["pdf", "txt"],
+                                    key=f"file_{thread_key}", disabled=busy)
+        submit = st.form_submit_button("Upload and analyze", type="primary", disabled=busy)
+    if submit:
+        if uploaded is None:
+            st.warning("Choose a PDF or TXT file first.")
+        else:
+            path = save_upload(uploaded.name, uploaded.getvalue(), thread_id)
+            run_event(graph, config, UserEvent(kind="analyze_document", file_path=str(path)))
+    documents = state.get("documents") or []
+    if not documents:
+        st.caption("No documents yet. Each upload is read by the local model; you can review and correct what it found.")
+    for document in documents:
+        render_document(document, state, graph, config, thread_key, busy)
+
+
+def view_details(state, snapshot, graph, config, thread_key):
+    busy = bool(snapshot.next)
+    identity_review(state, graph, config, thread_key, busy)
+    declaration_form(state, graph, config, thread_key, busy)
     derived = state.get("verification_records", {}).get("__derived__", {})
     if derived:
         entry = derived.get("planned_stay_months")
-        st.info(f"Estimated academic stay: {field(entry, 'value')} complete calendar months (derived). This is not the requested permit period.")
-    with st.expander("Technical details: Digital Twin", expanded=False):
+        st.info(f"Estimated academic stay: {field(entry, 'value')} full months (calculated from your programme dates; not the permit period).")
+    if state.get("verification_conflicts"):
+        st.warning("Some confirmed information conflicts across documents: " + ", ".join(state["verification_conflicts"]))
+
+
+def view_checks(state, snapshot, graph, config, thread_key):
+    requirements = display_records(state.get("relevant_requirements"))
+    if state.get("relevant_requirements") is None:
+        st.caption("The 29 residence-permit checks run after your first upload or answer.")
+    else:
+        counts = requirement_summary(requirements)
+        passed, failed, unknown = st.columns(3)
+        passed.metric("Passed", counts["PASS"])
+        failed.metric("Failed", counts["FAIL"])
+        unknown.metric("Not enough information yet", counts["missing_information"])
+    from src.agents.planner import actionable_needs
+    needs = actionable_needs(state)
+    immediate_ids = {n["rule_id"] for n in needs if n["category"] == "immediate"}
+    groups = blocking_requirement_groups(requirements)
+    failures = [r for r in groups["failed"] if r.get("rule_id") in immediate_ids]
+    missing = [r for r in groups["missing_information"] if r.get("rule_id") in immediate_ids]
+    if failures:
+        st.markdown("##### Problems to fix")
+        for requirement in failures:
+            st.error(requirement.get("description", "Requirement not met"), icon=":material/error:")
+    if missing:
+        st.markdown("##### Information needed now")
+        st.caption("Upload the matching document, or answer the questions in **Your details**.")
+        with st.container(border=True):
+            for requirement in missing:
+                fields = ", ".join(name.replace("_", " ") for name in requirement.get("missing_fields", []))
+                st.markdown(f":blue[:material/info:] {requirement.get('description', 'Information needed')}"
+                            + (f"  \n:gray[Needs: {fields}]" if fields else ""))
+    if requirements and not failures and not missing:
+        st.success("Nothing blocking right now. Other checks belong to later stages.")
+    if st.button("Re-check", disabled=bool(snapshot.next), key=f"recheck_{thread_key}",
+                 help="Re-runs the rule checks on saved information; documents are not re-read."):
+        run_event(graph, config, UserEvent(kind="reevaluate"))
+
+
+def view_technical(state, snapshot):
+    """Everything the earlier layout showed inline, in one place."""
+    from src.agents.planner import actionable_needs
+    from src.agents.planning_policy import workflow_stage
+    requirements = display_records(state.get("relevant_requirements"))
+    unknown_groups = unknown_requirement_groups(state)
+    origin = state.get("plan_origin") or (state.get("approved_plan_origin") if state.get("approved_plan") else None)
+    st.caption(f"Workflow stage: {workflow_stage(state).replace('_', ' ').title()}"
+               f" | Plan source: {({'deterministic_fallback': 'Deterministic fallback', 'milestone_completion': 'Deterministic milestone assessment'}.get(origin, 'Local Ollama model') if origin else 'none')}"
+               f" | Repair attempts: {state.get('retry_count', 0)} / {MAX_REFLECTION_ATTEMPTS}")
+    st.caption("Not-yet-known checks by scope: " + " | ".join(
+        f"{label}: {len(unknown_groups[key])}" for key, label in
+        (("immediate", "needed now"), ("future", "later stage"), ("outside_scope", "outside Milestone 1"),
+         ("guardrail_only", "safety guardrails"), ("waiting", "waiting on prerequisites"), ("advisory", "advisory"))))
+    with st.expander("Rule results (all 29)"):
+        st.json({"unknown_by_scope": unknown_groups, "requirements": requirements})
+    with st.expander("Workflow priorities and dependencies"):
+        st.json(jsonable(actionable_needs(state)))
+    with st.expander("Structured plan"):
+        st.json(jsonable({"summary": state.get("plan_summary", ""), "candidate_plan": plan_steps(state)}))
+    with st.expander("Gate 1 and reflection"):
+        st.json(jsonable({"validation_errors": display_records(state.get("validation_errors")),
+                          "feedback": state.get("repair_feedback", []), "history": state.get("repair_history", []),
+                          "planner_diagnostics": state.get("planner_diagnostics", {}),
+                          "action_progress": state.get("action_progress", {})}))
+    with st.expander("Digital Twin"):
         st.json(jsonable({"extracted_facts": state.get("extracted_facts", {}),
                           "residence_permit_context": state.get("residence_permit_context", {}),
                           "verification_records": state.get("verification_records", {}),
                           "verification_conflicts": state.get("verification_conflicts", [])}))
 
-    st.subheader("4. Requirement summary")
-    st.caption("All 29 legal checks remain evaluated, including later and out-of-scope requirements.")
-    requirements = display_records(state.get("relevant_requirements"))
-    for column, (label, count) in zip(st.columns(3), requirement_summary(requirements).items()):
-        column.metric("UNKNOWN" if label == "missing_information" else label, count)
-    if state.get("relevant_requirements") is None:
-        st.caption("Requirements have not been evaluated for this run.")
+
+def render_state(snapshot, graph, config, thread_key, thread_id):
+    state = {**snapshot.values, "planning_scope": MILESTONE_SCOPE}  # Display-only scope; edits go through graph events.
+    render_status_bar(state, snapshot)
+    render_decision(state, snapshot, graph, config, thread_key)
+    view = st.segmented_control("View", list(VIEWS), format_func=VIEWS.get, default="next",
+                                key=f"view_{thread_key}", label_visibility="collapsed") or "next"
+    if view == "next":
+        view_next_steps(state, snapshot, graph, config, thread_key)
+    elif view == "documents":
+        view_documents(state, snapshot, graph, config, thread_key, thread_id)
+    elif view == "details":
+        view_details(state, snapshot, graph, config, thread_key)
+    elif view == "checks":
+        view_checks(state, snapshot, graph, config, thread_key)
     else:
-        st.caption("Requirements evaluated using accepted inputs; unknown information remains unknown.")
-    unknown_groups=unknown_requirement_groups(state)
-    st.caption("UNKNOWN by workflow scope: " + " | ".join(f"{label}: {len(unknown_groups[key])}" for key,label in (("immediate","needed now"),("future","later stage"),("outside_scope","outside Milestone 1"),("guardrail_only","safety guardrails"),("waiting","waiting on prerequisites"),("advisory","advisory"))))
-    st.caption("Outside this milestone does not mean legally not applicable; these checks remain UNKNOWN.")
-    with st.expander("Technical details: complete rule results", expanded=False):
-        st.json({"unknown_by_scope":unknown_groups,"requirements":requirements})
-
-    st.caption("Current blockers / missing items")
-    groups = blocking_requirement_groups(requirements)
-    st.write("Blocking failures")
-    from src.agents.planner import actionable_needs
-    current_ids={n["rule_id"] for n in actionable_needs(state) if n["category"]=="immediate"}
-    current_failures=[r for r in groups["failed"] if r.get("rule_id") in current_ids]
-    for requirement in current_failures:
-        st.error(f"{requirement.get('rule_id')}: {requirement.get('description', 'Requirement not met')}")
-    if not current_failures:
-        st.caption("No assessed blocking failures.")
-    from src.agents.planner import actionable_needs
-    needs=actionable_needs(state)
-    immediate_ids={n["rule_id"] for n in needs if n["category"]=="immediate"}
-    immediate=[r for r in groups["missing_information"] if r.get("rule_id") in immediate_ids]
-    st.write("Information needed now")
-    for requirement in immediate[:3]:
-        st.info(f"{requirement.get('rule_id')}: {requirement.get('message', requirement.get('description', 'Information needed'))}")
-    if not immediate:
-        st.caption("No recorded missing blocking information.")
-    elif len(immediate) > 3:
-        st.caption("More missing information is listed in Technical details: complete rule results.")
-    with st.expander("Technical details: workflow priorities and dependencies",expanded=False):
-        st.json(jsonable(needs))
-    with st.expander("Advanced / Technical: requirements",expanded=False):
-        st.caption("This recomputes accepted state and deterministic rules only; OCR/LLM extraction is not rerun.")
-        if st.button("Re-check requirements",disabled=bool(snapshot.next),key=f"recheck_{thread_key}"):
-            if invoke(graph,ui_run(UserEvent(kind="reevaluate"),config["configurable"]["thread_id"]),config): st.rerun()
-    if state.get("verification_conflicts"):
-        st.warning("Confirmed information conflicts across documents. Review: " + ", ".join(state["verification_conflicts"]))
-
-    st.subheader("5. Recommended next steps")
-    if status == "PLANNING_UNAVAILABLE":
-        st.warning("Ollama could not generate a plan. Your documents and requirements are saved. Retry Generate / Update Plan when the local model is available.")
-    if st.button("Generate / Update Plan", disabled=bool(snapshot.next), key=f"plan_{thread_key}"):
-        if invoke(graph, ui_run(UserEvent(kind="generate_plan"), config["configurable"]["thread_id"]), config):
-            st.rerun()
-    if status == "VALIDATED":
-        st.success("Plan validated by Gate 1. This validates the proposed next steps, not the residence permit.")
-    origin=state.get("plan_origin") or (state.get("approved_plan_origin") if state.get("approved_plan") else None)
-    if origin:
-        st.caption("Plan source: " + ({"deterministic_fallback":"Deterministic fallback","milestone_completion":"Deterministic milestone checklist assessment"}.get(origin,"Local Ollama model")))
-    from src.agents.planning_policy import workflow_stage
-    st.caption("Workflow stage: "+workflow_stage(state).replace("_"," ").title())
-    steps = state.get("candidate_plan")
-    approved=state.get("approved_plan")
-    if steps is None and approved:
-        steps=field(approved,"actions",[])
-    if origin=="milestone_completion":
-        st.info(state.get("plan_summary") or field(approved,"summary",""))
-    if steps is None:
-        st.info("Review your information, then select Generate / Update Plan when ready.")
-    for index, step in enumerate(display_records(steps), 1):
-        st.write(f"{index}. {user_action(step)}")
-        if step.get("request_kind"):
-            st.caption(step["request_kind"].replace("_"," ").title()+" | "+("Available through the controls above" if step.get("available_in_prototype") else "Manual step or external guidance; no official execution"))
-        if approved and not snapshot.next:
-            marked=any(row.get("action_id")==step.get("step_id") and row.get("action")==step.get("action") for row in state.get("action_progress",{}).values())
-            if marked: st.caption("Completion declared by you; requirements still depend on evidence and accepted inputs.")
-            elif st.button("Mark action done (declaration only)",key=f"done_{thread_key}_{step.get('step_id')}"):
-                event=UserEvent(kind="record_progress",action_id=step.get("step_id"))
-                if invoke(graph,ui_run(event,config["configurable"]["thread_id"]),config): st.rerun()
-        if step.get("related_rule_id"): st.caption(f"{step['related_rule_id']}: {step.get('reason', '')}")
-        if step.get("due_date") and status in {"VALIDATED", "APPROVED"}:
-            st.caption(f"Due: {step['due_date']}")
-    with st.expander("Technical details: structured plan", expanded=False):
-        st.json(jsonable({"summary": state.get("plan_summary", ""), "candidate_plan": steps}))
-
-    st.caption("Plan validation / reflection")
-    st.caption(f"Repair attempts: {state.get('retry_count',0)} / {MAX_REFLECTION_ATTEMPTS}")
-    if status == "HUMAN_REVIEW_REQUIRED":
-        st.error("HUMAN_REVIEW_REQUIRED: automatic repair stopped. Review the information and issues.")
-    issues = display_records(state.get("validation_errors"))
-    if issues:
-        st.warning(f"{len(issues)} issue(s) need attention.")
-        st.caption(str(issues[0].get("message", "Review technical validation details")))
-    with st.expander("Technical details: Gate 1 and reflection", expanded=False):
-        st.json(jsonable({"validation_errors": issues, "feedback": state.get("repair_feedback", []), "history": state.get("repair_history", []), "planner_diagnostics":state.get("planner_diagnostics",{}), "action_progress":state.get("action_progress",{})}))
-    if snapshot.next and not approval_pending:
-        st.warning("This thread has unfinished processing.")
-        if st.button("Retry unfinished processing", key=f"retry_{thread_key}") and invoke(graph, None, config):
-            st.rerun()
-
-    st.subheader("6. Human approval")
-    st.info("Approval accepts only the proposed next steps. It does NOT approve the residence permit or execute official actions.")
-    if approval_pending:
-        st.write("You are approving these steps:" if steps else "You are approving this preparation assessment; no official action is authorized:")
-        if not steps:st.write(state.get("plan_summary",""))
-        for index, step in enumerate(display_records(steps), 1):
-            st.write(f"{index}. {user_action(step)}")
-        approve, deny = st.columns(2)
-        decision = None
-        if approve.button("Approve", key=f"approve_{thread_key}_{state.get('trace_id')}"):
-            decision = True
-        if deny.button("Deny", key=f"deny_{thread_key}_{state.get('trace_id')}"):
-            decision = False
-        if decision is not None and invoke(graph, Command(resume=decision), config):
-            st.rerun()
-    elif status == "APPROVED":
-        st.success("Plan approved by you. No official action was executed.")
-    elif status == "APPROVAL_DENIED":
-        st.warning("The proposed plan was denied.")
+        view_technical(state, snapshot)
 
 
 def main():
-    st.set_page_config(page_title="Personal Bureaucracy Agent", layout="wide")
-    st.title("Personal Bureaucracy Agent")
-    st.caption("Milestone 1 | Sabanc\u0131 incoming exchange | First short-term residence permit")
-    thread_id = st.sidebar.text_input("Thread ID", value="demo-user").strip()
-    st.sidebar.caption("Use the same ID to restore a saved Digital Twin.")
+    st.set_page_config(page_title="Residence Permit Assistant", page_icon=":material/badge:", layout="wide")
+    st.sidebar.markdown("### :material/badge: Residence Permit Assistant")
+    st.sidebar.caption("Sabancı incoming exchange · first short-term residence permit")
+    thread_id = st.sidebar.text_input("Your profile name", value="demo-user",
+                                      help="Use the same name next time to continue where you left off.").strip()
     if not thread_id:
-        st.info("Enter a thread ID to begin.")
+        st.info("Enter a profile name to begin.")
         return
     thread_key = sha256(thread_id.encode()).hexdigest()[:16]
     config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 60}
@@ -508,40 +600,23 @@ def main():
         with sqlite_checkpointer() as saver:
             graph = build_graph(saver)
             snapshot = graph.get_state(config)
-            st.sidebar.write("Procedure:", snapshot.values.get("active_procedure", "ikamet"))
-            st.sidebar.write("Agent status:", status_label(snapshot.values.get("run_status", "NOT_STARTED")))
-            if snapshot.values:
-                st.info("Existing Digital Twin restored from SQLite")
-            if st.sidebar.button("Refresh saved state"):
+            st.sidebar.caption(":green[:material/cloud_done:] Saved progress restored" if snapshot.values
+                               else "New profile")
+            if st.sidebar.button("Refresh", icon=":material/refresh:"):
                 st.rerun()
-            with st.sidebar.expander("Advanced / Danger Zone",expanded=False):
-                st.caption("Reset only the current thread. Uploaded files are retained; other Digital Twins are untouched.")
-                typed=st.text_input("Type the current thread ID to confirm reset",key=f"reset_typed_{thread_key}")
-                if st.button("Reset this Digital Twin",disabled=typed!=thread_id,key=f"reset_{thread_key}"):
-                    reset_thread(thread_id,typed)
+            with st.sidebar.expander("Reset this profile", icon=":material/delete:"):
+                st.caption("Deletes this profile's saved progress and record. Uploaded files and other profiles are kept.")
+                typed = st.text_input("Type the profile name to confirm", key=f"reset_typed_{thread_key}")
+                if st.button("Reset", type="primary", disabled=typed != thread_id, key=f"reset_{thread_key}"):
+                    reset_thread(thread_id, typed)
                     for key in list(st.session_state):
-                        if thread_key in key and not key.startswith("reset_"):del st.session_state[key]
+                        if thread_key in key and not key.startswith("reset_"): del st.session_state[key]
                     st.rerun()
-            st.subheader("1. Milestone-1 checklist")
-            render_checklist({**snapshot.values,"planning_scope":MILESTONE_SCOPE})
-            st.subheader("2. Your documents")
-            with st.form(f"upload_{thread_key}"):
-                uploaded = st.file_uploader("PDF or TXT document", type=["pdf", "txt"],
-                                            key=f"file_{thread_key}", disabled=bool(snapshot.next))
-                submit = st.form_submit_button("Analyze document", disabled=bool(snapshot.next))
-            if submit:
-                if uploaded is None:
-                    st.warning("Choose a PDF or TXT file first.")
-                else:
-                    path = save_upload(uploaded.name, uploaded.getvalue(), thread_id)
-                    event = UserEvent(kind="analyze_document", file_path=str(path))
-                    if invoke(graph, ui_run(event, thread_id), config):
-                        st.rerun()
-                    snapshot = graph.get_state(config)
-            render_state(snapshot, graph, config, thread_key)
+            st.title("Your residence permit")
+            render_state(snapshot, graph, config, thread_key, thread_id)
     except Exception as error:
         show_error(error)
-        st.caption("Saved checkpoints remain local. Refresh to inspect the thread again.")
+        st.caption("Saved progress stays on this computer. Refresh to try again.")
 
 
 if __name__ == "__main__":
