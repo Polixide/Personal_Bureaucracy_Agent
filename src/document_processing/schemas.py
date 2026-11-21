@@ -5,7 +5,7 @@ from typing import Annotated, Any, ClassVar, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DocumentType = Literal["student_enrollment_certificate", "health_insurance_certificate",
-                       "ikamet_application_form", "passport_identity_page", "turkiye_entry_stamp", "declaration_control_document", "card_fee_receipt", "unknown"]
+                       "ikamet_application_form", "passport_identity_page", "turkiye_entry_stamp", "declaration_control_document", "card_fee_receipt", "utility_bill", "address_form", "unknown"]
 
 
 class DocumentClassification(BaseModel):
@@ -136,6 +136,9 @@ class HealthInsurance(DocumentInfo):
     expiry_date: date | None = None
     coverage_start_date: date | None = None
     coverage_end_date: date | None = None
+    # Statements appearing in the policy, not determinations of legal acceptance.
+    insurance_evidence_type: Literal["bilateral_social_security", "sgk_provision", "sgk_application", "private_health_insurance"] | None = None
+    residence_permit_purpose: bool | None = None
     REQUIRED = ("holder_name", "policy_number", "insurer", "coverage_start_date", "coverage_end_date")
     DATES = ("issue_date", "expiry_date", "coverage_start_date", "coverage_end_date")
     PERIOD = ("coverage_start_date", "coverage_end_date")
@@ -159,9 +162,12 @@ class PassportIdentity(DocumentInfo):
     document_type: Literal["passport_identity_page"] = "passport_identity_page"
     passport_number: str | None = None
     nationality: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    birth_date: date | None = None
     expiry_date: date | None = None
     REQUIRED = ("holder_name", "passport_number", "nationality", "expiry_date")
-    DATES = ("expiry_date",)
+    DATES = ("expiry_date","birth_date")
 
 
 class EntryStamp(DocumentInfo):
@@ -193,12 +199,36 @@ class CardFeeReceipt(DocumentInfo):
     DATES = ("payment_date",)
 
 
+class UtilityBill(DocumentInfo):
+    document_type: Literal["utility_bill"] = "utility_bill"
+    service_address: str | None = None
+    billing_date: date | None = None
+    provider: str | None = None
+    REQUIRED = ("holder_name","service_address","billing_date","provider")
+    DATES = ("billing_date",)
+
+
+class AddressForm(DocumentInfo):
+    document_type: Literal["address_form"] = "address_form"
+    nationality: str | None = None
+    passport_number: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    birth_date: date | None = None
+    phone: str | None = None
+    declared_address: str | None = None
+    signature_present: bool | None = None
+    form_date: date | None = None
+    REQUIRED = ("first_name","last_name","passport_number","declared_address","signature_present")
+    DATES = ("birth_date","form_date")
+
+
 class UnknownDocument(DocumentInfo):
     document_type: Literal["unknown"] = "unknown"
 
 
 ExtractedDocument = Annotated[
-    StudentCertificate | HealthInsurance | IkametApplicationForm | PassportIdentity | EntryStamp | DeclarationControl | CardFeeReceipt | UnknownDocument,
+    StudentCertificate | HealthInsurance | IkametApplicationForm | PassportIdentity | EntryStamp | DeclarationControl | CardFeeReceipt | UtilityBill | AddressForm | UnknownDocument,
     Field(discriminator="document_type"),
 ]
 DOCUMENT_SCHEMAS = {
@@ -209,5 +239,7 @@ DOCUMENT_SCHEMAS = {
     "turkiye_entry_stamp": EntryStamp,
     "declaration_control_document": DeclarationControl,
     "card_fee_receipt": CardFeeReceipt,
+    "utility_bill": UtilityBill,
+    "address_form": AddressForm,
     "unknown": UnknownDocument,
 }

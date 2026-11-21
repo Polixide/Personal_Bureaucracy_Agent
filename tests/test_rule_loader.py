@@ -4,7 +4,7 @@ from src.workers.rule_loader import load_rules, load_dependencies
 
 def test_load_from_another_directory(tmp_path,monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert len(load_rules()) == 29
+    assert len(load_rules()) == 24
     assert load_rules()[0]["name"] == "exchange_stay_requires_ikamet"
 
 def test_missing_file(monkeypatch):
@@ -15,4 +15,4 @@ def test_missing_file(monkeypatch):
 def test_dependency_union():
     deps=load_dependencies()
     assert "R006" in deps["R020"]
-    assert {"R024","R025","R026"} <= deps["R023"]
+    assert {"R026"} <= deps["R023"] and not {"R024","R025"} & set(deps["R023"])

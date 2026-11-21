@@ -5,11 +5,13 @@ from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import patch
 from langgraph.types import Command
-from config import PROJECT_ROOT, DATABASE_PATH
+from config import PROJECT_ROOT, DATABASE_PATH, TWIN_RECORD_PATH
 from src.core.graph import build_graph
 from src.core.state import UserEvent, new_run
 from src.document_processing.schemas import StudentCertificate
 from src.memory.checkpointer import sqlite_checkpointer
+from src.memory.twin_store import TwinStore
+from src.memory.twin_sync import invoke_and_record
 
 
 def main():
@@ -56,7 +58,8 @@ def main():
                 parser.exit(1, "Thread has unfinished non-approval work; inspect it with --show-state.\n")
             result = dict(snapshot.values)
         else:
-            result=graph.invoke(new_run(event,args.thread_id),config)
+            with TwinStore(TWIN_RECORD_PATH) as store:
+                result=invoke_and_record(graph,store,new_run(event,args.thread_id),config)
         if args.persistence_demo:
             before = graph.get_state(config).values
             stack.close()
@@ -75,7 +78,8 @@ def main():
             print("Validated proposed plan:")
             for action in result["candidate_plan"]: print(" -",action.action)
             approved=input("Approve this plan? [y/N] ").strip().lower() == "y"
-            result=graph.invoke(Command(resume=approved),config)
+            with TwinStore(TWIN_RECORD_PATH) as store:
+                result=invoke_and_record(graph,store,Command(resume=approved),config)
         print(result["final_response"])
 
 if __name__ == "__main__": main()

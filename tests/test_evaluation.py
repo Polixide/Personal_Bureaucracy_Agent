@@ -73,8 +73,8 @@ SCENARIOS = [
          corrections=[("R004", "Ask IRO for guidance after the legal-stay deadline")],
          gates=[True], final="APPROVED"),
     dict(id="07-unknown-information", purpose="Unknown context remains missing_information rather than failure.",
-         empty_context=True, changes={}, statuses={f"R{i:03}": "missing_information" for i in range(1, 30)},
-         blockers=[f"R{i:03}" for i in range(1, 27)],
+         empty_context=True, changes={}, statuses={f"R{i:03}": "missing_information" for i in (i for i in range(1, 30) if i not in (12,24,25,27,29))},
+         blockers=[f"R{i:03}" for i in (i for i in range(1,27) if i not in (12,24,25))],
          corrections=[("R003", "Provide entry details and requested stay dates")], gates=[True], final="APPROVED"),
     dict(id="08-unknown-document", purpose="Unrelated uploaded text creates no administrative facts or legal readiness.",
          unknown_document=True,
@@ -164,7 +164,7 @@ def test_curated_end_to_end_scenario(tmp_path, scenario):
             graph = build_graph(saver)
             result = graph.invoke(request, config)
             assert result["relevant_requirements"] is not None, result.get("final_response")
-            expected_statuses = {f"R{i:03}": "passed" for i in range(1, 30)}
+            expected_statuses = {f"R{i:03}": "passed" for i in (i for i in range(1, 30) if i not in (12,24,25,27,29))}
             expected_statuses.update(scenario["statuses"])
             assert {r.rule_id: r.status for r in result["relevant_requirements"]} == expected_statuses
             requirement_blockers = sorted(r.rule_id for r in result["relevant_requirements"]

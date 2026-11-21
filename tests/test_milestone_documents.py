@@ -127,7 +127,7 @@ def test_legal_expiry_is_user_declared_not_inferred_from_nationality(tmp_path):
 def test_missing_checklist_drives_preparation_plan_and_retains_all_rules(tmp_path):
     graph=build_graph();config={"configurable":{"thread_id":"missing-documents"}}
     state=confirm(graph,config,"__declarations__",{"is_in_turkiye":True})
-    assert len(state["relevant_requirements"])==29
+    assert len(state["relevant_requirements"])==24
     assert len(milestone_checklist(state))==7 and {r["status"] for r in milestone_checklist(state)}=={"missing"}
     assert workflow_stage(state)=="DOCUMENT_PREPARATION"
     needs=actionable_needs(state);by_id={n["rule_id"]:n for n in needs}

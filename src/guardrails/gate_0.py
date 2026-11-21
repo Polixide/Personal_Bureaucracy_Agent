@@ -29,6 +29,13 @@ def gate_0(state):
         from src.workers.verification import document_lifecycle
         try: return {**result,**document_lifecycle(state)}
         except ValueError as error: return reject(str(error))
+    if event.kind == "assistant_message":
+        return result if event.text.strip() else reject("Empty assistant message")
+    if event.kind == "run_tool":
+        from src.tools.schemas import ToolCall
+        try: ToolCall.model_validate(event.tool_call)
+        except (ValueError, TypeError) as error: return reject("Invalid typed tool call")
+        return result
     if event.kind == "generate_plan":
         if state.get("verification_conflicts"):
             result["relevant_requirements"] = None
@@ -44,5 +51,5 @@ def gate_0(state):
     path = Path(event.file_path or "").resolve()
     if not path.is_relative_to(PROJECT_ROOT) or not path.is_file() or path.suffix.lower() not in {".pdf", ".txt"}:
         return reject("Upload must be an existing local PDF/TXT inside the project")
-    result["documents"] = [Document(doc_id=sha256(str(path).encode()).hexdigest()[:20], file_path=str(path))]
+    result["documents"] = [Document(doc_id=sha256(str(path).encode()).hexdigest()[:20], file_path=str(path), original_filename=Path(event.original_filename).name if event.original_filename else None)]
     return result

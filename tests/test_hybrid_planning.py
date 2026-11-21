@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import json
 import pytest
+from conftest import wire_planner_response,wire_planner_sequence
 from src.core.state import PlanStep,ActionPlan,ResidencePermitContext,ALLOWED_ACTION_TYPES
 from src.agents.planner import canonical_candidates,compact_planner_context,create_action_plan,PlannerError
 from src.guardrails.gate_1 import validate_plan
@@ -20,7 +21,7 @@ def state_for(ids=("R006","R008","R019"),context=None):
 
 def model_plan(state,actions):
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=SimpleNamespace(message=SimpleNamespace(content=json.dumps({"actions":actions,"summary":"Proposed next steps for review"})))
+        client.return_value.chat.side_effect=wire_planner_sequence([draft_response(actions)],repeat=True)
         plan=create_action_plan(state)
         payload=json.loads(client.return_value.chat.call_args.kwargs["messages"][1]["content"])
     return plan,payload
@@ -49,7 +50,8 @@ def test_model_reorders_missing_documents_without_changing_targets():
     assert [a.priority for a in plan.actions]==[1,2,3]
     assert all(a.title==a.action and a.requires_approval and a.grounding_ids for a in plan.actions)
     assert not validate_plan(state,plan) and state==before
-    assert set(payload["allowed_rule_ids"])=={"R006","R008","R019"}
+    assert {rid for row in payload["canonical_candidates"] for rid in row["rule_ids"]}=={"R006","R008","R019"}
+    assert "allowed_rule_ids" not in payload
 
 
 def test_insurance_failure_is_correction_with_grounded_dates():
@@ -63,7 +65,7 @@ def test_insurance_failure_is_correction_with_grounded_dates():
 
 
 def test_compact_context_excludes_passed_later_and_raw_data():
-    state=state_for(tuple(f"R{i:03}" for i in range(1,30)),{"exchange_student":True,"planned_stay_months":9,"permit_type":"short_term","is_in_turkiye":True})
+    state=state_for(tuple(f"R{i:03}" for i in (i for i in range(1,30) if i not in (12,24,25,27,29))),{"exchange_student":True,"planned_stay_months":9,"permit_type":"short_term","is_in_turkiye":True})
     state.pop("planning_scope")
     state["extracted_facts"]={"sensitive":"PRIVATE SOURCE "*400}
     state["repair_history"]=[{"text":"PRIVATE HISTORY"}]*30
@@ -94,7 +96,8 @@ def test_reflection_repairs_only_rejected_action_and_preserves_valid_step():
     assert not validate_plan(state,repaired)
     assert payload["repair"]["validation_errors"][0]["code"]=="VAGUE_TITLE"
     assert payload["repair"]["locked_actions"][0]["step_id"]=="step_1"
-    assert set(payload["allowed_action_types"])==set(ALLOWED_ACTION_TYPES)
+    assert {row["action_type"] for row in payload["canonical_candidates"]}<=set(ALLOWED_ACTION_TYPES)
+    assert "allowed_action_types" not in payload
     assert state["candidate_plan"][1].title=="information/prepare"
     with pytest.raises(PlannerError):model_plan(state,[{"repair_step_id":"step_1","title":"Change already valid action","action_type":"REQUEST_DOCUMENT","reason":"Changed valid action","related_rule_id":"R006"}])
 
@@ -188,23 +191,25 @@ def test_latest_rejected_model_output_and_exact_feedback_reach_each_repair(capsy
     first=draft_response([draft_action("R020")]);second=draft_response([draft_action("R022")])
     valid=draft_response([draft_action("R006")])
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.side_effect=[first,second,valid]
+        client.return_value.chat.side_effect=wire_planner_sequence([first,second,valid])
         state=build_graph().invoke(graph_request(state_for(("R006",))),{"configurable":{"thread_id":"latest-feedback"}})
         inputs=[json.loads(c.kwargs["messages"][1]["content"]) for c in client.return_value.chat.call_args_list]
     assert state["run_status"]=="VALIDATED" and state["__interrupt__"] and state["retry_count"]==2
     for i,rid in enumerate(("R020","R022"),1):
         repair=inputs[i]["repair"]
         assert repair["validation_errors"]==state["repair_history"][i-1]["errors"]
-        assert repair["validation_errors"][0]["rule_id"]==rid
-        assert repair["validation_errors"][0]["code"]=="RULE_NOT_ACTIONABLE"
+        assert repair["validation_errors"][0]["rule_id"] is None
+        assert repair["validation_errors"][0]["code"]=="PLANNER_SCHEMA_ERROR"
+        assert repair["validation_errors"][0]["message"]=="Planner schema issue: unknown_or_duplicate_candidate_reference"
         assert repair["previous_model_plan"]["actions"][0]["related_rule_id"]==rid
         assert repair["previous_plan_hash"]==plan_hash(repair["previous_model_plan"])
         assert {k:v for k,v in inputs[i].items() if k!="repair"}==inputs[0]
     assert inputs[1]["repair"]["previous_plan_hash"]!=inputs[2]["repair"]["previous_plan_hash"]
     captured=capsys.readouterr()
     assert '[PLANNER] allowed_rule_ids=["R006"]' in captured.err
-    assert '[PLANNER] returned_rule_ids=["R020"]' in captured.err
-    assert '[GATE1] rejected_rule_id=R020 rejection_reason=RULE_NOT_ACTIONABLE' in captured.err
+    assert '[PLANNER] selected_candidate_ids=' in captured.err
+    assert 'returned_rule_ids=' not in captured.err
+    assert '[GATE1] schema_issue=unknown_or_duplicate_candidate_reference' in captured.err
     assert '[REFLECTION] previous_plan_hash=' in captured.err and '[REFLECTION] new_plan_hash=' in captured.err
     assert "Provide evidence for review" not in captured.err
 
@@ -213,7 +218,7 @@ def test_unchanged_invalid_structured_output_stops_without_three_redundant_repai
     from src.core.graph import build_graph
     bad=draft_response([draft_action("R020")])
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=bad
+        client.return_value.chat.side_effect=wire_planner_sequence([bad],repeat=True)
         state=build_graph().invoke(graph_request(state_for(("R006",))),{"configurable":{"thread_id":"unchanged-output"}})
     assert client.return_value.chat.call_count==2
     assert state["retry_count"]==1 and state["run_status"]=="HUMAN_REVIEW_REQUIRED"
@@ -235,7 +240,7 @@ def test_reflection_partitions_using_latest_gate_feedback_not_previous_round():
 @pytest.mark.parametrize("problem",["missing_documents","missing_assessment","current_unknown","current_failure","conflict","wrong_scope"])
 def test_completion_requires_real_checklist_current_assessment_and_no_conflicts(problem):
     from src.agents.planner import milestone_preparation_complete
-    state=state_for(tuple(f"R{i:03}" for i in range(1,30)))
+    state=state_for(tuple(f"R{i:03}" for i in (i for i in range(1,30) if i not in (12,24,25,27,29))))
     state["relevant_requirements"]=[r.model_copy(update={"passed":True,"status":"passed","missing_fields":[]}) for r in state["relevant_requirements"]]
     if problem=="missing_assessment":state["relevant_requirements"]=None
     if problem in {"current_unknown","current_failure"}:
@@ -260,7 +265,7 @@ def test_repair_context_and_last_rejected_plan_survive_sqlite_recreation(tmp_pat
     from src.core.state import UserEvent,new_run
     config={"configurable":{"thread_id":"repair-persist"}}
     with sqlite_checkpointer(tmp_path/"repair.db") as saver,patch("src.agents.planner.Client") as client:
-        client.return_value.chat.side_effect=[draft_response([draft_action("R020")]),draft_response([draft_action("R006")])]
+        client.return_value.chat.side_effect=wire_planner_sequence([draft_response([draft_action("R020")]),draft_response([draft_action("R006")])])
         result=build_graph(saver).invoke(graph_request(state_for(("R006",))),config)
         assert result["__interrupt__"]
     with sqlite_checkpointer(tmp_path/"repair.db") as saver:
@@ -281,7 +286,7 @@ def test_successful_missing_document_and_insurance_scenarios_reach_human_approva
     actions=[draft_action("R006"),draft_action("R008","Upload your latest Turkiye entry-stamp page")]
     actions.append(draft_action("R019","Upload the Declaration Control Document") if scenario=="A" else {"title":"Review and extend your health-insurance coverage","action_type":"CORRECT_INFORMATION","reason":"R015 coverage ends before the accepted end-date target","related_rule_id":"R015"})
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=draft_response(actions)
+        client.return_value.chat.side_effect=wire_planner_sequence([draft_response(actions)],repeat=True)
         result=build_graph().invoke(graph_request(state_for(ids,context)),{"configurable":{"thread_id":"scenario-"+scenario}})
     assert result["run_status"]=="VALIDATED" and result["__interrupt__"]
     assert client.return_value.chat.call_count==1 and result["plan_origin"]=="ollama"
@@ -301,7 +306,7 @@ def test_gate_rejected_summary_reaches_reflection_and_valid_actions_are_preserve
     from src.core.graph import build_graph
     initial={"actions":[draft_action("R006")],"summary":"Your residence permit is officially approved"}
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.side_effect=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(initial))),draft_response([])]
+        client.return_value.chat.side_effect=wire_planner_sequence([SimpleNamespace(message=SimpleNamespace(content=json.dumps(initial))),draft_response([])])
         state=build_graph().invoke(graph_request(state_for(("R006",))),{"configurable":{"thread_id":"summary-repair"}})
         repaired_input=json.loads(client.return_value.chat.call_args.kwargs["messages"][1]["content"])
     assert state["run_status"]=="VALIDATED" and state["retry_count"]==1 and state["__interrupt__"]
@@ -345,7 +350,7 @@ def test_scenario_b_uses_canonical_insurance_correction_despite_model_mutation()
     actions=[{"candidate_ids":[rid],"title":title,"reason":"Address the supplied requirement with the named evidence","related_rule_id":"R999","action_type":"REQUEST_DOCUMENT"}
              for rid,title in (("R015","Review and extend your health-insurance coverage"),("R006","Upload your passport identity page"),("R008","Upload your latest Turkiye entry-stamp page"))]
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=draft_response(actions)
+        client.return_value.chat.side_effect=wire_planner_sequence([draft_response(actions)],repeat=True)
         result=build_graph().invoke(graph_request(state),{"configurable":{"thread_id":"immutable-insurance"}})
     assert result["run_status"]=="VALIDATED" and result["__interrupt__"] and result["plan_origin"]=="ollama"
     insurance=next(a for a in result["candidate_plan"] if a.related_rule_id=="R015")
@@ -360,7 +365,7 @@ def test_repair_after_pre_grounding_failure_ignores_invented_repair_step_id():
                            "related_rule_id":"R999","repair_step_id":"step_999"}
                           for rid,title in (("R006","Upload your passport identity page"),("R008","Upload your latest Turkiye entry-stamp page"),("R019","Upload the Declaration Control Document"))])
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.side_effect=[first,repair]
+        client.return_value.chat.side_effect=wire_planner_sequence([first,repair])
         result=build_graph().invoke(graph_request(state_for()),{"configurable":{"thread_id":"unmaterialized-plan-repair"}})
         payload=json.loads(client.return_value.chat.call_args.kwargs["messages"][1]["content"])
     assert not payload["repair"]["rejected_action_ids"] and not payload["repair"]["failed_candidate"]
@@ -374,7 +379,7 @@ def test_schema_diagnostics_are_safe_and_exact_issue_reaches_reflection(capsys):
     initial=draft_response([{"candidate_ids":["R006"],"reason":"PRIVATE DOCUMENT CONTENT"}])
     repair=draft_response([{"candidate_ids":["R006"],"title":"Upload your passport identity page","reason":"Passport evidence is missing","related_rule_id":"<invalid_rule_id>"}])
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.side_effect=[initial,repair]
+        client.return_value.chat.side_effect=wire_planner_sequence([initial,repair])
         result=build_graph().invoke(graph_request(state_for(("R006",))),{"configurable":{"thread_id":"safe-schema-feedback"}})
         payload=json.loads(client.return_value.chat.call_args.kwargs["messages"][1]["content"])
     error=payload["repair"]["validation_errors"][0]
@@ -423,3 +428,80 @@ def test_reflection_can_reprioritize_rejected_actions_without_owning_identifiers
     assert [a.priority for a in repaired.actions]==[1,2]
     assert [a.step_id for a in repaired.actions]==["step_2","step_1"]
     assert not validate_plan(state,repaired)
+
+
+
+def test_opaque_candidate_schema_rejects_free_rule_ids_and_duplicate_selections():
+    from src.agents.planner import planner_output_schema,_ground_draft,PlannerDraft
+    state=state_for();payload=compact_planner_context(state)
+    keys=[row['candidate_id'] for row in payload['canonical_candidates']]
+    assert keys==[f'candidate_{i:03d}' for i in range(1,len(keys)+1)] and len(keys)==len(set(keys))
+    schema=planner_output_schema(payload)
+    assert schema['$defs']['DraftStep']['properties']['candidate_ids']['uniqueItems'] is True
+    for selected in (['R006'],[keys[0],keys[0]]):
+        with pytest.raises(PlannerError):
+            _ground_draft(PlannerDraft(actions=[{'candidate_ids':selected,'title':'Upload passport identity page','reason':'Passport evidence is needed'}],summary='Review the evidence'),state,payload)
+    repeated=PlannerDraft(actions=[{'candidate_ids':[keys[0]],'title':'Upload passport identity page','reason':'Passport evidence is needed'}]*2,summary='Review the evidence')
+    with pytest.raises(PlannerError,match='repeat'):_ground_draft(repeated,state,payload)
+
+
+def test_iro_candidates_never_request_ready_passport_or_photo(tmp_path):
+    from src.evaluation.scenarios import copilot_benchmark_cases
+    state=copilot_benchmark_cases(tmp_path/'iro')[5]['state']
+    before=deepcopy(state);candidates=canonical_candidates(state)
+    assert {row['target_document'] for row in candidates}=={'card_fee_receipt','declaration_control_document'}
+    assert len({row['candidate_id'] for row in candidates})==len(candidates)
+    assert state==before
+
+
+
+def test_gate_rejects_llm_title_requesting_already_ready_passport_or_photo(tmp_path):
+    from src.evaluation.scenarios import copilot_benchmark_cases
+    from src.agents.planner import PlannerDraft,_ground_draft
+    state=copilot_benchmark_cases(tmp_path/'title')[5]['state'];payload=compact_planner_context(state)
+    row=payload['canonical_candidates'][0]
+    for title in ('Upload your passport identity page','Verify biometric photo compliance'):
+        draft=PlannerDraft(actions=[{'candidate_ids':[row['candidate_id']],'title':title,'reason':row['message']}],summary='Review the remaining package evidence')
+        plan=_ground_draft(draft,state,payload)
+        assert 'REDUNDANT_ACTION_TITLE' in {error.code for error in validate_plan(state,plan)}
+
+
+
+def test_completed_stage_has_no_filler_model_call_or_empty_approval(tmp_path):
+    from src.evaluation.scenarios import copilot_benchmark_cases,confirm
+    from src.core.graph import build_graph
+    from src.core.state import UserEvent,new_run
+    state=copilot_benchmark_cases(tmp_path/'complete')[9]['state']
+    state=confirm(state,'__declarations__',{'scans_sent_to_iro':True,'iro_preverification_confirmed':True})
+    graph=build_graph();config={'configurable':{'thread_id':'no-filler'}}
+    graph.update_state(config,state,as_node='respond')
+    with patch('src.agents.planner.Client',side_effect=AssertionError('No unmet current work needs a model')):
+        result=graph.invoke(new_run(UserEvent(kind='generate_plan'),'evaluation-user',scope=MILESTONE_SCOPE),config)
+    assert result['candidate_plan']==[] and result['plan_origin']=='stage_complete'
+    assert 'Continue to the next step' in result['plan_summary']
+    assert not result.get('__interrupt__') and result.get('approved_plan') is None
+    assert result['procedure'].current_stage=='IRO_REVIEW'  # Continue remains explicit.
+
+
+def test_collection_candidates_use_only_current_missing_readiness(tmp_path):
+    from src.evaluation.scenarios import copilot_benchmark_cases
+    state=copilot_benchmark_cases(tmp_path/'collection')[0]['state'];before=deepcopy(state)
+    payload=compact_planner_context(state)
+    assert len(payload['canonical_candidates'])==1
+    candidate=payload['canonical_candidates'][0]
+    assert candidate['rule_ids']==['R017'] and candidate['documents']==['utility_bill']
+    assert candidate['action_type']=='REQUEST_DOCUMENT'
+    assert 'Address Form complete' in candidate['message'] and 'Utility bill missing' in candidate['message']
+    assert 'rental agreement' not in candidate['message'].lower()
+    assert not {'visa_required','visa_page_present','icao_compliant','photo_age_months'} & set(payload['relevant_context'])
+    assert next(row for row in state['relevant_requirements'] if row.rule_id=='R009').status=='missing_information'
+    assert state==before  # Readiness scope never promotes UNKNOWN legal diagnostics.
+
+
+def test_collection_scope_preserves_known_legal_failures(tmp_path):
+    from src.evaluation.scenarios import copilot_benchmark_cases,confirm
+    state=copilot_benchmark_cases(tmp_path/'collection-fail')[0]['state']
+    state=confirm(state,'__declarations__',{'is_in_turkiye':False})
+    candidates=canonical_candidates(state)
+    assert any(row['rule_ids']==['R003'] and row['status']=='failed' for row in candidates)
+    assert any(row['documents']==['utility_bill'] for row in candidates)

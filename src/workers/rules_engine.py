@@ -1,6 +1,8 @@
-"""Explicit R001-R029 checks with three-valued, short-circuit-safe logic."""
+"""Active V2 checks with three-valued, short-circuit-safe logic."""
 from src.core.state import AgentState, ResidencePermitContext, Requirement
 from src.workers.rule_loader import load_rules
+
+ACCEPTED_ADDRESS_PROOF_TYPES = ("dorm_certificate", "rental_agreement", "notarized_commitment")
 
 
 def all_of(*values):
@@ -35,14 +37,26 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
         return None if v is None else op(v)
     def yes(*names): return all_of(*(eq(n, True) for n in names))
     def scoped_insurance():
-        # Milestone-1 exchange workflow policy, not a general residence-permit rule.
-        targets=[(name,getattr(c,name)) for name in ("requested_permit_end_date","program_end_date") if getattr(c,name) is not None]
+        if c.insurance_exempt is True:return True
+        targets=[getattr(c,name) for name in ("requested_permit_end_date","program_end_date") if getattr(c,name) is not None]
+        if c.requested_permit_end_date is None and c.requested_end_date is not None and "requested_permit_end_date" not in state.get("verification_conflicts",[]):targets.append(c.requested_end_date)  # Legacy requested-period alias.
         if not targets:
             missing.update(("requested_permit_end_date","program_end_date"));return None
-        else:
-            end=value("insurance_end_date")
-            coverage=None if end is None else any(end>=target for _,target in targets)
-        return True if c.insurance_exempt is True else all_of(eq("insurance_valid_for_ikamet",True),coverage)
+        end=value("insurance_end_date")
+        return None if end is None else any(end>=target for target in targets)
+    def insurance_category():
+        category=value("insurance_evidence_type")
+        if category=="private_health_insurance":return c.insurance_valid_for_ikamet is not False
+        if category in {None,"bilateral_social_security","sgk_provision","sgk_application","other_official"}:
+            missing.add("insurance_evidence_type");return None
+        return False
+    def address_proof():
+        if c.address_proof_type in ACCEPTED_ADDRESS_PROOF_TYPES:return True
+        combined=all_of(value("utility_bill_accepted"),value("address_form_accepted"))
+        if combined is True:return True
+        if c.address_proof_type=="utility_bill_and_address_form" or c.utility_bill_accepted is True or c.address_form_accepted is True:
+            return combined
+        return within("address_proof_type",ACCEPTED_ADDRESS_PROOF_TYPES)
     checks = {
         "R001": lambda: all_of(eq("exchange_student", True), number("planned_stay_months", lambda v: v >= 3)),
         "R002": lambda: eq("permit_type", "short_term"),
@@ -55,38 +69,31 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
         "R009": lambda: all_of(number("photo_age_months", lambda v: 0 <= v <= 6), yes("biometric_photo", "icao_compliant")),
         "R010": lambda: any_of(eq("fee_payment_required", False), eq("fee_receipt_present", True)),
         "R011": lambda: any_of(eq("single_entry_visa_fee_required", False), eq("single_entry_visa_fee_receipt_present", True)),
-        "R012": lambda: eq("financial_capacity_declared", True),
         "R013": lambda: eq("exchange_program_evidence_present", True),
         "R014": lambda: eq("student_certificate_present", True),
-        "R015": lambda: any_of(eq("insurance_exempt", True), all_of(eq("insurance_valid_for_ikamet", True), cmp("insurance_start_date", "requested_start_date", lambda a,b: a <= b), cmp("insurance_end_date", "requested_end_date", lambda a,b: a >= b))),
-        "R016": lambda: within("insurance_evidence_type", ["bilateral_social_security", "sgk_provision", "sgk_application", "private_health_insurance"]),
-        "R017": lambda: within("address_proof_type", ["dorm_certificate", "rental_agreement", "notarized_commitment"]),
+        "R015": scoped_insurance,
+        "R016": insurance_category,
+        "R017": address_proof,
         "R018": lambda: yes("turkey_address_present", "phone_present", "email_present"),
         "R019": lambda: yes("declaration_control_document_present", "declaration_control_document_signed"),
         "R020": lambda: eq("all_core_documents_present", True),
         "R021": lambda: yes("scans_sent_to_iro", "iro_preverification_confirmed"),
         "R022": lambda: yes("online_application_completed", "fingerprint_step_completed", "gi_number_present"),
         "R023": lambda: yes("online_application_completed", "iro_preverification_confirmed", "gi_number_present", "all_core_documents_present"),
-        "R024": lambda: all_of(cmp("current_date", "iro_window_start", lambda a,b: a >= b), cmp("current_date", "iro_window_end", lambda a,b: a <= b)),
-        "R025": lambda: cmp("application_form_window_id", "current_iro_window_id", lambda a,b: a == b),
         "R026": lambda: number("missing_required_documents_count", lambda v: v == 0),
-        "R027": lambda: None if value("approval_status") is None else value("approval_status") != "guaranteed",
         "R028": lambda: eq("decision_authority", "Migration Management"),
-        "R029": lambda: any_of(eq("submitted_to_iro", False), eq("tracking_channel", "e_ikamet")),
     }
-    if state.get("planning_scope")=="milestone_1_document_preparation":
-        checks["R015"]=scoped_insurance
     results = []
-    for rule in load_rules():
+    for rule in load_rules(state.get("knowledge_snapshot")):
         missing.clear()
         passed = checks[rule["rule_id"]]()
         results.append(Requirement(rule_id=rule["rule_id"], description=rule["description"],
             passed=passed, status="missing_information" if passed is None else "passed" if passed else "failed",
-            message="Missing information: " + ", ".join(sorted(missing)) if passed is None else rule["description"],
+            message=("Manual review: unsupported insurance alternative" if rule["rule_id"]=="R016" and c.insurance_evidence_type is not None and passed is None else "INCOMPLETE: both accepted utility bill and completed Address Form are required" if rule["rule_id"]=="R017" and passed is None and (c.utility_bill_accepted or c.address_form_accepted) else "Missing information: " + ", ".join(sorted(missing)) if passed is None else rule["description"]),
             missing_fields=sorted(missing) if passed is None else [],
             error_code=rule["rule_id"] + "_FAILED" if passed is False else None,
             source_ids=rule["source_ids"], severity=rule["severity"],
-            assessment_policy="Milestone-1 exchange end coverage: requested permit end OR accepted program end; start date excluded" if rule["rule_id"]=="R015" and state.get("planning_scope")=="milestone_1_document_preparation" else None))
+            assessment_policy="Milestone-1 exchange end coverage: requested permit end OR accepted program end; start date excluded" if rule["rule_id"]=="R015" else None))
     return results
 
 
@@ -104,15 +111,15 @@ def rules_engine(state: AgentState) -> dict:
     results = evaluate_requirements({**state, **updates})
     # Assessment must remain accurate even when planning fails or approval is
     # never reached. This records blockers, not completed or approved actions.
-    result = {**updates, "relevant_requirements": results,
+    result = {**updates, "requirements_knowledge_version":(state.get("knowledge_snapshot") or {}).get("version",""), "relevant_requirements": results,
               "blockers": [r.rule_id for r in results
                            if r.severity == "blocking" and r.passed is not True]}
     # Procedure sequencing stays outside legal evaluation. Only factual/review
-    # events refresh V2 collection status; chat, planning and approval do not.
+    # events refresh V2 stage-local data; chat, planning and approval do not.
     if state.get("procedure") is not None and event and event.kind in {
         "analyze_document","confirm_information","resolve_conflict","reevaluate",
         "delete_document","replace_document","cancel_document","reprocess_document","remove_correction",
     }:
-        from src.core.procedure import document_collection_update
-        result.update(document_collection_update({**state,**result}))
+        from src.core.procedure import procedure_evidence_update
+        result.update(procedure_evidence_update({**state,**result}))
     return result

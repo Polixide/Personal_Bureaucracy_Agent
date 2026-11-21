@@ -19,6 +19,8 @@ IMPORTANT_FIELDS = {
     "ikamet_application_form": ("applicant_name", "passport_or_foreign_id", "requested_start_date", "requested_end_date"),
 }
 IMPORTANT_FIELDS.update({
+    "utility_bill":("holder_name","service_address","billing_date","provider"),
+    "address_form":("first_name","last_name","passport_number","declared_address","signature_present"),
     "passport_copy":("holder_name","passport_number","nationality","expiry_date","identity_page_present"),
     "turkiye_entry_stamp":("entry_stamp_present","latest_entry_date"),
     "declaration_control_document":("document_present","signed"),
@@ -34,7 +36,7 @@ MILESTONE_DOCUMENTS = {
     "health_insurance":("Health insurance certificate",("R015","R016")),
     "card_fee_receipt":("Card/document-fee payment receipt",("R010",)),
 }
-PROFILE_TYPES={"passport_copy":"passport_identity_page","turkiye_entry_stamp":"turkiye_entry_stamp","declaration_control_document":"declaration_control_document","card_fee_receipt":"card_fee_receipt"}
+PROFILE_TYPES={"utility_bill":"utility_bill","address_form":"address_form","passport_copy":"passport_identity_page","turkiye_entry_stamp":"turkiye_entry_stamp","declaration_control_document":"declaration_control_document","card_fee_receipt":"card_fee_receipt"}
 STUDENT_FIELDS = ("exchange_student", "program_start_date", "program_end_date")
 CONTEXT_QUESTIONS = {
     "is_in_turkiye": "Are you currently in T\u00fcrkiye?",
@@ -67,13 +69,30 @@ INSURANCE_TYPES=("bilateral_social_security","sgk_provision","sgk_application","
 
 # Backend confirmations only in V2 collection; no new document/profile or UI.
 PROCEDURE_CONTEXT_FIELDS = {"address_proof_type":"str", "biometric_photo":"bool"}
+LEGAL_STAY_FIELDS={"nationality":"str", "passport_type":"str", "visa_status":"str", "visa_stay_days":"int", "visa_valid_until":"date", "previous_stay_history":"str", "existing_permit_until":"date"}
+CONTEXT_FIELDS.update(LEGAL_STAY_FIELDS)
+
+
+# Explicit form answers use the same VerifiedInput records as other confirmations.
+# They remain accepted after preparation; this is not a second form/fact store.
+FORM_CONTEXT_FIELDS={name:"str" for name in ("first_name","last_name","nationality","passport_or_foreign_id","gender","passport_type","passport_issuing_country","passport_issuing_authority","email","turkish_phone","residential_address","reason_of_stay")}
+FORM_CONTEXT_FIELDS.update({name:"date" for name in ("birth_date","passport_issue_date","passport_expiry_date","latest_entry_date","requested_start_date","requested_permit_end_date","insurance_end_date")})
+FORM_CONTEXT_FIELDS["insurance_evidence_type"]="insurance_type"
+FORM_CONTEXT_FIELDS.update({name:"str" for name in ("father_name","mother_name","marital_status","birth_country","contact_method","address_province","address_district","address_locality")})
+FORM_CONTEXT_FIELDS.update(form_current_date="date",simulation_declaration_acknowledged="bool")
+
 
 
 def declaration_fields(state):
     fields=dict(CONTEXT_FIELDS)
+    fields.update({name:"bool" for name in ("fee_payment_required","single_entry_visa_fee_required","single_entry_visa_fee_receipt_present","fingerprint_step_completed","gi_number_present","scans_sent_to_iro","iro_preverification_confirmed","submitted_to_iro","official_decision_received")})
+    fields["approval_status"]="str"
+    fields["gi_number"]="str"
+    if state.get("procedure") is not None:fields["fee_receipt_present"]="bool"
     procedure=state.get("procedure")
-    if procedure is not None and ProcedureState.model_validate(procedure).current_stage=="DOCUMENT_COLLECTION":
-        fields.update(PROCEDURE_CONTEXT_FIELDS)
+    if procedure is not None:
+        fields.update(PROCEDURE_CONTEXT_FIELDS)  # Accepted collection statements remain valid in later stages.
+        if ProcedureState.model_validate(procedure).current_stage!='DOCUMENT_COLLECTION':fields.update(FORM_CONTEXT_FIELDS)
     return fields
 
 
@@ -92,6 +111,7 @@ def holder_observations(state, records=None):
     records=state.get("verification_records",{}) if records is None else records
     rows=[]
     for document in state.get("documents",[]):
+        if getattr(document,"doc_type",None)=="utility_bill":continue  # Bill payer can be the landlord; do not create a student identity conflict.
         if not hasattr(document,"doc_id"): continue  # Legacy display-only dictionaries require reprocessing.
         if document.status!="analyzed": continue
         values=grounded_values(document)
@@ -130,14 +150,16 @@ MAPPINGS = {
 
 
 MAPPINGS.update({
-    "passport_copy":{"holder_name":("holder_name",),"passport_number":("passport_or_foreign_id",),"nationality":("nationality",),"expiry_date":("passport_expiry_date",),"identity_page_present":("passport_id_page_present",)},
+    "utility_bill":{"service_address":("utility_service_address",)},
+    "address_form":{"first_name":("first_name",),"last_name":("last_name",),"birth_date":("birth_date",),"declared_address":("residential_address",)},
+    "passport_copy":{"first_name":("first_name",),"last_name":("last_name",),"birth_date":("birth_date",),"holder_name":("holder_name",),"passport_number":("passport_or_foreign_id",),"nationality":("nationality",),"expiry_date":("passport_expiry_date",),"identity_page_present":("passport_id_page_present",)},
     "turkiye_entry_stamp":{"entry_stamp_present":("entry_stamp_present","turkey_entry_page_present"),"latest_entry_date":("latest_entry_date",)},
     "declaration_control_document":{"holder_name":("holder_name",),"document_present":("declaration_control_document_present",),"signed":("declaration_control_document_signed",)},
     "card_fee_receipt":{"holder_name":("holder_name",),"receipt_present":("fee_receipt_present",),"payment_date":("receipt_payment_date",),"reference_number":("receipt_reference_number",),"amount":("receipt_amount",)},
 })
 DOC_CONTEXT_FIELDS={"health_insurance":{"insurance_evidence_type":"insurance_type"}}
 MAPPINGS["health_insurance"]["insurance_evidence_type"]=("insurance_evidence_type",)
-OPTIONAL_FIELDS={"declaration_control_document":("holder_name","passport_number","foreigner_id","nationality","application_number"),"card_fee_receipt":("holder_name","payment_date","reference_number","amount")}
+OPTIONAL_FIELDS={"passport_copy":("first_name","last_name","birth_date"),"address_form":("nationality","birth_date","phone","form_date"),"declaration_control_document":("holder_name","passport_number","foreigner_id","nationality","application_number"),"card_fee_receipt":("holder_name","payment_date","reference_number","amount")}
 
 
 def _typed_info(document):
@@ -187,6 +209,7 @@ def document_review(state, document):
     if document.doc_type == "ikamet_application_form" and (state.get("planning_scope")==MILESTONE_SCOPE or info.permit_type):
         names += ["permit_type"]
     if document.doc_type=="health_insurance" and state.get("planning_scope")==MILESTONE_SCOPE:
+        names=[name for name in names if name!="insurance_valid_for_ikamet"]  # V2 readiness is end coverage, not a generic legal-validity attestation.
         if raw.get("coverage_start_date") is None:names=[n for n in names if n!="coverage_start_date"]
         names += ["insurance_evidence_type"]
         if "insurance_evidence_type" not in accepted:
@@ -202,7 +225,7 @@ def document_review(state, document):
         fields.append({"name": name, "value": entry.value if entry else grounded.get(name),
                        "observation": raw.get(name), "origin": origin,
                        "status": origin if origin and (entry.value if entry else grounded.get(name)) is not None else "ambiguous" if name in info.ambiguous_fields else "needs_confirmation",
-                       "boolean": name in {"exchange_student","identity_page_present","entry_stamp_present","document_present","signed","receipt_present"} or name in ATTESTATIONS.get(document.doc_type, ())})
+                       "boolean": name in {"exchange_student","identity_page_present","entry_stamp_present","document_present","signed","receipt_present","signature_present"} or name in ATTESTATIONS.get(document.doc_type, ())})
     return {"status": "complete" if all(f["origin"] and f["value"] is not None for f in fields) else "needs_review",
             "fields": fields, "can_confirm": True}
 
@@ -246,6 +269,7 @@ def verification_updates(state):
                 if kind=="str":
                     if not isinstance(value,str):raise ValueError("Declarations require text or unknown")
                     value=value.strip() or None
+                if kind=="int" and (type(value) is not int or not 1<=value<=90):raise ValueError("Visa stay days must be 1..90")
                 if kind=="bool" and type(value) is not bool: raise ValueError("Declarations require Yes, No or unknown")
                 if kind=="insurance_type" and value not in INSURANCE_TYPES: raise ValueError("Choose an accepted insurance evidence type")
                 if kind=="date":
@@ -311,11 +335,24 @@ def verification_updates(state):
                 proposals.setdefault("student_certificate_present", []).append(True)
             if document.doc_type == "ikamet_application_form":
                 proposals.setdefault("application_form_generated", []).append(True)
+    # Presence alone is insufficient: both pieces need complete accepted fields.
+    # These derived flags reset with source deletion/replacement and never alter observations.
+    for kind,target in (("utility_bill","utility_bill_accepted"),("address_form","address_form_accepted")):
+        complete=False
+        for document in documents:
+            if document.doc_type!=kind or document.status!="analyzed":continue
+            entries={name:VerifiedInput.model_validate(v) for name,v in records.get(document.doc_id,{}).items()}
+            complete=all(name in entries and entries[name].value is not None for name in IMPORTANT_FIELDS[kind])
+            if kind=="address_form":complete=complete and entries.get("signature_present") is not None and entries["signature_present"].value is True
+            if complete:break
+        if any(d.doc_type==kind and d.status=="analyzed" for d in documents):proposals[target]=[complete if complete else None]
+    for actual,presence in (("email","email_present"),("turkish_phone","phone_present"),("residential_address","turkey_address_present"),("gi_number","gi_number_present")):
+        if any(v is not None for v in proposals.get(actual,[])):proposals.setdefault(presence,[]).append(True)
     conflicts = []
     for name, values in proposals.items():
         # Only controlled scope and person identity comparisons are normalized.
         # Records retain the original accepted value and source provenance.
-        if name == "holder_name":
+        if name in {"holder_name","first_name","last_name"}:
             cleaned = [clean_name(value) for value in values]
             unique = {value.casefold() for value in cleaned}
             projected = cleaned[0]
@@ -383,7 +420,7 @@ def verification_updates(state):
 
 
 def milestone_checklist(state):
-    """Product support/completeness, never a replacement for the 29 legal checks."""
+    """Product support/completeness, never a replacement for the active checks."""
     results={r.rule_id:r for r in state.get("relevant_requirements") or []}
     context=ResidencePermitContext.model_validate(state.get("residence_permit_context",{}))
     rows=[]

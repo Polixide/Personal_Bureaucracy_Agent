@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "reviewed_at": "2026-11-20",
+  "notes": "Bounded ordinary-passport visa-exempt arithmetic only. Not a determination of eligibility to study. Other nationalities/statuses need explicit visa data or manual review.",
+  "profiles": [
+    {
+      "nationality": "ITA",
+      "aliases": [
+        "italy",
+        "italian",
+        "italiana",
+        "italiano",
+        "ita"
+      ],
+      "passport_type": "ordinary",
+      "entry_status": "visa_exempt",
+      "max_days": 90,
+      "window_days": 180,
+      "source_ids": [
+        "MFA_VISA_COUNTRY",
+        "MFA_VISA_GENERAL"
+      ]
+    },
+    {
+      "nationality": "DEU",
+      "aliases": [
+        "germany",
+        "german",
+        "deutsch",
+        "deu"
+      ],
+      "passport_type": "ordinary",
+      "entry_status": "visa_exempt",
+      "max_days": 90,
+      "window_days": 180,
+      "source_ids": [
+        "MFA_VISA_COUNTRY",
+        "MFA_VISA_GENERAL"
+      ]
+    }
+  ]
+}

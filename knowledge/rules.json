@@ -1,6 +1,6 @@
 {
-  "dataset_name": "sabanci_exchange_ikamet_final_rules",
-  "dataset_version": "1.0.0",
+  "dataset_name": "sabanci_exchange_ikamet_active_v2",
+  "dataset_version": "2.0.0",
   "retrieved_at": "2026-11-05",
   "scope_id": "SABANCI_EXCHANGE_FIRST_IKAMET",
   "rules": [
@@ -181,21 +181,6 @@
       "notes": ""
     },
     {
-      "rule_id": "R012",
-      "version": "1.0",
-      "name": "financial_capacity_declaration",
-      "description": "The short-term permit form requires declaration/evidence of sufficient regular financial means.",
-      "category": "document",
-      "severity": "blocking",
-      "deterministic_condition": "financial_capacity_declared == true",
-      "source_ids": [
-        "GOV_SHORT_TERM_FORM_2026"
-      ],
-      "dependencies": [],
-      "volatility": "low",
-      "notes": ""
-    },
-    {
       "rule_id": "R013",
       "version": "1.0",
       "name": "exchange_purpose_evidence",
@@ -228,12 +213,12 @@
     },
     {
       "rule_id": "R015",
-      "version": "1.0",
+      "version": "2.0",
       "name": "insurance_covers_period",
-      "description": "Health-insurance coverage must cover the requested permit period unless a valid official exemption/alternative applies.",
+      "description": "Insurance end covers the requested permit end OR the accepted academic program end; a confirmed exemption also satisfies this V2 operational check.",
       "category": "insurance",
       "severity": "blocking",
-      "deterministic_condition": "insurance_exempt == true OR (insurance_valid_for_ikamet == true AND insurance_start_date <= requested_start_date AND insurance_end_date >= requested_end_date)",
+      "deterministic_condition": "insurance_exempt == true OR insurance_end_date >= requested_permit_end_date OR insurance_end_date >= program_end_date",
       "source_ids": [
         "GOV_SHORT_TERM_FORM_2026",
         "GOV_RESIDENCE_TYPES",
@@ -242,39 +227,40 @@
       ],
       "dependencies": [],
       "volatility": "low",
-      "notes": ""
+      "notes": "Selected local Sabanci V2 end-coverage policy, not a universal statement of national insurance law. Start date is retained as observation but is not a readiness blocker. An end before the requested end can still satisfy the academic-period target."
     },
     {
       "rule_id": "R016",
-      "version": "1.0",
+      "version": "2.0",
       "name": "insurance_evidence_type",
-      "description": "Accepted evidence is bilateral coverage, SGK provision/application evidence, or valid private health insurance.",
+      "description": "The supported insurance path is private health insurance; SGK and bilateral/other alternatives require manual review.",
       "category": "insurance",
       "severity": "blocking",
-      "deterministic_condition": "insurance_evidence_type in ['bilateral_social_security','sgk_provision','sgk_application','private_health_insurance']",
+      "deterministic_condition": "insurance_evidence_type == 'private_health_insurance' AND insurance_valid_for_ikamet != false",
       "source_ids": [
         "GOV_SHORT_TERM_FORM_2026",
         "GOV_RESIDENCE_TYPES"
       ],
       "dependencies": [],
       "volatility": "low",
-      "notes": ""
+      "notes": "Unsupported official alternatives remain missing_information/manual review, not an automatically validated alternative or a legal rejection. A positive validity attestation is not required; an explicit user statement that the private policy is invalid remains a failure."
     },
     {
       "rule_id": "R017",
-      "version": "1.0",
+      "version": "2.0",
       "name": "address_proof_sabanci",
-      "description": "For Sabancı operational submission, accepted address proof is dorm certificate, rental agreement, or notarized undertaking; Airbnb alone is not accepted.",
+      "description": "Provide one supported address-proof path: dorm certificate, rental agreement, notarized undertaking, OR a utility bill together with a completed Address Form.",
       "category": "address",
       "severity": "blocking",
-      "deterministic_condition": "address_proof_type in ['dorm_certificate','rental_agreement','notarized_commitment']",
+      "deterministic_condition": "address_proof_type IN ['dorm_certificate','rental_agreement','notarized_commitment'] OR (utility_bill_accepted == true AND address_form_accepted == true)",
       "source_ids": [
         "SAB_EXCHANGE_CURRENT",
-        "SAB_EXCHANGE_OVERVIEW"
+        "SAB_EXCHANGE_OVERVIEW",
+        "SAB_IRO_TEAM_ADDRESS_INSTRUCTION"
       ],
       "dependencies": [],
       "volatility": "low",
-      "notes": "Government also recognizes other cases; outside this scoped workflow they should trigger manual verification."
+      "notes": "Utility bill + completed Address Form is the scoped Sabanci operational path reported by the team from direct IRO instruction. It is not asserted as universal Turkish national law."
     },
     {
       "rule_id": "R018",
@@ -387,36 +373,6 @@
       "notes": ""
     },
     {
-      "rule_id": "R024",
-      "version": "1.0",
-      "name": "current_submission_window",
-      "description": "Sabancı submission must occur inside a currently published IRO window; actual dates must be refreshed.",
-      "category": "deadline",
-      "severity": "blocking",
-      "deterministic_condition": "current_date within current_iro_submission_window",
-      "source_ids": [
-        "SAB_EXCHANGE_CURRENT"
-      ],
-      "dependencies": [],
-      "volatility": "very_high",
-      "notes": ""
-    },
-    {
-      "rule_id": "R025",
-      "version": "1.0",
-      "name": "application_form_current_window",
-      "description": "Application forms from previous months/windows are not accepted for the current IRO submission window.",
-      "category": "deadline",
-      "severity": "blocking",
-      "deterministic_condition": "application_form_window_id == current_iro_window_id",
-      "source_ids": [
-        "SAB_EXCHANGE_CURRENT"
-      ],
-      "dependencies": [],
-      "volatility": "very_high",
-      "notes": ""
-    },
-    {
       "rule_id": "R026",
       "version": "1.0",
       "name": "missing_documents_block_iro",
@@ -431,23 +387,6 @@
       "dependencies": [
         "R020"
       ],
-      "volatility": "low",
-      "notes": ""
-    },
-    {
-      "rule_id": "R027",
-      "version": "1.0",
-      "name": "additional_documents_possible",
-      "description": "Migration authorities may request additional information/documents; complete initial file does not guarantee approval.",
-      "category": "evaluation",
-      "severity": "guardrail",
-      "deterministic_condition": "approval_status != 'guaranteed'",
-      "source_ids": [
-        "GOV_SHORT_TERM_FORM_2026",
-        "GOV_FAQ",
-        "SAB_EXCHANGE_OVERVIEW"
-      ],
-      "dependencies": [],
       "volatility": "low",
       "notes": ""
     },
@@ -467,23 +406,7 @@
       "dependencies": [],
       "volatility": "low",
       "notes": ""
-    },
-    {
-      "rule_id": "R029",
-      "version": "1.0",
-      "name": "track_after_submission",
-      "description": "After IRO submission, application status should be tracked through official e-İkamet.",
-      "category": "post_submission",
-      "severity": "advisory",
-      "deterministic_condition": "submitted_to_iro == false OR tracking_channel == 'e_ikamet'",
-      "source_ids": [
-        "SAB_EXCHANGE_CURRENT",
-        "SAB_EXCHANGE_OVERVIEW",
-        "GOV_GENERAL_INFO"
-      ],
-      "dependencies": [],
-      "volatility": "medium",
-      "notes": ""
     }
-  ]
+  ],
+  "reviewed_at": "2026-11-20"
 }

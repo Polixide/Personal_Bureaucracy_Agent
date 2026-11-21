@@ -1,6 +1,7 @@
 """Bounded page selection, classification, then document-specific extraction."""
 import argparse
 import json
+import re
 import sys
 from datetime import date
 from dataclasses import replace
@@ -12,14 +13,14 @@ from pydantic import ValidationError
 from config import (
     OLLAMA_MODEL, OLLAMA_HOST, DOCUMENT_OLLAMA_TIMEOUT,
     DOCUMENT_MAX_CHUNKS, DOCUMENT_CHUNK_CHARS, DOCUMENT_MAX_INPUT_CHARS,
-    LLM_PROVIDER, DOCUMENT_FALLBACK_PROVIDER, DOCUMENT_FALLBACK_MAX_PAGES,
+    LLM_PROVIDER, DOCUMENT_AI_PROVIDER, DOCUMENT_FALLBACK_PROVIDER, DOCUMENT_FALLBACK_MAX_PAGES, DOCUMENT_CLASSIFICATION_MAX_CHARS,
 )
 from src.document_processing.extractor import TextPage, extract_pages, render_pdf_pages, text_quality_issues
 from src.document_processing.providers import (
-    Client, DocumentProcessingError, get_document_provider, log_document_event,
+    Client, DocumentProcessingError, get_document_provider, log_document_event, cloud_document_configured,
 )
 from src.document_processing.evidence import (
-    normalized, normalized_date, source_candidates, candidate_hint, ground_fields, audit_snippets, field_candidates,
+    address_form_signal, normalized, normalized_date, source_candidates, candidate_hint, ground_fields, audit_snippets, field_candidates, date_label,
 )
 from src.document_processing.schemas import (
     DOCUMENT_SCHEMAS, DocumentClassification, DocumentInfo, UnknownDocument,
@@ -30,16 +31,18 @@ MAX_CHUNKS = DOCUMENT_MAX_CHUNKS
 CHUNK_CHARS = DOCUMENT_CHUNK_CHARS
 MAX_INPUT_CHARS = DOCUMENT_MAX_INPUT_CHARS
 KEYWORDS = {
-    "student_enrollment_certificate": ("student certificate", "enrollment certificate", "ogrenci belgesi", "student id", "student identifier", "university", "institution", "issue date"),
+    "student_enrollment_certificate": ("student certificate", "enrollment certificate", "ogrenci belgesi", "ogrenci durum belgesi", "student id", "student identifier", "university", "institution", "issue date"),
     "health_insurance_certificate": ("health insurance", "saglik", "sigorta", "policy", "police", "insurer", "coverage", "passport", "foreign id", "baslangic", "bitis"),
     "ikamet_application_form": ("application", "residence permit", "application form", "passport",
                                 "applicant", "foreigner", "ikamet", "basvuru", "application number",
                                 "validity", "requested period", "requested"),
 }
 
-KEYWORDS.update({"passport_identity_page":("passport","nationality","expiry","surname","pasaport"),"turkiye_entry_stamp":("entry stamp","turkiye","turkey","giris","entry date"),"declaration_control_document":("declaration control","beyan kontrol","signed"),"card_fee_receipt":("card fee","document fee","receipt","payment","belge bedeli","dekont","makbuz")})
+KEYWORDS.update({"utility_bill":("utility bill","electricity","fatura","adres","ad soyad","billing date","provider"),"address_form":("address form","adres formu","nationality","passport","surname","address","signature"),"passport_identity_page":("passport","nationality","expiry","surname","pasaport"),"turkiye_entry_stamp":("entry stamp","turkiye","turkey","giris","entry date"),"declaration_control_document":("declaration control","beyan kontrol","signed"),"card_fee_receipt":("card fee","document fee","receipt","payment","belge bedeli","dekont","makbuz")})
 
-CLASSIFICATION_PROMPT = """passport_identity_page: passport identity/biodata page; never proof of entry.
+CLASSIFICATION_PROMPT = """utility_bill: electricity/gas/water/internet service bill with customer and service address.
+address_form: Address Form / adres formu or address declaration, not a utility invoice.
+passport_identity_page: passport identity/biodata page; never proof of entry.
 turkiye_entry_stamp: a page explicitly identifying a Turkey/Turkiye entry stamp/date, not exit.
 declaration_control_document: declaration control / beyan kontrol document.
 card_fee_receipt: receipt explicitly for residence-permit card/document fee payment, not a Tax ID certificate.
@@ -50,7 +53,7 @@ student_enrollment_certificate: a university-issued student/enrollment certifica
 student status or a university is NOT a student certificate.
 health_insurance_certificate: an insurance policy/certificate with coverage details.
 ikamet_application_form: e-Ikamet residence-permit application/registration form,
-including Ikamet Izni Basvuru Formu / Residence Permit Application Form.
+including Ikamet Izni Basvuru Formu / Residence Permit Application Form and Turkish-only headings.
 unknown: unrelated text, uncertain type or unsupported administrative documents.
 Never infer signature from a blank signature label or perform handwriting recognition.
 Tax ID is not a payment reference. Nationality never determines legal-stay duration.
@@ -75,6 +78,12 @@ Leave missing_fields, validation_issues, source_evidence, correction_notes and
 selected_pages and extraction_diagnostics empty: Python computes them. source_snippets must be exact source
 quotes keyed by field name, never invented wording. Policy approval/issue dates
 are not coverage dates. Python reconciles unique labelled evidence after extraction.
+For insurance, recognize semantic Turkish/English aliases and column layouts:
+Baslangic Tarihi means coverage start; Bitis Tarihi means coverage end;
+Seyahat Baslangic-Bitis Tarihi is a travel/coverage period. Insured/person details
+may be arranged in rows or columns. Do not substitute birth or policy issue dates.
+insurance_evidence_type is only an explicit policy-category statement;
+residence_permit_purpose records explicit purpose text, never legal acceptance.
 Do not assess legal validity, acceptance, authenticity or permit approval.
 """
 
@@ -99,13 +108,16 @@ def select_chunks(pages, document_type=None, *, max_context_chars=MAX_INPUT_CHAR
                 score = sum(word in normalized(text) for word in set(keywords))
                 if document_type == "ikamet_application_form" and "short term residence permit registration form" in " ".join(normalized(text).split()):
                     score += 30
+                if document_type == "health_insurance_certificate":
+                    roles = {date_label(line) for line in text.splitlines()} - {None}
+                    score += 4 * len(roles)
                 candidates.append((score, page.number, offset, text))
     ranked = sorted(candidates, key=lambda item: (-item[0], item[1], item[2]))
     if document_type is None and candidates:
         heading = min(candidates, key=lambda item: (item[1], item[2]))
         ranked = [heading] + [c for c in ranked if c != heading]
     if document_type == "ikamet_application_form" and any("short term residence permit registration form" in " ".join(normalized(c[3]).split()) for c in candidates):
-        first = min(candidates, key=lambda item: (item[1],item[2]))
+        first = min((c for c in candidates if "short term residence permit registration form" in " ".join(normalized(c[3]).split())), key=lambda item: (item[1],item[2]))
         ranked = [first] + [c for c in ranked if c != first]
     selected = ranked[:MAX_CHUNKS]
     selected.sort(key=lambda item: (item[1], item[2]))
@@ -141,7 +153,7 @@ def request_json(provider, prompt, schema, chunks, *, stage, max_context_chars, 
     started = perf_counter()
     outcome="failure"
     try:
-        selected_images={n:data for n,data in (images or {}).items() if n in {c.number for c in chunks}}
+        selected_images=dict(images or {})  # Already bounded by the deterministic page selector.
         result=provider.generate_json(stage=stage,prompt=prompt,schema=response_schema,text=text,images=selected_images or None)
         outcome="success"
         return result
@@ -155,32 +167,39 @@ def request_json(provider, prompt, schema, chunks, *, stage, max_context_chars, 
         if diagnostics is not None:
             diagnostics[stage+"_duration_seconds"]=duration
             diagnostics.setdefault("model_calls",[]).append({"stage":stage,"provider":provider.name,"model":provider.model,
-                "input_character_count":len(text),"image_pages":sorted((images or {}).keys() & {c.number for c in chunks}),
+                "input_character_count":len(text),"image_pages":sorted(images or {}),
                 "duration_seconds":duration,"outcome":outcome})
         debug_message(debug, f"{stage}_duration_seconds={duration:.3f}")
 
 
 def checked_classification(proposed, pages):
     """Require type-specific textual evidence; an explicit form heading wins."""
-    header = normalized(pages[0].text[:CHUNK_CHARS]) if pages else ""
+    header = normalized("\n".join(p.text for p in pages)) if pages else ""
     from src.document_processing.evidence import mrz_candidates, preparation_candidates
     full=" ".join(normalized("\n".join(p.text for p in pages)).split())
-    declaration=any(any(title==" ".join(normalized(line).split()) for title in ("declaration control document","beyan/kontrol belgesi","beyan kontrol belgesi","beyan/kontrol belgesi / declaration control document")) for page in pages[:1] for line in page.text.splitlines()[:30])
+    declaration=any(any(title==" ".join(normalized(line).split()) for title in ("declaration control document","beyan/kontrol belgesi","beyan kontrol belgesi","beyan/kontrol belgesi / declaration control document")) for page in pages for line in page.text.splitlines()[:30])
     if declaration: return "declaration_control_document"
+    if any(re.fullmatch(r"(?:ogrenci|ogrenim)\s*(?:durum\s+)?belgesi|student (?:enrollment )?certificate", " ".join(normalized(line).split()).strip()) for page in pages for line in page.text.splitlines()):
+        return "student_enrollment_certificate"
+    first_page=pages[0].text if pages else ""
+    if address_form_signal(first_page):return "address_form"
+    lead=normalized(first_page[:3000])
+    if "fatura" in lead and any(w in lead for w in ("elektrik","dogalgaz","su faturasi")) and ("ad soyad" in lead or "customer name" in lead):return "utility_bill"
     if mrz_candidates(pages): return "passport_identity_page"
     receipt_evidence=preparation_candidates(pages)
     if any(c.get("profile")=="CardFeeReceipt" and c["field"]=="receipt_present" for c in receipt_evidence): return "card_fee_receipt"
     form_titles = ("residence permit application form", "residence permit registration form",
-                   "ikamet izni basvuru formu", "ikamet izni kisa donem kayit formu")
+                   "ikamet izni basvuru formu", "ikamet izni kisa donem kayit formu",
+                   "short term residence permit registration form")
     if any(title in " ".join(header.split()) for title in form_titles):
         return "ikamet_application_form"
     text = normalized(render_chunks(select_chunks(pages, proposed)))
-    evidence = {
+    evidence = {"utility_bill":("utility bill","electricity bill","gas bill","water bill","fatura"),"address_form":("address form","address declaration","adres formu","adres beyan"),
         "passport_identity_page": ("passport", "pasaport"),
         "turkiye_entry_stamp": ("turkiye entry stamp", "turkey entry stamp", "turkiye giris", "turkey entry date"),
         "declaration_control_document": ("declaration control", "beyan kontrol"),
         "card_fee_receipt": ("card fee payment receipt", "document fee payment receipt", "ikamet belge bedeli", "residence permit card fee receipt"),
-        "student_enrollment_certificate": ("student certificate", "student enrollment certificate", "enrollment certificate", "ogrenci belgesi"),
+        "student_enrollment_certificate": ("student certificate", "student enrollment certificate", "enrollment certificate", "ogrenci belgesi", "ogrenci durum belgesi"),
         "health_insurance_certificate": ("health insurance", "saglik", "sigorta"),
         "ikamet_application_form": form_titles,
     }
@@ -232,6 +251,9 @@ def expected_fields(schema):
 
 def fallback_reasons(pages, info=None):
     reasons=[]
+    if info is not None and info.document_type != "unknown" and not info.validation_issues and all(getattr(info, name) is not None for name in expected_fields(type(info))):
+        return reasons  # Complete validated local evidence wins over an irrelevant bad scan.
+    if not any(p.text.strip() for p in pages): reasons.append("unusably_short_text")
     if any(p.ocr_used and p.quality_issues for p in pages):reasons.append("poor_ocr")
     if info is not None and info.document_type!="unknown":
         if any(getattr(info,f) is None for f in expected_fields(type(info))):reasons.append("missing_critical_fields")
@@ -239,28 +261,71 @@ def fallback_reasons(pages, info=None):
     return reasons
 
 
+def complete_source_projection(pages, document_type):
+    """Accept only a completely resolved typed source projection, never a guess.
+
+    Used to avoid asking a small local model to reproduce already deterministic
+    evidence across long/scanned pages. Any missing/conflicting critical field
+    returns None and leaves the normal structured semantic extractor in charge.
+    """
+    schema=DOCUMENT_SCHEMAS[document_type]
+    candidates,issues=source_candidates(pages)
+    payload={}
+    for field in schema.observation_fields():
+        choices=field_candidates(field,schema,candidates)
+        nonempty=[c for c in choices if c.get("original_value")]
+        key=lambda value: " ".join(normalized(str(value)).split()) if field in {"holder_name","applicant_name","insurer","institution"} else value
+        values={key(c["normalized_value"]) for c in nonempty if c["normalized_value"] is not None}
+        if len(values)==1 and not any(c["normalized_value"] is None for c in nonempty):
+            value=next(c["normalized_value"] for c in nonempty if key(c["normalized_value"]) in values)
+            payload[field]=(value=="true") if field in {"exchange_student","permit_type_bool","identity_page_present","entry_stamp_present","residence_permit_purpose","signature_present"} else value
+    ground_fields(payload,schema,candidates,issues,pages)
+    payload.update(document_type=document_type,validation_issues=issues,selected_pages=sorted({p.number for p in pages}))
+    info=schema.model_validate(payload)
+    if info.validation_issues or any(getattr(info,name) is None for name in expected_fields(schema)):
+        return None
+    info.correction_notes.extend(f"{field}: resolved by complete labelled source projection" for field in sorted(info.source_snippets))
+    return audit_snippets(info,{},pages)
+
+
 def _process_pages(pages, provider, *, max_context_chars, debug, document_type_hint, diagnostics, images=None):
-    classification_chunks = select_chunks(pages, max_context_chars=max_context_chars)
+    if any('SIMULATED E-IKAMET APPLICATION' in page.text and 'NOT AN OFFICIAL GOVERNMENT FORM' in page.text for page in pages):
+        diagnostics['classification']={'selected_type':'unknown','support':'educational_simulation_not_official_evidence'}
+        return UnknownDocument(selected_pages=[page.number for page in pages],validation_issues=['Educational simulation is not official application evidence'])
+    classification_cap = min(max_context_chars, DOCUMENT_CLASSIFICATION_MAX_CHARS)
+    classification_chunks = select_chunks(pages, max_context_chars=classification_cap)
     if document_type_hint is not None:
         if document_type_hint not in DOCUMENT_SCHEMAS or document_type_hint=="unknown": raise ValueError("Unsupported reclassification profile")
         document_type=document_type_hint
     else:
         payload = request_json(provider, CLASSIFICATION_PROMPT, DocumentClassification, classification_chunks,
-                               stage="classification", max_context_chars=max_context_chars, debug=debug, diagnostics=diagnostics, images=images)
+                               stage="classification", max_context_chars=classification_cap, debug=debug, diagnostics=diagnostics, images=images)
         try:
             proposed = DocumentClassification.model_validate(payload).document_type
         except ValidationError as error:
-            raise DocumentProcessingError("Invalid document classification") from error
+            raise DocumentProcessingError("Invalid document classification", stage="classification") from error
         document_type = checked_classification(proposed, pages)
+        diagnostics["classification"] = {"proposed_type": proposed, "selected_type": document_type,
+            "support": "type_specific_text" if document_type != "unknown" else "unresolved_or_unrelated"}
+        if proposed != document_type:
+            diagnostics.setdefault("failure_categories", []).append("CLASSIFICATION_FAILURE")
     if document_type == "unknown":
         # No extraction call and no administrative fields for unrelated text.
         debug_message(debug, "extraction_skipped=unknown_document")
         return UnknownDocument(selected_pages=sorted({c.number for c in classification_chunks}))
     schema = DOCUMENT_SCHEMAS[document_type]
+    if not images and (len(pages)>1 or any(p.ocr_used for p in pages) or document_type in {"utility_bill","address_form"}) and max_context_chars>=MAX_INPUT_CHARS and document_type in {"ikamet_application_form","student_enrollment_certificate","health_insurance_certificate","utility_bill","address_form"}:
+        complete=complete_source_projection(pages,document_type)
+        if complete is not None:
+            diagnostics["extraction_mode"]="complete_source_evidence"
+            return complete
     # Reserve space for candidates by reducing raw text, not enlarging context.
     hint_budget = min(600, max_context_chars // 4)
     chunks = select_chunks(pages, document_type, max_context_chars=max_context_chars-hint_budget-2)
-    candidates, issues = source_candidates(chunks)
+    # Images cover whole selected pages. Ground cloud output against those
+    # same native/transcribed pages, not text silently clipped from the prompt.
+    evidence_chunks = [p for p in pages if p.number in images] if images else chunks
+    candidates, issues = source_candidates(evidence_chunks)
     hint = candidate_hint(candidates, hint_budget)
     deterministic = {}
     if document_type in {"student_enrollment_certificate", "ikamet_application_form", "passport_identity_page"}:
@@ -272,7 +337,7 @@ def _process_pages(pages, provider, *, max_context_chars, debug, document_type_h
                 deterministic[field]=(value=="true") if field in {"exchange_student","identity_page_present"} else value
         trial=dict(deterministic)
         trial_issues=[]
-        ground_fields(trial,schema,candidates,trial_issues,chunks)
+        ground_fields(trial,schema,candidates,trial_issues,evidence_chunks)
         checked=schema.model_validate({**trial,"validation_issues":trial_issues})
         needed=set(expected_fields(schema))
         if not checked.validation_issues and all(getattr(checked,name) is not None for name in needed):
@@ -284,6 +349,8 @@ def _process_pages(pages, provider, *, max_context_chars, debug, document_type_h
     else:
         payload=request_json(provider, EXTRACTION_PROMPT, schema, chunks,
                              stage="extraction", max_context_chars=max_context_chars, debug=debug, hint=hint, diagnostics=diagnostics, images=images)
+    if not isinstance(payload.get("ambiguous_fields", []), list) or any(not isinstance(name, str) for name in payload.get("ambiguous_fields", [])):
+        raise DocumentProcessingError("Invalid extraction ambiguity metadata", stage="schema_validation", category="SCHEMA_VALIDATION_FAILURE")
     payload.pop("extraction_diagnostics",None)  # Never trust model-generated runtime metadata.
     for name in set(payload) - set(schema.model_fields):
         del payload[name]
@@ -291,24 +358,25 @@ def _process_pages(pages, provider, *, max_context_chars, debug, document_type_h
     if payload.get("document_type", document_type) != document_type:
         issues.append("Extraction attempted to change the classified document type; ignored")
     payload["document_type"] = document_type
-    model_quotes = ground_fields(payload, schema, candidates, issues, chunks)
+    model_quotes = ground_fields(payload, schema, candidates, issues, evidence_chunks)
     if document_type_hint is not None:
         payload["correction_notes"].append("Document profile explicitly selected for reprocessing; values still require source evidence or confirmation")
     payload["missing_fields"] = []
     payload["validation_issues"] = issues
-    payload["selected_pages"] = sorted({c.number for c in chunks})
+    payload["selected_pages"] = sorted(images or {c.number for c in chunks})
     sources = payload.pop("source_pages", {})
     if not isinstance(sources, dict):
         sources = {}
         payload["validation_issues"].append("Invalid source_pages discarded")
     info = schema.model_validate(payload)
-    info = attach_provenance(info, chunks, sources, candidates)
-    return audit_snippets(info, model_quotes, chunks)
+    info = attach_provenance(info, evidence_chunks, sources, candidates)
+    return audit_snippets(info, model_quotes, evidence_chunks)
 
 
 
 def _diagnostics(pages, provider):
     return {"extraction_method":"rapidocr" if any(p.ocr_used for p in pages) else "native_text",
+            "extraction_route":"RAPIDOCR" if any(p.ocr_used for p in pages) else "NATIVE_TEXT", "failure_categories":[],
             "provider":provider.name,"model":provider.model,
             "native_text_character_count":sum(p.native_text_character_count if p.native_text_character_count is not None else len(p.text) for p in pages),
             "extracted_character_count":sum(len(p.text) for p in pages),
@@ -329,6 +397,12 @@ def _finish(info, diagnostics, pages, started):
     diagnostics["invalid_field_count"]=len(diagnostics["invalid_fields"])
     diagnostics["fallback_eligible_reasons"]=fallback_reasons(pages,info)
     diagnostics["quality_signals"]=sorted({issue for p in pages for issue in p.quality_issues} | ({"all_required_fields_missing"} if info.REQUIRED and all(getattr(info,f) is None for f in info.REQUIRED) else set()))
+    categories = diagnostics.setdefault("failure_categories", [])
+    if any("ocr_failed" in p.quality_issues or "low_ocr_confidence" in p.quality_issues for p in pages): categories.append("OCR_FAILURE")
+    if not any(p.text.strip() for p in pages): categories.append("TEXT_EXTRACTION_FAILURE")
+    if any("absent from reliable" in issue or "conflicting" in issue or "source page" in issue for issue in info.validation_issues): categories.append("GROUNDING_FAILURE")
+    if any("invalid" in issue or "implausible" in issue or "precedes" in issue for issue in info.validation_issues): categories.append("SCHEMA_VALIDATION_FAILURE")
+    diagnostics["failure_categories"] = list(dict.fromkeys(categories))
     info.extraction_diagnostics=diagnostics
     log_document_event("complete",method=diagnostics["extraction_method"],provider=diagnostics["provider"],ocr_used=diagnostics["ocr_used"],fallback_used=diagnostics["fallback_used"],missing_fields=diagnostics["missing_expected_fields"],invalid_fields=diagnostics["invalid_fields"],validation_issues=len(info.validation_issues),elapsed_seconds=round(diagnostics["extraction_duration_seconds"],3))
     return info
@@ -352,122 +426,252 @@ def _quality_rank(info):
     return (100 if info.document_type=="unknown" else 0)+len(info.validation_issues)+sum(getattr(info,f) is None for f in expected_fields(type(info)))
 
 
+def _provider_settings(mode, provider, fallback_provider):
+    selected = mode or DOCUMENT_AI_PROVIDER
+    aliases = {"ollama": "local-only", "openai": "cloud", "local": "local-only"}
+    selected = aliases.get(selected, selected)
+    if selected not in {"auto", "local-only", "cloud", "legacy"}:
+        raise DocumentProcessingError("Document mode must be local-only, auto or cloud", stage="configuration")
+    primary = provider or ("openai" if selected == "cloud" else LLM_PROVIDER if selected == "legacy" else "ollama")
+    fallback = fallback_provider if fallback_provider is not None else (
+        DOCUMENT_FALLBACK_PROVIDER if selected == "legacy" else "openai" if selected == "auto" and cloud_document_configured() else "none")
+    if selected in {"local-only", "cloud"}: fallback = "none"
+    return primary, fallback, selected
+
+
+def _fallback_pages(pages, info=None):
+    keywords = KEYWORDS.get(getattr(info, "document_type", None), tuple(word for words in KEYWORDS.values() for word in words))
+    poor_pages = [p for p in pages if p.ocr_used and p.quality_issues]
+    poor_pages.sort(key=lambda p: (-sum(word in normalized(p.text) for word in set(keywords)), p.number))
+    poor = [p.number for p in poor_pages]
+    ranked = [p.number for p in select_chunks(pages, getattr(info, "document_type", None))]
+    # Poor/empty scans retain original page numbers even with no text chunks.
+    numbers = list(dict.fromkeys([*poor, *(getattr(info, "selected_pages", []) or []), *ranked]))
+    return list(dict.fromkeys(numbers or [p.number for p in pages]))[:DOCUMENT_FALLBACK_MAX_PAGES]
+
+
+def _document_signals(pages):
+    text = normalized(" ".join(p.text for p in pages))
+    return any(word in text for word in ("health insurance", "saglik sigorta", "ikamet izni", "residence permit application", "residence permit registration", "ogrenci belgesi", "ogrenci durum belgesi", "student certificate", "passport identity", "passport number"))
+
+
 def process_document(file_path: str | Path, *, host: str = OLLAMA_HOST,
                      timeout: float = DOCUMENT_OLLAMA_TIMEOUT,
                      max_context_chars: int = MAX_INPUT_CHARS, debug: bool = False, pages=None,
-                     document_type_hint: str | None = None, provider=None, fallback_provider=None) -> DocumentInfo:
-    """One canonical pipeline; fallback repeats the same grounded/validated pass once."""
-    if type(max_context_chars) is not int or max_context_chars<64:raise ValueError("max_context_chars must be an integer of at least 64")
-    started=perf_counter()
-    fallback_setting=fallback_provider if fallback_provider is not None else DOCUMENT_FALLBACK_PROVIDER
-    enabled=fallback_setting not in (None,"","none")
-    primary=get_document_provider(provider if provider is not None else LLM_PROVIDER,host=host,timeout=timeout,client_factory=Client)
-    is_pdf=Path(file_path).suffix.lower()==".pdf"
-    if pages is None:
-        pages=extract_pages(file_path,allow_ocr_failure=True) if enabled and is_pdf else extract_pages(file_path)
-    diagnostics=_diagnostics(pages,primary)
-    label="total_pdf_pages" if is_pdf else "total_pages"
-    debug_message(debug,f"{label}={len(pages)}")
-    debug_message(debug,f"extracted_characters={sum(len(p.text) for p in pages)}")
-    log_document_event("input_quality",pages=len(pages),native_text_characters=diagnostics["native_text_character_count"],ocr_used=diagnostics["ocr_used"],ocr_duration_seconds=round(diagnostics["ocr_duration_seconds"],3),provider=primary.name,model=primary.model)
-    reasons=fallback_reasons(pages)
-    info=None
-    # Clearly poor scans can skip a doomed local semantic call only when cloud
-    # fallback was explicitly configured. Default Ollama behavior is unchanged.
-    if not (enabled and is_pdf and "poor_ocr" in reasons):
-        if not any(p.text.strip() for p in pages):raise ValueError("Document contains no text to analyze")
-        info=_process_pages(pages,primary,max_context_chars=max_context_chars,debug=debug,document_type_hint=document_type_hint,diagnostics=diagnostics)
-        reasons=fallback_reasons(pages,info)
-    if enabled and is_pdf and reasons:
-        diagnostics.update(fallback_attempted=True,fallback_trigger_reasons=reasons)
-        log_document_event("fallback",outcome="triggered",reasons=reasons)
-        fallback_started=perf_counter()
+                     document_type_hint: str | None = None, provider=None, fallback_provider=None,
+                     mode: str | None = None) -> DocumentInfo:
+    """Local-first processing and one deterministic, optional image fallback.
+
+    Both routes share classification, typed parsing, source grounding and audit.
+    No legal rule result can activate cloud processing.
+    """
+    if type(max_context_chars) is not int or max_context_chars < 64:
+        raise ValueError("max_context_chars must be an integer of at least 64")
+    started = perf_counter()
+    primary_setting, fallback_setting, selected_mode = _provider_settings(mode, provider, fallback_provider)
+    enabled = fallback_setting not in (None, "", "none")
+    primary = get_document_provider(primary_setting, host=host, timeout=timeout, client_factory=Client)
+    force_cloud = bool(primary.supports_images)
+    is_pdf = Path(file_path).suffix.lower() == ".pdf"
+    try:
+        if pages is None:
+            pages = extract_pages(file_path, allow_ocr_failure=True) if (enabled or force_cloud) and is_pdf else extract_pages(file_path)
+    except (OSError, ValueError) as error:
+        category = "OCR_FAILURE" if "ocr" in str(error).lower() else "TEXT_EXTRACTION_FAILURE"
+        exc = DocumentProcessingError(("RapidOCR failed; " if category == "OCR_FAILURE" else "") + "document text could not be recovered; try a clearer PDF or manual review", stage="text_extraction", category=category)
+        exc.diagnostics = {"failure_categories": [category], "fallback_attempted": False}
+        raise exc from error
+    diagnostics = _diagnostics(pages, primary)
+    diagnostics["document_mode"] = selected_mode
+    debug_message(debug, f"{'total_pdf_pages' if is_pdf else 'total_pages'}={len(pages)}")
+    debug_message(debug, f"extracted_characters={sum(len(p.text) for p in pages)}")
+    log_document_event("input_quality", pages=len(pages), native_text_characters=diagnostics["native_text_character_count"], ocr_used=diagnostics["ocr_used"], ocr_duration_seconds=round(diagnostics["ocr_duration_seconds"], 3), provider=primary.name, model=primary.model)
+    reasons = fallback_reasons(pages)
+    info = None
+    local_error = None
+    usable_local_page = any(p.text.strip() and not p.quality_issues and not text_quality_issues(p.text) for p in pages)
+    if not force_cloud and not (enabled and is_pdf and not usable_local_page and any(r in reasons for r in ("poor_ocr", "unusably_short_text"))):
         try:
-            fallback=get_document_provider(fallback_setting,host=host,timeout=timeout,client_factory=Client)
-            if not fallback.supports_images:raise DocumentProcessingError("Document fallback requires an image-capable provider",stage="configuration")
-            if not 1<=DOCUMENT_FALLBACK_MAX_PAGES<=4:raise DocumentProcessingError("Document fallback page limit must be between 1 and 4",stage="configuration")
-            poor=[p.number for p in pages if p.ocr_used and p.quality_issues]
-            numbers=poor or (info.selected_pages if info else [])
-            numbers=list(dict.fromkeys(numbers))[:DOCUMENT_FALLBACK_MAX_PAGES]
-            if not numbers:raise DocumentProcessingError("No eligible PDF pages for document fallback",stage="fallback")
-            images=render_pdf_pages(file_path,numbers)
-            diagnostics.update(fallback_provider=fallback.name,fallback_model=fallback.model,fallback_pages=numbers)
-            recovered=_vision_transcription(fallback,images,pages) if poor else pages
-            alternate=_process_pages(recovered,fallback,max_context_chars=max_context_chars,debug=debug,document_type_hint=document_type_hint,diagnostics=diagnostics,images=images)
-            if info is None or ((info.document_type=="unknown" or alternate.document_type==info.document_type) and _quality_rank(alternate)<_quality_rank(info)):
-                info=alternate;pages=recovered
-                diagnostics.update(fallback_used=True,extraction_method="multimodal_fallback",provider=fallback.name,model=fallback.model,fallback_outcome="accepted")
-                diagnostics["page_quality"]=_diagnostics(pages,fallback)["page_quality"]
-            else:diagnostics["fallback_outcome"]="no_improvement"
-        except (OSError,ValueError,DocumentProcessingError) as error:
-            diagnostics.update(fallback_outcome="failed",fallback_error_stage=getattr(error,"stage",None) or "rendering")
-            log_document_event("fallback",outcome="failed",stage=diagnostics["fallback_error_stage"])
+            if not any(p.text.strip() for p in pages): raise ValueError("Document contains no text to analyze")
+            info = _process_pages(pages, primary, max_context_chars=max_context_chars, debug=debug,
+                document_type_hint=document_type_hint, diagnostics=diagnostics)
+            reasons = fallback_reasons(pages, info)
+            if info.document_type == "unknown" and _document_signals(pages):
+                reasons.append("unresolved_document_profile")
+                diagnostics["failure_categories"].append("PROFILE_OVERFIT")
+        except (ValidationError, DocumentProcessingError) as error:
+            local_error = error
+            category = "SCHEMA_VALIDATION_FAILURE" if isinstance(error, ValidationError) else error.category or "LLM_EXTRACTION_FAILURE"
+            diagnostics["failure_categories"].append(category)
+            reasons.append("schema_parse_failure" if isinstance(error, ValidationError) else "local_model_failure")
+            if not enabled or not is_pdf:
+                if isinstance(error, DocumentProcessingError):
+                    error.diagnostics = diagnostics
+                    raise
+                exc = DocumentProcessingError("Document fields need manual review after schema validation", stage="schema_validation", category=category)
+                exc.diagnostics = diagnostics
+                raise exc from error
+    if force_cloud or enabled and is_pdf and reasons:
+        diagnostics.update(fallback_attempted=not force_cloud, fallback_trigger_reasons=list(dict.fromkeys(reasons)))
+        log_document_event("fallback" if not force_cloud else "cloud_diagnostic", outcome="triggered", reasons=reasons)
+        fallback_started = perf_counter()
+        try:
+            fallback = primary if force_cloud else get_document_provider(fallback_setting, host=host, timeout=timeout, client_factory=Client)
+            if not fallback.supports_images:
+                raise DocumentProcessingError("Document fallback requires an image-capable provider", stage="configuration")
+            if not 1 <= DOCUMENT_FALLBACK_MAX_PAGES <= 4:
+                raise DocumentProcessingError("Document fallback page limit must be between 1 and 4", stage="configuration")
+            numbers = _fallback_pages(pages, info)
+            images = render_pdf_pages(file_path, numbers) if is_pdf else None
+            diagnostics.update(fallback_provider=fallback.name, fallback_model=fallback.model, fallback_pages=numbers if is_pdf else [])
+            poor = [p for p in pages if p.ocr_used and p.quality_issues or not p.text.strip()]
+            poor_images = {p.number: images[p.number] for p in poor if images and p.number in images}
+            recovered = _vision_transcription(fallback, poor_images, pages) if poor_images else pages
+            selected_pages = [p for p in recovered if not images or p.number in images]
+            alternate = _process_pages(selected_pages, fallback, max_context_chars=max_context_chars, debug=debug,
+                document_type_hint=document_type_hint, diagnostics=diagnostics, images=images)
+            if info is None or ((info.document_type == "unknown" or alternate.document_type == info.document_type) and _quality_rank(alternate) < _quality_rank(info)):
+                info, pages = alternate, recovered
+                diagnostics.update(fallback_used=not force_cloud, extraction_method="multimodal_fallback" if is_pdf else "native_text",
+                    extraction_route="OPENAI_MULTIMODAL" if is_pdf else "NATIVE_TEXT", provider=fallback.name, model=fallback.model, fallback_outcome="accepted")
+                diagnostics["page_quality"] = _diagnostics(pages, fallback)["page_quality"]
+            else: diagnostics["fallback_outcome"] = "no_improvement"
+        except (OSError, ValueError, DocumentProcessingError) as error:
+            stage = getattr(error, "stage", None) or ("schema_validation" if isinstance(error, ValidationError) else "rendering")
+            diagnostics.update(fallback_outcome="failed", fallback_error_stage=stage)
+            category = "SCHEMA_VALIDATION_FAILURE" if isinstance(error, ValidationError) else getattr(error, "category", None) or ("TEXT_EXTRACTION_FAILURE" if stage=="rendering" else "LLM_EXTRACTION_FAILURE")
+            if category: diagnostics["failure_categories"].append(category)
+            log_document_event("fallback", outcome="failed", stage=diagnostics["fallback_error_stage"])
             if info is None:
-                exc=DocumentProcessingError("Optional document fallback failed; check provider configuration or supply a clearer scan",stage=diagnostics["fallback_error_stage"],timed_out=getattr(error,"timed_out",False))
-                exc.diagnostics=diagnostics
+                exc = DocumentProcessingError("Optional document fallback failed; check provider configuration or supply a clearer scan", stage=diagnostics["fallback_error_stage"], timed_out=getattr(error, "timed_out", False), category=category)
+                exc.diagnostics = diagnostics
                 raise exc from error
         finally:
-            diagnostics["fallback_duration_seconds"]=perf_counter()-fallback_started
-    return _finish(info,diagnostics,pages,started)
+            diagnostics["fallback_duration_seconds"] = perf_counter() - fallback_started
+    if info is None:
+        raise DocumentProcessingError("Document needs manual review; no usable extraction was returned", stage="extraction") from local_error
+    return _finish(info, diagnostics, pages, started)
 
 
 
-def evaluate_documents(cases, *, base_dir=Path("."), processor=None):
-    """Small local evaluation: report match booleans/counts, never private values."""
-    run=processor or process_document
-    reports=[]
-    for index,case in enumerate(cases,1):
-        if not isinstance(case,dict) or not isinstance(case.get("document_path"),str):raise ValueError("Evaluation case requires document_path")
-        started=perf_counter()
-        expected_type=case.get("expected_document_type")
-        expected=case.get("expected_critical_fields",{})
-        if expected_type not in DOCUMENT_SCHEMAS or not isinstance(expected,dict) or set(expected)-DOCUMENT_SCHEMAS[expected_type].observation_fields():
-            raise ValueError("Evaluation case has an unsupported expected type or field")
-        path=Path(case["document_path"])
-        if not path.is_absolute():path=Path(base_dir)/path
-        report={"case_number":index,"classification_correct":False,"critical_field_exact_match":{f:False for f in expected},
-                "critical_fields_matched":0,"critical_fields_expected":len(expected),"missing_field_count":None,
-                "invalid_field_count":None,"extraction_method":None,"fallback_used":False}
+def cached_process_document(file_path, **kwargs):
+    """Observation cache only; verification/context always recompute in workers."""
+    import hashlib
+    import config
+    from pydantic import TypeAdapter
+    from src.document_processing.schemas import ExtractedDocument
+    if not config.DOCUMENT_CACHE_ENABLED or kwargs.get("pages") is not None or any(key in kwargs for key in ("provider","fallback_provider")):
+        return process_document(file_path,**kwargs)
+    path=Path(file_path)
+    digest=hashlib.sha256(path.read_bytes())
+    for name in ("processor.py","extractor.py","evidence.py","schemas.py","providers.py"):
+        digest.update(Path(__file__).with_name(name).read_bytes())
+    settings={"mode":kwargs.get("mode",config.DOCUMENT_AI_PROVIDER),"model":config.OLLAMA_MODEL,
+        "cloud_model":config.OPENAI_DOCUMENT_MODEL,"cloud_configured":cloud_document_configured(),
+        "day":date.today().isoformat(),"kwargs":kwargs,"ocr_dpi":config.DOCUMENT_OCR_DPI,
+        "image_side":config.DOCUMENT_MAX_IMAGE_SIDE,"chunk_chars":CHUNK_CHARS,"max_input":MAX_INPUT_CHARS,"max_chunks":MAX_CHUNKS,"primary":config.LLM_PROVIDER,"fallback":config.DOCUMENT_FALLBACK_PROVIDER,"ocr_min_confidence":config.DOCUMENT_OCR_MIN_CONFIDENCE}
+    digest.update(json.dumps(settings,sort_keys=True,default=str).encode())
+    directory=config.PROJECT_ROOT/".local"/"document_cache"
+    target=directory/(digest.hexdigest()+".json")
+    if target.is_file():
         try:
-            info=run(path)
-            data=info.model_dump(mode="json")
-            report["classification_correct"]=info.document_type==expected_type
-            matches={f:type(data.get(f)) is type(value) and data.get(f)==value for f,value in expected.items()}
-            diagnostics=info.extraction_diagnostics
-            report.update(critical_field_exact_match=matches,critical_fields_matched=sum(matches.values()),
-                missing_field_count=len(diagnostics.get("missing_expected_fields",info.missing_fields)),
-                invalid_field_count=diagnostics.get("invalid_field_count",len(info.validation_issues)),
-                extraction_method=diagnostics.get("extraction_method"),fallback_used=diagnostics.get("fallback_used",False))
-        except (OSError,ValueError,DocumentProcessingError) as error:
-            report["error_type"]=type(error).__name__
-        report["end_to_end_latency_seconds"]=perf_counter()-started
+            info=TypeAdapter(ExtractedDocument).validate_json(target.read_text(encoding="utf-8"))
+            info.extraction_diagnostics={**info.extraction_diagnostics,"cache_hit":True}
+            log_document_event("cache",outcome="hit",provider=info.extraction_diagnostics.get("provider"),model=info.extraction_diagnostics.get("model"))
+            return info
+        except (ValueError,OSError):pass
+    info=process_document(file_path,**kwargs)
+    directory.mkdir(parents=True,exist_ok=True)
+    target.write_text(info.model_dump_json(),encoding="utf-8")
+    info.extraction_diagnostics["cache_hit"]=False
+    return info
+
+
+def evaluate_documents(cases, *, base_dir=Path("."), processor=None, include_values=False):
+    """Reusable local benchmark. Structured private values require explicit opt-in."""
+    run = processor or process_document
+    reports = []
+    for index, case in enumerate(cases, 1):
+        if not isinstance(case, dict) or not isinstance(case.get("document_path"), str):
+            raise ValueError("Evaluation case requires document_path")
+        started = perf_counter()
+        expected_type = case.get("expected_document_type")
+        expected = case.get("expected_critical_fields", {})
+        if expected_type is not None and expected_type not in DOCUMENT_SCHEMAS or not isinstance(expected, dict) or expected_type is not None and set(expected) - DOCUMENT_SCHEMAS[expected_type].observation_fields():
+            raise ValueError("Evaluation case has an unsupported expected type or field")
+        path = Path(case["document_path"])
+        if not path.is_absolute(): path = Path(base_dir) / path
+        report = {"case_number": index, "expected_type": expected_type, "predicted_type": None,
+            "expected_field_names": list(expected), "classification_correct": False,
+            "critical_field_exact_match": {f: False for f in expected}, "critical_field_normalized_match": {f: False for f in expected},
+            "critical_fields_matched": 0, "critical_fields_expected": len(expected), "missing_field_count": None,
+            "invalid_field_count": None, "extraction_method": None, "extraction_route": None, "fallback_used": False}
+        try:
+            info = run(path)
+            data, diagnostics = info.model_dump(mode="json"), info.extraction_diagnostics
+            matches = {f: type(data.get(f)) is type(value) and data.get(f) == value for f, value in expected.items()}
+            def norm(value):
+                return normalized_date(value) or " ".join(normalized(value).split()) if isinstance(value, str) else value
+            normalized_matches = {f: type(data.get(f)) is type(value) and norm(data.get(f)) == norm(value) for f, value in expected.items()}
+            populated = {f: data[f] for f in sorted(info.observation_fields()) if data.get(f) is not None}
+            ungrounded = [f for f in populated if f not in info.source_snippets or f not in info.source_pages]
+            report.update(predicted_type=info.document_type, classification_correct=info.document_type == expected_type if expected_type is not None else None,
+                critical_field_exact_match=matches, critical_field_normalized_match=normalized_matches,
+                critical_fields_matched=sum(matches.values()),
+                missing_field_count=len(diagnostics.get("missing_expected_fields", info.missing_fields)),
+                missing_fields=diagnostics.get("missing_expected_fields", info.missing_fields),
+                invalid_field_count=diagnostics.get("invalid_field_count", len(info.validation_issues)),
+                extraction_method=diagnostics.get("extraction_method"), extraction_route=diagnostics.get("extraction_route"),
+                fallback_used=diagnostics.get("fallback_used", False), fallback_triggered=diagnostics.get("fallback_attempted", False),
+                unexpected_fields=[f for f in populated if f not in expected], ungrounded_fields=ungrounded,
+                hallucinated_or_incorrect_fields=[f for f in expected if data.get(f) is not None and not normalized_matches[f]],
+                validation_issues=info.validation_issues if include_values else sorted({issue.split(":", 1)[0] for issue in info.validation_issues}),
+                failure_categories=diagnostics.get("failure_categories", []))
+            if include_values:
+                report.update(expected_fields=expected, extracted_fields=populated)
+        except (OSError, ValueError, DocumentProcessingError) as error:
+            report["error_type"] = type(error).__name__
+            report["failure_categories"] = getattr(error, "diagnostics", {}).get("failure_categories", [])
+        report["end_to_end_latency_seconds"] = perf_counter() - started
         reports.append(report)
     return reports
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("file_path", type=Path, nargs="?")
     parser.add_argument("--evaluate", type=Path, help="Evaluate a local JSON list of document cases; reports omit source values")
+    parser.add_argument("--mode", choices=["local-only", "auto", "cloud"], help="Document provider mode; cloud explicitly diagnoses numbered PDF images")
+    parser.add_argument("--compare", action="store_true", help="Run a manifest in local-only, auto and cloud modes")
+    parser.add_argument("--include-values", action="store_true", help="Print structured private field values in the local benchmark; never full document text")
     parser.add_argument("--host", default=OLLAMA_HOST)
     parser.add_argument("--timeout", type=float, default=DOCUMENT_OLLAMA_TIMEOUT)
     parser.add_argument("--max-context-chars", type=int, default=MAX_INPUT_CHARS)
     parser.add_argument("--debug", "--verbose", action="store_true", dest="debug",
                         help="Print page counts, request sizes, durations and timeout stage to stderr")
     args = parser.parse_args()
+    if args.compare and not args.evaluate: parser.error("--compare requires an --evaluate manifest")
     try:
         if args.evaluate:
             if args.file_path:parser.error("Use either file_path or --evaluate")
             cases=json.loads(args.evaluate.read_text(encoding="utf-8"))
             if not isinstance(cases,list):raise ValueError("Evaluation manifest must be a JSON list")
-            run=lambda path:process_document(path,host=args.host,timeout=args.timeout,max_context_chars=args.max_context_chars,debug=args.debug)
-            print(json.dumps(evaluate_documents(cases,base_dir=args.evaluate.parent,processor=run),indent=2))
+            modes = ["local-only", "auto", "cloud"] if args.compare else [args.mode]
+            reports = []
+            for mode in modes:
+                run = lambda path: process_document(path, host=args.host, timeout=args.timeout, max_context_chars=args.max_context_chars, debug=args.debug, mode=mode)
+                batch = evaluate_documents(cases, base_dir=args.evaluate.parent, processor=run, include_values=args.include_values)
+                if mode is not None:
+                    for report in batch: report["mode"] = mode
+                reports.extend(batch)
+            print(json.dumps(reports, indent=2))
             return
         if args.file_path is None:parser.error("Provide a PDF/TXT path or --evaluate manifest.json")
         result = process_document(args.file_path, host=args.host, timeout=args.timeout,
-                                  max_context_chars=args.max_context_chars, debug=args.debug)
+                                  max_context_chars=args.max_context_chars, debug=args.debug, mode=args.mode)
     except (OSError, ValueError, DocumentProcessingError) as error:
         parser.exit(1, f"Error: {error}\n")
-    print(result.model_dump_json(indent=2))
+    print(json.dumps(result.model_dump(mode="json"),ensure_ascii=True,indent=2))
 
 
 if __name__ == "__main__":

@@ -65,11 +65,11 @@ def test_full_state_survives_recreation_and_fresh_python_process(tmp_path):
     assert isinstance(after["documents"][0], Document)
     assert isinstance(after["documents"][0].info, DocumentInfo)
     assert after["residence_permit_context"].legal_stay_expiry_date == date(2026, 12, 1)
-    assert len(after["relevant_requirements"]) == 29
+    assert len(after["relevant_requirements"]) == 24
     assert after["candidate_plan"][0].step_id == "ask"
     # The engine refreshes the deliberately stale seeded blocker list before
     # approval. All 26 blocking rules lack inputs in this fixture's context.
-    assert after["blockers"] == [f"R{i:03}" for i in range(1, 27)]
+    assert after["blockers"] == [f"R{i:03}" for i in (i for i in range(1,27) if i not in (12,24,25))]
     assert after["repair_feedback"][0].code == "UNKNOWN_AS_FAILURE"
     assert len(after["repair_history"]) == 1
 
@@ -223,7 +223,7 @@ def test_procedure_can_be_explicitly_initialized_without_reusing_plan_progress()
     from typing import get_args
     for kind in get_args(UserEvent.model_fields["kind"].annotation):
         assert "procedure" not in new_run(UserEvent(kind=kind),"new-user")
-    assert set(ProcedureState.model_fields)=={"current_stage","stage_status","completed_stages","stage_blockers","stage_history"}
+    assert set(ProcedureState.model_fields)=={"current_stage","stage_status","completed_stages","stage_blockers","stage_history","eikamet_preparation","eikamet_path","reviewed_application_document_id"}
     assert set(StageHistoryEntry.model_fields)=={"stage","status","trace_id","recorded_at","reason_refs"}
     assert (StageHistoryEntry.__module__,StageHistoryEntry.__name__) in CHECKPOINT_TYPES
     assert (ProcedureState.__module__,ProcedureState.__name__) in CHECKPOINT_TYPES
@@ -348,11 +348,21 @@ def test_procedure_is_preserved_by_new_run_and_actual_graph_execution(tmp_path,k
         assert "procedure" not in updates
         with patch("src.agents.planner.create_action_plan",return_value=proposal()) as planner:
             result=graph.invoke(updates,config)
-        assert result["procedure"]==original
+        expected = original
+        if kind=="reevaluate":
+            from src.core.procedure import procedure_evidence_update
+            expected = procedure_evidence_update(result).get("procedure", original)
+            # A factual re-check refreshes blockers/status, never lifecycle/history.
+            assert result["procedure"].current_stage==original.current_stage
+            assert result["procedure"].completed_stages==original.completed_stages
+            assert result["procedure"].stage_history==original.stage_history
+            assert result["procedure"].stage_status=="BLOCKED"
+            assert "evidence:complete_submission_file" in result["procedure"].stage_blockers
+        assert result["procedure"]==expected
         if kind=="reevaluate":planner.assert_not_called()
         else:planner.assert_called_once()
     with sqlite_checkpointer(db) as saver:
-        assert build_graph(saver).get_state(config).values["procedure"]==original
+        assert build_graph(saver).get_state(config).values["procedure"]==expected
 
 
 @pytest.mark.parametrize("approve",[True,False])

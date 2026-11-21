@@ -18,11 +18,13 @@ def reflection(state):
     if attempts >= MAX_REFLECTION_ATTEMPTS:
         return {"run_status": "HUMAN_REVIEW_REQUIRED"}
     feedback = list(state.get("validation_errors", []))
+    from src.memory.twin_sync import relevant_lessons
+    lessons=relevant_lessons(state,feedback)
     valid,rejected=repair_partition(state, feedback)
     previous_hash = state.get("last_model_plan_hash") or plan_hash(state.get("candidate_plan") or [])
     log_reflection(attempts + 1, feedback, previous_plan_hash=previous_hash)
     record = {"attempt": attempts + 1, "errors": [e.model_dump() for e in feedback],
               "plan": [a.model_dump(mode="json") for a in state.get("candidate_plan") or []],
               "rejected_model_plan": state.get("rejected_model_plan"), "previous_plan_hash": previous_hash}
-    return {"repair_valid_actions":valid,"repair_rejected_action_ids":rejected,"retry_count": attempts + 1, "repair_feedback": feedback,
+    return {"repair_lessons":lessons,"repair_valid_actions":valid,"repair_rejected_action_ids":rejected,"retry_count": attempts + 1, "repair_feedback": feedback,
             "repair_history": [*state.get("repair_history", []), record], "run_status": "REPAIRING"}

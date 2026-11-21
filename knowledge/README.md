@@ -1,16 +1,5 @@
-# Final Knowledge & Rules Layer — İKAMET
-Version: 1.0.0
-Retrieval date: 2026-11-05
+# Active Sabanci Ikamet V2 knowledge
 
-Scope: Sabancı University incoming exchange student, 18+, staying 3 months or longer, first short-term residence-permit application in Türkiye.
+The active dataset has 24 versioned rules in rules.json; dependencies and tests reference only active IDs. See ../docs/active_rules_v2.md for the retained-rule audit and explicit removals. Condition strings are descriptive only and are never evaluated.
 
-Authority hierarchy:
-1. Government/e-İkamet — legal/general truth.
-2. Sabancı IRO — Sabancı-specific operational workflow.
-3. Other universities — cross-check only.
-
-Design choices:
-- Dynamic fees and monthly submission windows are not permanent hard-coded facts.
-- Unknown data is not treated as failure.
-- Complete documentation does not mean guaranteed approval.
-- RAG may retrieve current official evidence, but rule changes require human approval, versioning, and regression tests.
+R015/R016 are the selected narrow V2 operational insurance policy. R017 includes the team-supplied direct IRO utility-bill + completed Address Form route, with honest separate provenance in sources.json and no invented URL/date. legal_stay_profiles.json contains limited sourced arithmetic profiles, not universal visa advice. Source refresh creates human-review candidates and never mutates rules automatically.

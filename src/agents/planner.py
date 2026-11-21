@@ -1,3 +1,4 @@
+from src.workers.rule_loader import load_rules
 """Rules supply grounded needs; Ollama prioritizes and explains user actions."""
 import json
 import re
@@ -6,10 +7,10 @@ from time import perf_counter
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 import httpx
 from ollama import Client, ResponseError
-from config import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, PLANNER_MAX_OUTPUT_TOKENS, PLANNER_MAX_ACTIONS
+from config import PLANNER_MODEL as OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, PLANNER_MAX_OUTPUT_TOKENS, PLANNER_MAX_ACTIONS
 from src.core.state import ActionPlan, PlanStep, ALLOWED_ACTION_TYPES, ValidationIssue, ResidencePermitContext
-from src.core.llm_diagnostics import logged_chat, log_planner_fallback, log_plan_rules, log_reflection, plan_hash
-from src.agents.planning_policy import prioritize, selected_needs, fallback_plan, workflow_stage, milestone_needs, canonical_candidates
+from src.core.llm_diagnostics import _emit, logged_chat, log_planner_fallback, log_plan_rules, log_reflection, plan_hash
+from src.agents.planning_policy import prioritize, selected_needs, fallback_plan, workflow_stage, milestone_needs, canonical_candidates, canonical_tool_candidates
 from src.memory.reflection import repair_partition
 
 SYSTEM_PROMPT = """Produce maximum 5 concrete user actions by selecting supplied candidate_ids.
@@ -36,7 +37,7 @@ rejected output. Do not return an unchanged invalid plan. Gate 1 validates repai
 
 class DraftStep(BaseModel):
     model_config=ConfigDict(extra="forbid")
-    candidate_ids: list[str] = Field(min_length=1, max_length=5)
+    candidate_ids: list[str] = Field(min_length=1, max_length=5,json_schema_extra={"uniqueItems":True})
     title: str = Field(min_length=1)
     reason: str = Field(min_length=1)
 
@@ -74,7 +75,7 @@ def actionable_needs(state):
 
 
 def _step_context(step):
-    return {key:getattr(step,key) for key in ("step_id","title","action_type","reason","related_rule_id","grounding_ids","requested_fields","requested_documents")}
+    return {key:getattr(step,key) for key in ("step_id","title","action_type","reason","related_rule_id","grounding_ids","requested_fields","requested_documents","tool_call")}
 
 
 def compact_planner_context(state):
@@ -103,16 +104,21 @@ def compact_planner_context(state):
         selected += [c for c in all_candidates if c["candidate_id"] in wanted and c not in selected]
         repair=_repair_context(state,valid,rejected)
         for a in original:relevant_fields.update(a.requested_fields)
+    # Stable opaque transport selectors. Canonical refs remain host metadata.
+    for index,candidate in enumerate(selected,1):
+        candidate['canonical_ref']=candidate['candidate_id']
+        candidate['candidate_id']=f'candidate_{index:03d}'
     allowed_ids=sorted({rid for c in selected for rid in c["rule_ids"]})
     if repair:
         allowed_ids=sorted(set(allowed_ids)|{a.related_rule_id for a in (state.get("candidate_plan") or []) if a.related_rule_id in {r.rule_id for r in state.get("relevant_requirements",[])}})
+    tool_context=any(candidate.get("tool_call") for candidate in selected)
     return {"workflow_stage":workflow_stage(state),"allowed_action_types":list(ALLOWED_ACTION_TYPES),"allowed_rule_ids":allowed_ids,"canonical_candidates":selected,"relevant_context":{name:context[name] for name in sorted(relevant_fields) if name in context},"unresolved_conflicts":list(state.get("verification_conflicts",[])),**({"repair":repair} if repair else {})}
 
 
 
 def _repair_context(state, valid, rejected):
     errors=state.get("repair_feedback") or state.get("validation_errors") or []
-    return {"failed_candidate":[_step_context(a) for a in state.get("candidate_plan") or []],
+    return {"accepted_repair_lessons":state.get("repair_lessons",[])[:3],"failed_candidate":[_step_context(a) for a in state.get("candidate_plan") or []],
             "previous_model_plan":deepcopy(state.get("rejected_model_plan")) or {
                 "actions":[a.model_dump(mode="json") for a in state.get("candidate_plan") or []],
                 "summary":state.get("plan_summary","")},
@@ -126,7 +132,7 @@ def milestone_preparation_complete(state):
     from src.workers.verification import MILESTONE_SCOPE, milestone_checklist
     results=state.get("relevant_requirements") or []
     return (state.get("planning_scope")==MILESTONE_SCOPE
-            and {r.rule_id for r in results}=={f"R{i:03}" for i in range(1,30)}
+            and {r.rule_id for r in results}=={r["rule_id"] for r in load_rules(state.get("knowledge_snapshot"))}
             and not state.get("verification_conflicts")
             and all(row["status"]=="complete" for row in milestone_checklist(state))
             and not any(n["category"]=="immediate" and n["status"] in {"failed","missing_information"}
@@ -135,38 +141,23 @@ def milestone_preparation_complete(state):
 
 def planner_output_schema(payload):
     schema=PlannerDraft.model_json_schema()
-    schema["$defs"]["DraftStep"]["properties"]["candidate_ids"]["items"]["enum"]=[c["candidate_id"] for c in payload["canonical_candidates"]]
+    locked={key for row in payload.get('repair',{}).get('locked_actions',[]) for key in row.get('grounding_ids',[])}
+    schema["$defs"]["DraftStep"]["properties"]["candidate_ids"]["items"]["enum"]=[c["candidate_id"] for c in payload["canonical_candidates"] if c.get('canonical_ref',c['candidate_id']) not in locked]
     return schema
 
 
-def _presentation_draft(parsed, payload):
-    """Ignore model metadata; retain only bound selection and presentation.
-
-    Older responses can select a single candidate by its exact known rule ID.
-    No positional/fuzzy inference is made for missing or invented selectors.
-    """
-    if not isinstance(parsed,dict) or not isinstance(parsed.get("actions"),list):
-        return PlannerDraft.model_validate(parsed)
+def _presentation_draft(parsed,payload):
+    """Only known opaque selectors choose actions; model metadata is discarded."""
+    if not isinstance(parsed,dict) or not isinstance(parsed.get('actions'),list):return PlannerDraft.model_validate(parsed)
     data=deepcopy(parsed)
-    for row in data["actions"]:
+    for row in data['actions']:
         if not isinstance(row,dict):continue
-        if "candidate_ids" not in row:
-            rid=row.get("related_rule_id",row.get("rule_id"))
-            matches=[c["candidate_id"] for c in payload["canonical_candidates"] if rid in c["rule_ids"]]
-            if len(matches)!=1:
-                error=PlannerError("Rule ID absent from actionable context")
-                error.issue=ValidationIssue(code="RULE_NOT_ACTIONABLE",message=str(error),source="planner",rule_id=rid if isinstance(rid,str) else None)
-                raise error
-            row["candidate_ids"]=matches
-        if "title" not in row and "action" in row:row["title"]=row["action"]
-        # Even malformed/unknown structural values never enter the final PlanStep.
-        for key in ("action","action_type","related_rule_id","rule_id","related_rule_ids",
-                    "requested_fields","requested_documents","fields","documents","target","target_document",
-                    "context_field","context_fields","target_field","target_fields","document_type","rule_ids","candidate_id",
-                    "requirement_status","status","step_id","repair_step_id","priority","requires_approval",
-                    "execution_type","request_kind","available_in_prototype","due_date","deadline_key",
-                    "required_documents","depends_on","grounding_ids"):
-            row.pop(key,None)
+        if 'candidate_ids' not in row:
+            _schema_reject('missing_candidate_reference','Select supplied candidate IDs, never free rule IDs')
+        # Presentation is the sole model contribution. No supplied tool, rule,
+        # field, document, permission, deadline or step identifier is trusted.
+        for key in list(row):
+            if key not in {'candidate_ids','title','reason'}:row.pop(key)
     return PlannerDraft.model_validate(data)
 
 
@@ -200,6 +191,8 @@ def _ground_draft(draft, state, payload):
     original={a.step_id:a for a in state.get("candidate_plan") or []}
     locked={a.step_id:a for a in valid};actions=[]
     used=set(locked)
+    if not draft.actions and not locked and any(c.get("tool_call") for c in candidates.values()):
+        _schema_reject("missing_tool_action","Select an available grounded preparation action")
     used_candidates=set()
     mentioned=set(re.findall(r"\bR\d{3}\b",draft.summary+" "+" ".join(a.title+" "+a.reason for a in draft.actions)))
     if mentioned-set(payload["allowed_rule_ids"]):
@@ -209,25 +202,29 @@ def _ground_draft(draft, state, payload):
         if len(keys)!=len(set(keys)) or any(key not in candidates for key in keys):
             _schema_reject("unknown_or_duplicate_candidate_reference","Unknown or repeated canonical candidate ID")
         selected=[candidates[key] for key in keys]
+        canonical_keys=[c.get("canonical_ref",c["candidate_id"]) for c in selected]
         types={c["action_type"] for c in selected}
         if len(types)!=1:_schema_reject("incompatible_grouping","Group only compatible canonical action types")
         rules=sorted({rid for c in selected for rid in c["rule_ids"]})
-        overlapping=[a for a in locked.values() if set(keys)&set(a.grounding_ids or [a.related_rule_id])]
+        tool_targets=[c for c in selected if c.get("tool_call")]
+        if tool_targets and (len(selected)!=1 or len(tool_targets)!=1):
+            _schema_reject("incompatible_tool_grouping","A tool target must remain a separate exact action")
+        overlapping=[a for a in locked.values() if set(canonical_keys)&set(a.grounding_ids or [a.related_rule_id])]
         if overlapping:
-            if len(overlapping)==1 and set(keys)==set(overlapping[0].grounding_ids or [overlapping[0].related_rule_id]) and row.title==overlapping[0].title and row.reason==overlapping[0].reason:
+            if len(overlapping)==1 and set(canonical_keys)==set(overlapping[0].grounding_ids or [overlapping[0].related_rule_id]) and row.title==overlapping[0].title and row.reason==overlapping[0].reason:
                 continue
             _schema_reject("modified_locked_action","Attempted to change a locked valid action")
         if used_candidates.intersection(keys):_schema_reject("duplicate_candidate_reference","Do not repeat a canonical candidate")
         used_candidates.update(keys)
         fields=sorted({f for c in selected for f in c["fields"]});documents=sorted({d for c in selected for d in c["documents"]})
         # Repair slots are bound by Python to grounded candidates, never model IDs.
-        step_id=next((key for key in rejected if key not in used and set(keys)&set(original[key].grounding_ids or [original[key].related_rule_id])),None) if repair else None
+        step_id=next((key for key in rejected if key not in used and set(canonical_keys)&set(original[key].grounding_ids or [original[key].related_rule_id])),None) if repair else None
         if not step_id:
             i=len(used)+1
             while f"step_{i}" in used:i+=1
             step_id=f"step_{i}"
         used.add(step_id)
-        action=PlanStep(step_id=step_id,title=row.title,action_type=selected[0]["action_type"],reason=row.reason,related_rule_id=selected[0]["rule_ids"][0],related_rule_ids=rules,priority=len(actions)+1,grounding_ids=keys,requested_fields=fields,requested_documents=documents)
+        action=PlanStep(step_id=step_id,title=row.title,action_type=selected[0]["action_type"],reason=row.reason,related_rule_id=selected[0]["rule_ids"][0] if selected[0]["rule_ids"] else None,related_rule_ids=rules,priority=len(actions)+1,grounding_ids=canonical_keys,requested_fields=fields,requested_documents=documents,tool_call=deepcopy(tool_targets[0]["tool_call"]) if tool_targets else None)
         if repair and step_id in original and _step_context(action)==_step_context(original[step_id]):
             _schema_reject("unchanged_rejected_action","Do not return unchanged rejected action",code="UNCHANGED_INVALID_PLAN")
         actions.append(action)
@@ -253,6 +250,10 @@ def _ground_draft(draft, state, payload):
             for priority,action in enumerate(merged,1):action.priority=priority
         actions=merged
         covered={rid for action in actions for rid in [action.related_rule_id]+action.related_rule_ids}
+        covered_candidates={key for action in actions for key in action.grounding_ids}
+        for key in rejected:
+            if key in original and original[key].tool_call and any(cid in {c.get("canonical_ref",c["candidate_id"]) for c in candidates.values()} for cid in original[key].grounding_ids) and not set(original[key].grounding_ids).intersection(covered_candidates):
+                _schema_reject("dropped_rejected_tool","Repair must address the rejected supported tool action")
         for key in rejected:
             if key in original and original[key].related_rule_id in payload["allowed_rule_ids"] and original[key].related_rule_id not in covered:
                 _schema_reject("dropped_rejected_requirement","Repair must address rejected actions, not silently remove their requirements")
@@ -262,9 +263,14 @@ def _ground_draft(draft, state, payload):
 
 def create_action_plan(state):
     payload=compact_planner_context(state)
-    encoded=json.dumps(payload,separators=(",",":"))
+    wire=deepcopy(payload)
+    wire.pop('allowed_rule_ids',None);wire.pop('allowed_action_types',None)
+    for candidate in wire['canonical_candidates']:
+        candidate.pop('canonical_ref',None)
+        candidate.pop('tool_call',None)  # The model cannot invent or mutate tool arguments.
+    encoded=json.dumps(wire,separators=(",",":"))
     output_schema=planner_output_schema(payload)
-    diagnostics={"input_characters":len(encoded),"system_characters":len(SYSTEM_PROMPT),"schema_characters":len(json.dumps(output_schema)),"timeout_seconds":OLLAMA_TIMEOUT}
+    diagnostics={"input_characters":len(encoded),"system_characters":len(SYSTEM_PROMPT),"schema_characters":len(json.dumps(output_schema)),"timeout_seconds":OLLAMA_TIMEOUT,"model":OLLAMA_MODEL,"candidate_ids":[c["candidate_id"] for c in payload["canonical_candidates"]]}
     started=perf_counter()
     parsed=None
     log_plan_rules("allowed_rule_ids",payload["allowed_rule_ids"])
@@ -273,7 +279,9 @@ def create_action_plan(state):
         response=logged_chat(Client(host=OLLAMA_HOST,timeout=OLLAMA_TIMEOUT),component=component,model=OLLAMA_MODEL,messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":encoded}],format=output_schema,options={"temperature":0,"num_predict":PLANNER_MAX_OUTPUT_TOKENS},think=False,stream=False)
         parse_started=perf_counter();parsed=json.loads(response.message.content)
         if isinstance(parsed,dict) and isinstance(parsed.get("actions"),list):
-            log_plan_rules("returned_rule_ids",[a.get("related_rule_id",a.get("rule_id")) for a in parsed["actions"] if isinstance(a,dict)])
+            selected_ids=[key for action in parsed['actions'] if isinstance(action,dict) for key in action.get('candidate_ids',[]) if isinstance(key,str) and re.fullmatch(r'candidate_\d{3}',key)]
+            diagnostics['selected_candidate_ids']=selected_ids
+            _emit('[PLANNER] selected_candidate_ids='+json.dumps(selected_ids))
             diagnostics["plan_hash"]=plan_hash(parsed)
             if component=="reflection_replan":
                 log_reflection(state.get("retry_count",0),new_plan_hash=diagnostics["plan_hash"])
@@ -292,7 +300,8 @@ def create_action_plan(state):
         exc.issue=getattr(error,"issue",ValidationIssue(code="PLANNER_SCHEMA_ERROR",message="Planner schema issue: "+schema_issue,source="planner"))
         exc.rejected_model_plan=parsed if isinstance(parsed,dict) else None
         raise exc from error
-    from src.workers.verification import CONTEXT_FIELDS
+    from src.workers.verification import declaration_fields
+    CONTEXT_FIELDS=declaration_fields(state)
     locked_ids={row["step_id"] for row in payload.get("repair",{}).get("locked_actions",[])}
     for action in plan.actions:
         if action.step_id in locked_ids:continue
@@ -309,10 +318,15 @@ def create_action_plan(state):
 
 
 def planner(state):
-    if milestone_preparation_complete(state):
+    if state.get("procedure") is None and milestone_preparation_complete(state) and not canonical_tool_candidates(state):
         return {"candidate_plan":[],"plan_summary":"Milestone-1 document preparation is complete. Review the remaining requirements with the International Relations Office before proceeding to the next stage. This is not residence-permit approval.",
                 "validation_errors":[],"plan_origin":"milestone_completion","planner_diagnostics":{},"workflow_stage":workflow_stage(state)}
     payload=compact_planner_context(state)
+    if state.get('procedure') is not None and not payload['canonical_candidates'] and not payload.get('repair'):
+        from src.core.procedure import assess_current_stage
+        summary='No additional action plan is needed for this stage. Continue to the next step.' if assess_current_stage(state)['ready'] else 'No additional document action plan is needed now. Follow the current-stage guidance and record actual updates when received.'
+        return {'candidate_plan':[],'plan_summary':summary,
+            'validation_errors':[],'plan_origin':'stage_complete','planner_diagnostics':{'llm_calls':0},'workflow_stage':workflow_stage(state)}
     snapshot=state.get("planning_context_snapshot") or {k:deepcopy(v) for k,v in payload.items() if k!="repair"}
     try:
         plan=create_action_plan(state)

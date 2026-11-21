@@ -1,6 +1,7 @@
 """Deterministic text extraction, independent of future LLM processing."""
 
 import argparse
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -143,10 +144,10 @@ def extract_pages(file_path: str | Path, *, allow_ocr_failure: bool = False) -> 
                 raise DocumentExtractionError("Password-protected PDFs are not supported.")
             pages = []
             for i, page in enumerate(document):
-                text = page.get_text()
+                text = "\n".join(re.sub(r"[ \t]{2,}","  ",line).strip() for line in page.get_text(sort=True).splitlines())
                 native_count=len(text)
                 metadata={}
-                used_ocr=bool(text_quality_issues(text)) and bool(page.get_images(full=True))
+                used_ocr=bool(text_quality_issues(text)) and bool(page.get_images(full=True) or page.get_image_info())
                 duration=0.0
                 issues=[]
                 _emit(f"[DOCUMENT] native_page page={i+1} native_text_characters={native_count} ocr_triggered={used_ocr}")

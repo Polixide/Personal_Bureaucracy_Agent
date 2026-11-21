@@ -47,7 +47,7 @@ def test_analysis_only_promotes_only_source_grounded_fields_without_planning(tmp
     result=analyze(graph,config,tmp_path/"student.txt")
     assert result["candidate_plan"] is None and result["retry_count"]==0
     assert result["run_status"]=="DOCUMENT_ANALYZED" and not result.get("__interrupt__")
-    assert len(result["relevant_requirements"])==29
+    assert len(result["relevant_requirements"])==24
     document=result["documents"][0]
     entry=result["verification_records"][document.doc_id]["student_id"]
     assert entry.origin=="source_grounded" and entry.value=="S123"
@@ -99,13 +99,13 @@ def test_explicit_plan_event_calls_planner_and_still_requires_plan_approval(tmp_
     assert result["run_status"]=="APPROVED" and not result.get("completed_steps")
 
 
-def test_insurance_requires_user_attestation_not_automatic_legal_validity(tmp_path):
+def test_insurance_end_policy_does_not_claim_automatic_legal_acceptance(tmp_path):
     graph=build_graph();config={"configurable":{"thread_id":"insurance"}}
     text="Health Insurance Certificate\nInsured: Alex Example\nInsurer: Example Insurance\nPolicy number: POLICY-123\nCoverage start: 2026-11-01\nCoverage end: 2027-06-01"
     result=analyze(graph,config,tmp_path/"policy.txt",{},text,"health_insurance_certificate",{"requested_start_date":"2026-11-01","requested_end_date":"2027-06-01"})
     context=result["residence_permit_context"]
     assert context.insurance_start_date==date(2026,11,1) and context.insurance_valid_for_ikamet is None
-    assert next(r for r in result["relevant_requirements"] if r.rule_id=="R015").passed is None
+    assert next(r for r in result["relevant_requirements"] if r.rule_id=="R015").passed is True
     result=confirm(graph,config,result["documents"][0].doc_id,{"insurance_valid_for_ikamet":True})
     assert next(r for r in result["relevant_requirements"] if r.rule_id=="R015").passed is True
     assert result["residence_permit_context"].insurance_evidence_type is None
@@ -178,11 +178,11 @@ def test_unknown_document_cannot_be_manually_promoted_to_certificate(tmp_path):
 
 
 @pytest.mark.parametrize("first,second,conflict,projected", [
-    ("MARCO     BELFORTI", "MARCO BELFORTI", False, "MARCO BELFORTI"),
-    ("Marco Belforti", "MARCO BELFORTI", False, "Marco Belforti"),
-    ("  MARCO\tBELFORTI  ", "marco belforti", False, "MARCO BELFORTI"),
-    ("Jos\u00e9 Belforti", "JOSE\u0301 BELFORTI", False, "Jos\u00e9 Belforti"),
-    ("MARCO BELFORTI", "ALICE BELFORTI", True, None),
+    ("NORA     FICTIVA", "NORA FICTIVA", False, "NORA FICTIVA"),
+    ("Nora Fictiva", "NORA FICTIVA", False, "Nora Fictiva"),
+    ("  NORA\tFICTIVA  ", "nora fictiva", False, "NORA FICTIVA"),
+    ("Jos\u00e9 Fictiva", "JOSE\u0301 FICTIVA", False, "Jos\u00e9 Fictiva"),
+    ("NORA FICTIVA", "ALICE FICTIVA", True, None),
 ])
 def test_holder_comparison_normalizes_only_projection_not_verified_records(first,second,conflict,projected):
     from src.core.state import Document, VerifiedInput
@@ -230,8 +230,8 @@ def test_confirm_then_plan_reuses_assessment_through_gate_1_and_sqlite_restart(t
         result=confirm(graph,config,result["documents"][0].doc_id,{"institution":"Sabanci University"})
         requirements=deepcopy(result["relevant_requirements"])
         blockers=deepcopy(result["blockers"])
-        assert len(requirements)==29
-        assert "requirements evaluated" in status_label(result["run_status"])
+        assert len(requirements)==24
+        assert status_label(result["run_status"]) == "Document analyzed"
         assert result["residence_permit_context"].institution=="Sabanc\u0131 University"
         assert result["verification_records"][result["documents"][0].doc_id]["institution"].value=="Sabanci University"
     with sqlite_checkpointer(db) as saver:
@@ -258,7 +258,7 @@ def test_invalid_generate_plan_keeps_last_valid_assessment_and_blockers(tmp_path
     result=confirm(graph,config,result["documents"][0].doc_id,{"institution":"Other University"})
     requirements=deepcopy(result["relevant_requirements"]);blockers=deepcopy(result["blockers"])
     summary=requirement_summary(requirements)
-    assert sum(summary.values())==29
+    assert sum(summary.values())==24
     with patch("src.agents.planner.create_action_plan") as planner:
         result=graph.invoke(new_run(UserEvent(kind="generate_plan"),"review-user"),config)
     planner.assert_not_called()
@@ -268,7 +268,7 @@ def test_invalid_generate_plan_keeps_last_valid_assessment_and_blockers(tmp_path
 
 
 def test_analysis_and_confirmation_still_invalidate_requirement_assessment():
-    for event in (UserEvent(kind="analyze_document",file_path="student.txt"),UserEvent(kind="confirm_information",document_id="student",confirmed_fields={"holder_name":"Marco Belforti"})):
+    for event in (UserEvent(kind="analyze_document",file_path="student.txt"),UserEvent(kind="confirm_information",document_id="student",confirmed_fields={"holder_name":"Nora Fictiva"})):
         assert new_run(event,"review-user")["relevant_requirements"] is None
 
 
@@ -498,7 +498,7 @@ def test_stage_selector_defers_submission_and_guardrail_questions():
     needs=actionable_needs(state);by_id={n["rule_id"]:n for n in needs}
     assert workflow_stage(state)=="INITIAL_INFORMATION"
     assert by_id["R021"]["category"]=="future" and "R020" in by_id["R021"]["waiting_for"]
-    assert by_id["R027"]["category"]==by_id["R028"]["category"]=="guardrail_only"
+    assert by_id["R028"]["category"]=="guardrail_only"
     assert by_id["R006"]["category"]==by_id["R017"]["category"]=="immediate"
     assert not {"R021","R027","R028"} & {n["rule_id"] for n in selected_needs(needs)}
 
@@ -519,9 +519,9 @@ def test_fallback_specific_missing_fields_and_documents_pass_gate_1():
 
 
 @pytest.mark.parametrize("a,b,equal", [
-    ("MARCO BELFORTI","Marco Belforti",True),("Marco  Belforti","MARCO\u00a0BELFORTI",True),
-    ("Jean\u2011Luc O\u2019Neil","Jean-Luc O'Neil",True),("MARCO\u200b BELFORTI","Marco Belforti",True),
-    ("Marco Belforti","Mario Belforti",False),("Marco Belforti","Belforti Marco",False),
+    ("NORA FICTIVA","Nora Fictiva",True),("Nora  Fictiva","NORA\u00a0FICTIVA",True),
+    ("Jean\u2011Luc O\u2019Neil","Jean-Luc O'Neil",True),("NORA\u200b FICTIVA","Nora Fictiva",True),
+    ("Nora Fictiva","Luca Fictiva",False),("Nora Fictiva","Fictiva Nora",False),
 ])
 def test_identity_comparison_formatting_without_fuzzy_matching(a,b,equal):
     from src.workers.verification import same_name

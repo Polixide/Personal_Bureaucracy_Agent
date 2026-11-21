@@ -1,17 +1,54 @@
-other/
+# Python and build output
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
 .venv/
-.pytest_cache/
-.test-temp/
-pytest-cache-files-*/
-data/digital_twin.db
-data/digital_twin.db-wal
-data/digital_twin.db-shm
-data/digital_twin.db-journal
-data/uploads/
-.local/
+venv/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local databases and state
+*.db
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+*-journal
+*.journal
+.streamlit/
+
+# Private documents and runtime uploads
 data/local_samples/
-data/synthetic_samples/Basvuru_Formu-*.pdf
-data/synthetic_samples/Policy-*.pdf
-data/synthetic_samples/Student_certificate.pdf
+data/uploads/
+data/synthetic_samples/*.pdf
+
+# Local reports, archives and generated user artifacts
+.local/
+*.ics
+*.eml
+*.log
+
+# Test and analysis caches
+.test-temp/
+.pytest_cache/
+pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Secrets and local environment settings
+.env
+.env.*
+!.env.example

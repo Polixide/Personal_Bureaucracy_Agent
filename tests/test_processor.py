@@ -695,30 +695,30 @@ def test_correction_notes_alone_do_not_block_gate_1(tmp_path):
     assert not validate_plan({"documents":[document],"relevant_requirements":evaluate_requirements({})},plan)
 
 
-@pytest.mark.parametrize("holder", ["MARCO BELFORTI", None])
+@pytest.mark.parametrize("holder", ["NORA FICTIVA", None])
 def test_insurance_person_dob_row_is_strong_source_evidence(tmp_path, holder):
-    row="MARCO BELFORTI 26/06/2002"
+    row="NORA FICTIVA 15/01/1999"
     info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+row,{"holder_name":holder})
-    assert info.holder_name == "MARCO BELFORTI"
+    assert info.holder_name == "NORA FICTIVA"
     assert info.source_snippets["holder_name"] == row
     assert info.source_pages["holder_name"] == 1
     evidence=next(e for e in info.source_evidence if e.field=="holder_name")
-    assert evidence.original_value == evidence.normalized_value == "MARCO BELFORTI"
+    assert evidence.original_value == evidence.normalized_value == "NORA FICTIVA"
     assert evidence.page_number == 1 and evidence.snippet == row
 
 
-@pytest.mark.parametrize("row", ["THIS IS AN ARBITRARY SENTENCE", "PLEASE READ CAREFULLY 26/06/2002",
-                               "UNITED STATES 26/06/2002", "HEALTH INSURANCE CERTIFICATE 26/06/2002",
-                               "EXAMPLE INSURANCE COMPANY 26/06/2002", "MARCO BELFORTI 31/02/2002"])
+@pytest.mark.parametrize("row", ["THIS IS AN ARBITRARY SENTENCE", "PLEASE READ CAREFULLY 15/01/1999",
+                               "UNITED STATES 15/01/1999", "HEALTH INSURANCE CERTIFICATE 15/01/1999",
+                               "EXAMPLE INSURANCE COMPANY 15/01/1999", "NORA FICTIVA 31/02/1999"])
 def test_uppercase_or_nonperson_insurance_rows_are_not_names(tmp_path,row):
     info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\n"+row,{"holder_name":row.split(" 26/")[0]})
     assert info.holder_name is None
 
 
 def test_unlabelled_name_after_insured_information_heading(tmp_path):
-    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nInsured information\nMARCO BELFORTI",{"holder_name":"MARCO BELFORTI"})
-    assert info.holder_name == "MARCO BELFORTI"
-    assert info.source_snippets["holder_name"] == "MARCO BELFORTI"
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nInsured information\nNORA FICTIVA",{"holder_name":"NORA FICTIVA"})
+    assert info.holder_name == "NORA FICTIVA"
+    assert info.source_snippets["holder_name"] == "NORA FICTIVA"
 
 
 def test_unlabelled_insurance_company_header_is_grounded(tmp_path):
@@ -748,12 +748,12 @@ def test_fabricated_holder_absent_from_source_is_rejected(tmp_path):
 
 
 def test_strong_unlabelled_insurance_people_conflict_instead_of_guessing(tmp_path):
-    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nMARCO BELFORTI 26/06/2002\nANOTHER PERSON 20/05/2001",{"holder_name":"MARCO BELFORTI"})
+    info, _=hybrid_insurance(tmp_path,"Health Insurance Certificate\nNORA FICTIVA 15/01/1999\nANOTHER PERSON 20/05/2001",{"holder_name":"NORA FICTIVA"})
     assert info.holder_name is None and "holder_name" in info.ambiguous_fields
 
 
 def test_insurance_only_person_row_does_not_relax_student_certificate(tmp_path):
-    info, _=process_text(tmp_path,"Student Enrollment Certificate\nMARCO BELFORTI 26/06/2002","student_enrollment_certificate",{"holder_name":"MARCO BELFORTI"})
+    info, _=process_text(tmp_path,"Student Enrollment Certificate\nNORA FICTIVA 15/01/1999","student_enrollment_certificate",{"holder_name":"NORA FICTIVA"})
     assert info.holder_name is None
 
 
@@ -1064,3 +1064,208 @@ def test_provider_environment_configuration_is_optional_and_document_specific():
     environment.update(LLM_PROVIDER="openai",DOCUMENT_FALLBACK_PROVIDER="openai",OPENAI_MODEL="configured-vision-model")
     result=subprocess.run([sys.executable,"-c",script+";print(config.OPENAI_MODEL)"],env=environment,capture_output=True,text=True,check=True,timeout=30)
     assert result.stdout.splitlines()==["openai openai configured-local-model","configured-vision-model"]
+
+
+# V2 generalization: no private real document or live transport is used.
+ALT_INSURANCE = ("YABANCILAR SAGLIK SIGORTASI\nSigortali Adi Soyadi: Alex Example\n"
+    "Sigorta Sirketi: Example Insurance\nPolice Numarasi: SYN-2026-002\n"
+    "Baslangic Tarihi: 01.10.2026\nBitis Tarihi: 30.09.2027\n"
+    "Police Turu: Ozel Saglik Sigortasi\nIkamet izni icin duzenlenmistir.")
+
+
+@pytest.mark.parametrize("text", [QUALITY_INSURANCE, ALT_INSURANCE,
+    ALT_INSURANCE.replace("Baslangic Tarihi: 01.10.2026\nBitis Tarihi: 30.09.2027", "Seyahat Baslangic-Bitis Tarihi: 01.10.2026 - 30.09.2027"),
+    ALT_INSURANCE.replace("Baslangic Tarihi: 01.10.2026\nBitis Tarihi: 30.09.2027", "Baslangic Tarihi\nBitis Tarihi\n01.10.2026 30.09.2027")])
+def test_v2_insurance_semantics_generalize_across_labels_and_columns(text):
+    provider = FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"}, "extraction":{}})
+    info = process_document("synthetic.txt", pages=[TextPage(1,text)], provider=provider, mode="local-only")
+    assert info.holder_name == "Alex Example" and info.insurer == "Example Insurance"
+    assert info.coverage_start_date == date(2026,10,1) and info.coverage_end_date == date(2027,9,30)
+    assert info.policy_number in {"TEST-POL-0001", "SYN-2026-002"}
+    assert info.extraction_diagnostics["extraction_route"] == "NATIVE_TEXT"
+    assert info.source_pages["coverage_start_date"] == 1
+
+
+def test_unicode_turkish_aliases_preserve_exact_source_snippets():
+    text = ALT_INSURANCE.replace("Sigortali Adi Soyadi", "Sigortal\u0131 Ad\u0131 Soyad\u0131").replace("Baslangic Tarihi", "Ba\u015flang\u0131\u00e7 Tarihi").replace("Bitis Tarihi", "Biti\u015f Tarihi")
+    info = process_document("synthetic.txt", pages=[TextPage(4,text)], provider=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"}, "extraction":{}}), mode="local-only")
+    assert info.holder_name == "Alex Example" and info.coverage_end_date == date(2027,9,30)
+    assert "Ba\u015flang\u0131\u00e7" in info.source_snippets["coverage_start_date"]
+    assert info.source_pages["coverage_end_date"] == 4
+
+
+def test_insurance_purpose_and_category_are_source_claims_not_legal_acceptance():
+    from src.workers.verification import grounded_values
+    from src.core.state import Document
+    info = process_document("synthetic.txt", pages=[TextPage(1,ALT_INSURANCE)],
+        provider=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"}, "extraction":{}}),mode="local-only")
+    assert info.insurance_evidence_type == "private_health_insurance"
+    assert info.residence_permit_purpose is True
+    accepted = grounded_values(Document(doc_id="insurance",file_path="synthetic.txt",doc_type="health_insurance",status="analyzed",info=info))
+    assert accepted["insurance_evidence_type"] == "private_health_insurance"
+    assert "insurance_valid_for_ikamet" not in accepted
+
+
+def test_llm_cannot_invent_policy_purpose_or_insurance_category():
+    info = process_document("synthetic.txt",pages=[TextPage(1,QUALITY_INSURANCE)],provider=FakeDocumentProvider({
+        "classification":{"document_type":"health_insurance_certificate"},
+        "extraction":{"insurance_evidence_type":"private_health_insurance","residence_permit_purpose":True}}),mode="local-only")
+    assert info.insurance_evidence_type is info.residence_permit_purpose is None
+    assert "GROUNDING_FAILURE" in info.extraction_diagnostics["failure_categories"]
+
+
+def test_cover_page_does_not_hide_form_heading_on_later_page():
+    provider=FakeDocumentProvider({"classification":{"document_type":"unknown"},"extraction":{"applicant_name":"Alex Example"}})
+    info=process_document("synthetic.pdf",pages=[TextPage(1,"Administrative cover sheet"),TextPage(2,"DECLARATION FOR SHORT TERM RESIDENCE PERMIT REGISTRATION FORM\nApplicant: Alex Example")],provider=provider,mode="local-only")
+    assert info.document_type=="ikamet_application_form" and info.applicant_name=="Alex Example"
+    assert info.source_pages["permit_type"]==2
+
+
+def test_poor_scan_auto_fallback_records_route_and_preserves_page():
+    cloud=FakeDocumentProvider({"transcription":{"pages":[{"page_number":3,"text":ALT_INSURANCE}]},
+        "classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={3:b"PNG"}):
+        info=process_document("synthetic.pdf",pages=poor_scan_pages(),provider=FakeDocumentProvider({}),fallback_provider=cloud,mode="auto")
+    assert info.extraction_diagnostics["extraction_route"]=="OPENAI_MULTIMODAL"
+    assert info.source_pages["policy_number"]==3 and info.insurance_evidence_type=="private_health_insurance"
+
+
+def test_cloud_diagnostic_mode_actually_sends_images_even_for_native_pdf():
+    cloud=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={1:b"PNG"}):
+        info=process_document("synthetic.pdf",pages=[TextPage(1,QUALITY_INSURANCE)],provider=cloud,mode="cloud")
+    assert info.extraction_diagnostics["extraction_route"]=="OPENAI_MULTIMODAL"
+    assert all(request["images"]=={1:b"PNG"} for request in cloud.calls)
+
+
+def test_cloud_grounding_uses_whole_selected_image_page_without_enlarging_prompt():
+    prefix="Health Insurance Certificate\n" + "Nonessential details. "*350
+    text=prefix+"\n"+QUALITY_INSURANCE
+    cloud=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={1:b"PNG"}):
+        info=process_document("synthetic.pdf",pages=[TextPage(1,text)],provider=cloud,mode="cloud",max_context_chars=1000)
+    assert info.policy_number=="TEST-POL-0001"
+    assert all(len(request["text"])<=1000 for request in cloud.calls)
+    assert info.source_snippets["policy_number"] in text
+
+
+def test_local_schema_metadata_failure_can_trigger_safe_fallback():
+    local=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{"ambiguous_fields":123}})
+    cloud=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={1:b"PNG"}):
+        info=process_document("synthetic.pdf",pages=[TextPage(1,QUALITY_INSURANCE)],provider=local,fallback_provider=cloud,mode="auto")
+    assert info.policy_number=="TEST-POL-0001"
+    assert "SCHEMA_VALIDATION_FAILURE" in info.extraction_diagnostics["failure_categories"]
+    assert info.extraction_diagnostics["fallback_used"]
+
+
+def test_local_classification_failure_can_trigger_fallback():
+    local=FakeDocumentProvider({"classification":DocumentProcessingError("Synthetic invalid JSON",stage="classification")})
+    cloud=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={1:b"PNG"}):
+        info=process_document("synthetic.pdf",pages=[TextPage(1,QUALITY_INSURANCE)],provider=local,fallback_provider=cloud,mode="auto")
+    assert info.holder_name=="Alex Example" and "CLASSIFICATION_FAILURE" in info.extraction_diagnostics["failure_categories"]
+
+
+def test_unresolved_administrative_profile_can_trigger_fallback_but_plain_unknown_does_not():
+    local=FakeDocumentProvider({"classification":{"document_type":"unknown"}})
+    cloud=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={1:b"PNG"}):
+        info=process_document("synthetic.pdf",pages=[TextPage(1,QUALITY_INSURANCE)],provider=local,fallback_provider=cloud,mode="auto")
+    assert info.document_type=="health_insurance_certificate"
+    assert "unresolved_document_profile" in info.extraction_diagnostics["fallback_trigger_reasons"]
+
+
+def test_local_only_overrides_fallback_configuration_and_never_loads_cloud():
+    local=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}})
+    cloud=FakeDocumentProvider({},name="openai",images=True)
+    info=process_document("synthetic.pdf",pages=[TextPage(1,"Health Insurance Certificate")],provider=local,fallback_provider=cloud,mode="local-only")
+    assert not cloud.calls and not info.extraction_diagnostics["fallback_attempted"]
+
+
+def test_auto_without_configuration_keeps_safe_partial_local_result(monkeypatch):
+    monkeypatch.setattr("src.document_processing.processor.cloud_document_configured",lambda:False)
+    info=process_document("synthetic.pdf",pages=[TextPage(1,"Health Insurance Certificate")],
+        provider=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}}),mode="auto")
+    assert info.policy_number is None and not info.extraction_diagnostics["fallback_attempted"]
+
+
+def test_benchmark_comparison_reports_normalized_matches_and_values_only_on_request():
+    from src.document_processing.processor import evaluate_documents
+    info=process_document("synthetic.txt",pages=[TextPage(1,ALT_INSURANCE)],provider=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}}),mode="local-only")
+    cases=[{"document_path":"synthetic.txt","expected_document_type":"health_insurance_certificate","expected_critical_fields":{"holder_name":"ALEX   EXAMPLE","coverage_end_date":"30.09.2027"}}]
+    redacted=evaluate_documents(cases,processor=lambda path:info)[0]
+    assert redacted["critical_field_normalized_match"]=={"holder_name":True,"coverage_end_date":True}
+    assert "Alex Example" not in json.dumps(redacted)
+    detailed=evaluate_documents(cases,processor=lambda path:info,include_values=True)[0]
+    assert detailed["extracted_fields"]["holder_name"]=="Alex Example"
+    assert detailed["expected_fields"]["coverage_end_date"]=="30.09.2027"
+    assert "source_evidence" not in json.dumps(detailed)
+
+
+def test_benchmark_compare_cli_runs_all_three_modes(tmp_path,capsys):
+    import sys
+    from src.document_processing.processor import main
+    manifest=tmp_path/"synthetic.json"
+    manifest.write_text(json.dumps([{"document_path":"synthetic.txt","expected_document_type":"unknown","expected_critical_fields":{}}]),encoding="utf-8")
+    with patch.object(sys,"argv",["processor","--evaluate",str(manifest),"--compare"]),patch("src.document_processing.processor.process_document",return_value=UnknownDocument()) as processor:
+        main()
+    assert [call.kwargs["mode"] for call in processor.call_args_list]==["local-only","auto","cloud"]
+    assert len(json.loads(capsys.readouterr().out))==3
+
+
+def test_complete_native_evidence_avoids_cloud_despite_irrelevant_bad_scan():
+    local=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}})
+    cloud=FakeDocumentProvider({},name="openai",images=True)
+    pages=[TextPage(1,QUALITY_INSURANCE),*poor_scan_pages(9)]
+    info=process_document("mixed.pdf",pages=pages,provider=local,fallback_provider=cloud,mode="auto")
+    assert info.policy_number=="TEST-POL-0001" and not cloud.calls
+    assert not info.extraction_diagnostics["fallback_attempted"]
+
+
+def test_partial_native_evidence_is_not_replaced_by_vision_transcription():
+    native="Health Insurance Certificate\nInsured: Alex Example\nInsurer: Example Insurance\nPolicy number: SYN-2026-002"
+    recovered="Coverage start: 01.10.2026\nCoverage end: 30.09.2027"
+    local=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}})
+    cloud=FakeDocumentProvider({"transcription":{"pages":[{"page_number":3,"text":recovered}]},
+        "classification":{"document_type":"health_insurance_certificate"},"extraction":{}},name="openai",images=True)
+    with patch("src.document_processing.processor.render_pdf_pages",return_value={3:b"scan",1:b"native"}):
+        info=process_document("mixed.pdf",pages=[TextPage(1,native),*poor_scan_pages(3)],provider=local,fallback_provider=cloud,mode="auto")
+    assert cloud.calls[0]["images"]=={3:b"scan"}
+    assert info.policy_number=="SYN-2026-002" and info.coverage_end_date==date(2027,9,30)
+    assert info.source_pages["holder_name"]==1 and info.source_pages["coverage_end_date"]==3
+    assert info.source_snippets["holder_name"] in native
+
+
+def test_document_fallback_does_not_depend_on_later_legal_coverage_failure():
+    expired=QUALITY_INSURANCE.replace("01.10.2026","01.10.2020").replace("30.09.2027","30.09.2021")
+    local=FakeDocumentProvider({"classification":{"document_type":"health_insurance_certificate"},"extraction":{}})
+    cloud=FakeDocumentProvider({},name="openai",images=True)
+    info=process_document("expired.pdf",pages=[TextPage(1,expired)],provider=local,fallback_provider=cloud,mode="auto")
+    assert info.coverage_end_date==date(2021,9,30) and not cloud.calls
+
+
+def test_new_provider_environment_names_override_legacy_without_model_literals():
+    import os,subprocess,sys
+    env=dict(os.environ)
+    env.update(DOCUMENT_AI_PROVIDER="auto",OPENAI_DOCUMENT_MODEL="configured-image-model",OPENAI_MODEL="legacy-image-model")
+    run=subprocess.run([sys.executable,"-c","import config;print(config.DOCUMENT_AI_PROVIDER,config.OPENAI_DOCUMENT_MODEL)"],
+        env=env,capture_output=True,text=True,check=True,timeout=30)
+    assert run.stdout.strip()=="auto configured-image-model"
+
+
+def test_auto_without_document_model_does_not_enable_cloud(monkeypatch):
+    from src.document_processing import providers
+    monkeypatch.setenv("OPENAI_API_KEY","synthetic-key")
+    monkeypatch.setattr(providers,"OPENAI_DOCUMENT_MODEL","")
+    assert not providers.cloud_document_configured()
+
+
+def test_cloud_transport_failure_is_controlled_and_logs_no_private_error(capsys):
+    from unittest.mock import Mock
+    from src.document_processing.providers import OpenAIProvider
+    client=Mock();client.responses.create.side_effect=ConnectionError("PRIVATE REQUEST DETAILS")
+    provider=OpenAIProvider(model="configured-image-model",client=client)
+    with pytest.raises(DocumentProcessingError,match="request failed"):
+        provider.generate_json(stage="extraction",prompt="Untrusted",schema=DocumentClassification.model_json_schema(),text="PRIVATE SOURCE",images={1:b"png"})
+    assert "PRIVATE" not in capsys.readouterr().err

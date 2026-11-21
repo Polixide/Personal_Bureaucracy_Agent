@@ -76,7 +76,7 @@ def test_delete_preserves_independent_provenance_and_clears_stale_plans(tmp_path
     assert c.passport_expiry_date is None and c.passport_or_foreign_id=="P1234567" and c.is_in_turkiye is True
     assert state["candidate_plan"] is state["approved_plan"] is None
     assert not state["validation_errors"] and state["retry_count"]==0 and state["repair_history"]==[]
-    assert state["run_status"]!="HUMAN_REVIEW_REQUIRED" and len(state["relevant_requirements"])==29
+    assert state["run_status"]!="HUMAN_REVIEW_REQUIRED" and len(state["relevant_requirements"])==24
 
 
 def test_delete_requires_explicit_confirmation(tmp_path):

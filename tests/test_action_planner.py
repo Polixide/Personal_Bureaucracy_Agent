@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 import pytest
+from conftest import wire_planner_sequence
 from config import OLLAMA_MODEL
 from src.agents.planner import create_action_plan, PlannerError
 from src.core.state import ActionPlan, PlanStep
@@ -33,7 +34,7 @@ def response(payload):
 def test_structured_plan_and_unknown_prompt():
     state={"relevant_requirements":evaluate_requirements({})}
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=response(ActionPlan(actions=[action()],summary="Ask for information").model_dump_json())
+        client.return_value.chat.side_effect=wire_planner_sequence([response(ActionPlan(actions=[action()],summary="Ask for information").model_dump_json())],repeat=True)
         plan=create_action_plan(state)
         request=client.return_value.chat.call_args.kwargs
     assert isinstance(plan,ActionPlan)
@@ -53,8 +54,8 @@ def test_invalid_output(content):
 
 def test_unknown_rule_reference():
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=response(ActionPlan(actions=[action()],summary="x").model_dump_json())
-        with pytest.raises(PlannerError,match="Rule ID"): create_action_plan({})
+        client.return_value.chat.side_effect=wire_planner_sequence([response(ActionPlan(actions=[action()],summary="x").model_dump_json())],repeat=True)
+        with pytest.raises(PlannerError,match="candidate"): create_action_plan({})
 
 def test_connection_error():
     with patch("src.agents.planner.Client") as client:
@@ -72,7 +73,7 @@ def test_sorting_and_no_state_mutation():
     state={"relevant_requirements":evaluate_requirements({})}
     before=[r.model_dump() for r in state["relevant_requirements"]]
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=response(ActionPlan(actions=[second,first],summary="x").model_dump_json())
+        client.return_value.chat.side_effect=wire_planner_sequence([response(ActionPlan(actions=[second,first],summary="x").model_dump_json())],repeat=True)
         result=create_action_plan(state)
     assert [a.priority for a in result.actions] == [1,2]
     assert [a.related_rule_id for a in result.actions] == ["R001","R003"]
@@ -93,13 +94,14 @@ def test_planner_transport_is_compact_prioritized_and_preserves_current_gaps():
     state={"residence_permit_context":ResidencePermitContext(is_in_turkiye=True),"relevant_requirements":evaluate_requirements({"residence_permit_context":{"is_in_turkiye":True}})}
     before=deepcopy(state)
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=response(ActionPlan(actions=[action()],summary="Ask about entry").model_dump_json())
+        client.return_value.chat.side_effect=wire_planner_sequence([response(ActionPlan(actions=[action()],summary="Ask about entry").model_dump_json())],repeat=True)
         create_action_plan(state)
         payload=json.loads(client.return_value.chat.call_args.kwargs["messages"][1]["content"])
     assert "requirement_results" not in payload and "state" not in payload
     assert len(payload["canonical_candidates"])<=5
     assert payload["relevant_context"].get("is_in_turkiye") is True
-    assert len(payload["allowed_rule_ids"])<=5
+    assert "allowed_rule_ids" not in payload
+    assert len({row["candidate_id"] for row in payload["canonical_candidates"]})<=5
     assert state==before
 
 
@@ -109,7 +111,7 @@ def test_small_planner_draft_maps_to_canonical_plan_and_records_observable_timin
     payload={"actions":[{"related_rule_id":"R003","title":"Confirm your current location and passport entry","reason":"Location and entry declarations are unknown","action_type":"REQUEST_USER_CONFIRMATION"}],"summary":"Confirm location"}
     state={"relevant_requirements":evaluate_requirements({})}
     with patch("src.agents.planner.Client") as client:
-        client.return_value.chat.return_value=SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)),eval_duration=1234,prompt_eval_count=100)
+        client.return_value.chat.side_effect=wire_planner_sequence([SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)),eval_duration=1234,prompt_eval_count=100)],repeat=True)
         plan=create_action_plan(state)
     assert isinstance(plan,ActionPlan) and plan.actions[0].requires_approval
     assert plan.actions[0].available_in_prototype
@@ -221,3 +223,11 @@ def test_default_shared_timeout_ignores_legacy_planner_override():
     script="import config; import src.agents.planner as p; print(config.OLLAMA_TIMEOUT, p.OLLAMA_TIMEOUT, config.DOCUMENT_OLLAMA_TIMEOUT); assert not hasattr(config, 'PLANNER_TIMEOUT')"
     result=subprocess.run([sys.executable,"-c",script],env=environment,capture_output=True,text=True,check=True,timeout=30)
     assert result.stdout.strip()=="120.0 120.0 180.0"
+
+
+
+def test_task_models_override_independently_without_changing_document_model():
+    import os,subprocess,sys
+    env={**os.environ,'OLLAMA_MODEL':'document-local','ASSISTANT_MODEL':'assistant-local','PLANNER_MODEL':'planner-local'}
+    result=subprocess.run([sys.executable,'-c','import config; print(config.OLLAMA_MODEL, config.ASSISTANT_MODEL, config.PLANNER_MODEL)'],env=env,capture_output=True,text=True,check=True,timeout=15)
+    assert result.stdout.strip()=='document-local assistant-local planner-local'

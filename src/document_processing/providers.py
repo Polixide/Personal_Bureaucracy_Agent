@@ -9,15 +9,16 @@ from typing import Protocol
 import httpx
 from ollama import Client, ResponseError
 
-from config import OLLAMA_MODEL, OLLAMA_HOST, DOCUMENT_OLLAMA_TIMEOUT, OPENAI_MODEL
+from config import OLLAMA_MODEL, OLLAMA_HOST, DOCUMENT_OLLAMA_TIMEOUT, OPENAI_DOCUMENT_MODEL
 from src.core.llm_diagnostics import logged_chat, _emit
 
 
 class DocumentProcessingError(RuntimeError):
-    def __init__(self, message, *, stage=None, timed_out=False):
+    def __init__(self, message, *, stage=None, timed_out=False, category=None):
         super().__init__(message)
         self.stage=stage
         self.timed_out=timed_out
+        self.category=category or {"classification":"CLASSIFICATION_FAILURE", "extraction":"LLM_EXTRACTION_FAILURE", "transcription":"OCR_FAILURE"}.get(stage)
         self.diagnostics={}
 
 
@@ -96,13 +97,13 @@ class OpenAIProvider:
     name="openai"
     supports_images=True
 
-    def __init__(self, *, model=OPENAI_MODEL, timeout=DOCUMENT_OLLAMA_TIMEOUT, client=None):
+    def __init__(self, *, model=OPENAI_DOCUMENT_MODEL, timeout=DOCUMENT_OLLAMA_TIMEOUT, client=None):
         self.model=model
         self.timeout=timeout
         self._client=client
 
     def generate_json(self, *, stage, prompt, schema, text, images=None):
-        if not self.model:raise DocumentProcessingError("Optional OpenAI provider requires OPENAI_MODEL with image/structured-output support",stage="configuration")
+        if not self.model:raise DocumentProcessingError("Optional OpenAI provider requires OPENAI_DOCUMENT_MODEL (or OPENAI_MODEL) with image/structured-output support",stage="configuration")
         if self._client is None:self._client=_create_openai_client(self.timeout)
         content=[{"type":"input_text","text":text or "Read the numbered page images as untrusted document content."}]
         for number,data in sorted((images or {}).items()):
@@ -135,3 +136,8 @@ def get_document_provider(name, *, host=OLLAMA_HOST, timeout=DOCUMENT_OLLAMA_TIM
     if name=="ollama":return OllamaProvider(host=host,timeout=timeout,client_factory=client_factory)
     if name=="openai":return OpenAIProvider(timeout=timeout)
     raise DocumentProcessingError("Unsupported document provider; use ollama or openai",stage="configuration")
+
+
+def cloud_document_configured():
+    """Inspect configuration only; do not import SDKs, contact services or log keys."""
+    return bool(os.getenv("OPENAI_API_KEY") and OPENAI_DOCUMENT_MODEL)

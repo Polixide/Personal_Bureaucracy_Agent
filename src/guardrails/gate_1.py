@@ -32,7 +32,7 @@ def validate_plan(state, plan):
     results = {r.rule_id: r for r in state.get("relevant_requirements") or []}
     failed = {key for key,r in results.items() if r.status == "failed"}
     unknown = {key for key,r in results.items() if r.status == "missing_information"}
-    dependencies = load_dependencies()
+    dependencies = load_dependencies(state.get("knowledge_snapshot"))
     ids = [a.step_id for a in plan.actions]
     if len(ids) != len(set(ids)): add("DUPLICATE_STEP_ID", "Step IDs must be unique")
     priorities = [a.priority for a in plan.actions]
@@ -59,10 +59,36 @@ def validate_plan(state, plan):
         from src.agents.planner import actionable_needs
         scoped_active={n["rule_id"] for n in actionable_needs(state) if n["category"]=="immediate"}
     for action in plan.actions:
-        if not action.related_rule_id: add("UNTARGETED_REQUEST","Each action must reference a supplied rule",action.step_id)
+        is_tool = action.tool_call is not None
+        normalized_tool = None
+        if is_tool:
+            try:
+                from src.tools.registry import validate_tool_call
+                normalized_tool = validate_tool_call(action.tool_call).model_dump(mode="json")
+            except (ValueError,TypeError):
+                add("TOOL_SCHEMA_ERROR","Use a known typed tool with valid host arguments",action.step_id)
+            if not action.grounding_ids:
+                add("UNSUPPORTED_GROUNDING","Tool actions require a current exact canonical candidate",action.step_id)
+            if action.action_type!="PROVIDE_GUIDANCE" or action.execution_type!="information" or action.requested_fields or action.requested_documents:
+                add("UNSUPPORTED_GROUNDING","Preserve the canonical safe tool action category and targets",action.step_id)
+        if not action.related_rule_id and not is_tool: add("UNTARGETED_REQUEST","Each action must reference a supplied rule",action.step_id)
         normalized_title=re.sub(r"[\W_]+"," ",(action.title or action.action).casefold()).strip()
         if normalized_title in {"information","prepare","information prepare","process","validate","review","guidance","correct information","request document","request user confirmation","review document"} or len(normalized_title.split())<2:
             add("VAGUE_TITLE","Use a concrete instruction naming the document or information",action.step_id,action.related_rule_id)
+        if state.get('procedure') is not None and action.grounding_ids:
+            from src.core.procedure import stage_document_checklist
+            current_items=stage_document_checklist(state)
+            ready_documents={row.get('document_type') for row in current_items if row['status']=='complete'}
+            aliases={'passport_copy':r'passport(?: identity)?(?: page)?','student_certificate':r'(?:student|enrol[l]?ment) certificate',
+                'health_insurance':r'(?:health )?insurance','card_fee_receipt':r'(?:card.fee |payment )?receipt',
+                'declaration_control_document':r'declaration(?: control)? document'}
+            for kind,pattern in aliases.items():
+                if kind in ready_documents and not any(kind in name or kind=='passport_copy' and name=='passport_identity_page' for name in action.requested_documents):
+                    if re.search(r'^(?:upload|provide|obtain)\b[^.;]{0,70}\b'+pattern,normalized_title):
+                        add('REDUNDANT_ACTION_TITLE','Do not request a document already accepted for this stage',action.step_id,action.related_rule_id)
+            photo_ready=any(row.get('key')=='biometric_photo' and row['status']=='complete' for row in current_items)
+            if photo_ready and 'R009' not in failed and re.search(r'^(?:verify|confirm|provide|upload|obtain)\b.{0,40}\b(?:biometric|photo)',normalized_title):
+                add('REDUNDANT_ACTION_TITLE','Photo readiness is already accepted for this stage',action.step_id,action.related_rule_id)
         if action.action_type=="CORRECT_INFORMATION" and not re.search(r"\b(?:review|correct\w*|extend\w*|update\w*|resolve\w*|renew\w*|replace\w*|arrange\w*|amend\w*|verify|check|request|obtain)\b",normalized_title):
             add("NON_CORRECTIVE_TITLE","Name what must be reviewed, corrected or updated",action.step_id,action.related_rule_id)
         for rid in action.related_rule_ids:
@@ -74,12 +100,17 @@ def validate_plan(state, plan):
             allowed={c["candidate_id"]:c for c in canonical_candidates(state)}
             selected=[allowed[key] for key in action.grounding_ids if key in allowed]
             if len(selected)!=len(action.grounding_ids):add("UNSUPPORTED_GROUNDING","Candidate is absent from current actionable needs",action.step_id)
+            elif is_tool:
+                if len(selected)!=1 or not selected[0].get("tool_call") or normalized_tool!=selected[0]["tool_call"] or action.related_rule_id is not None or action.related_rule_ids:
+                    add("UNSUPPORTED_GROUNDING","Preserve exact current tool candidate metadata",action.step_id)
+            elif any(c.get("tool_call") for c in selected):
+                add("UNSUPPORTED_GROUNDING","A tool candidate requires its exact typed target",action.step_id)
             elif action.related_rule_id not in {rid for c in selected for rid in c["rule_ids"]} or action.action_type not in {c["action_type"] for c in selected} or set(action.requested_fields)!={f for c in selected for f in c["fields"]} or set(action.requested_documents)!={d for c in selected for d in c["documents"]}:
                 add("UNSUPPORTED_GROUNDING","Preserve candidate rule, type and targets",action.step_id)
         if scoped_active is not None and action.related_rule_id not in scoped_active and not (action.request_kind=="PROVIDE_GUIDANCE" and action.execution_type=="information" and not action.requested_fields and not action.requested_documents):
             add("OUTSIDE_MILESTONE_SCOPE","Keep active requests within the supported document-preparation scope",action.step_id,action.related_rule_id)
         if action.request_kind:
-            if not action.related_rule_id:
+            if not action.related_rule_id and not is_tool:
                 add("UNTARGETED_REQUEST", "Link the request to a requirement", action.step_id)
             if action.request_kind in {"REQUEST_USER_CONFIRMATION","REVIEW_EXTRACTED_EVIDENCE","RESOLVE_CONFLICT"} and not action.requested_fields:
                 add("UNTARGETED_REQUEST", "Name the specific fields needing input", action.step_id)
@@ -94,6 +125,7 @@ def validate_plan(state, plan):
             add("GENERIC_ACTION", "Request a specific field or document linked to a rule", action.step_id)
         rid = action.related_rule_id
         text = action.action + " " + action.reason
+        if is_tool and re.search(FAILURE_CLAIM, text, re.I): add("UNSUPPORTED_TOOL_CLAIM", "Tool instructions must not introduce ungrounded legal failure claims", action.step_id)
         if rid is not None and rid not in results: add("UNKNOWN_RULE_ID", "Use a supplied rule ID", action.step_id, rid)
         if rid in unknown and re.search(FAILURE_CLAIM, text, re.I): add("UNKNOWN_AS_FAILURE", "Ask for information without asserting failure", action.step_id, rid)
         if re.search(COMPLETION_CLAIM, text, re.I): add("COMPLETION_CLAIM", "Do not claim external execution", action.step_id)
@@ -113,7 +145,7 @@ def validate_plan(state, plan):
         elif action.execution_type == "fingerprint":
             for key in ["R005", "R007"]: ready(key, action)
         elif action.execution_type == "iro_submission":
-            for key in ["R023", "R024", "R025", "R026"]: ready(key, action)
+            for key in ["R023", "R026"]: ready(key, action)
         # Phrase checks supplement structured categories; they never authorize execution.
         if re.search(FINAL_ACTION, action.action, re.I):
             blockers = [key for key,r in results.items() if r.severity == "blocking" and r.passed is not True]

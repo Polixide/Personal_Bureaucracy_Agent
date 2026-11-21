@@ -7,7 +7,7 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from config import DATABASE_PATH, PROJECT_ROOT
-from src.core.state import CHECKPOINT_TYPES
+from src.core.state import CHECKPOINT_TYPES, ProcedureState
 
 
 @contextmanager
@@ -32,8 +32,25 @@ def sqlite_checkpointer(db_path: str | Path = DATABASE_PATH):
 
 
 
-def reset_thread(thread_id: str, confirmation: str, db_path: str | Path = DATABASE_PATH):
-    """Delete only the named thread checkpoints. Upload files are retained safely."""
-    if not thread_id or confirmation!=thread_id: raise ValueError("Type the exact current thread ID to confirm reset")
-    with sqlite_checkpointer(db_path) as saver:
-        saver.delete_thread(thread_id)
+def reset_thread(thread_id: str, confirmation: str, db_path: str | Path = DATABASE_PATH,
+                 record_path: str | Path | None = None):
+    """Neda reset lifecycle: named checkpoints plus mirror, uploads retained."""
+    from src.memory.twin_store import TwinStore
+    if not thread_id or confirmation!=thread_id:raise ValueError("Type the exact current thread ID to confirm reset")
+    with sqlite_checkpointer(db_path) as saver:saver.delete_thread(thread_id)
+    with TwinStore(record_path or (PROJECT_ROOT/Path(db_path)).resolve()) as store:store.delete_user(thread_id)
+
+
+def initialize_procedure_thread(graph, config):
+    """Initialize only a genuinely absent checkpoint; never infer a legacy stage.
+
+    Call at a thread-opening boundary, not in new_run or a worker. An existing
+    empty/legacy checkpoint is still existing, even without ProcedureState.
+    """
+    snapshot = graph.get_state(config)
+    if snapshot.created_at is None:
+        # Attribute this checkpoint-only write to the terminal node so opening
+        # an empty thread does not schedule Gate 0 without an input event.
+        graph.update_state(config, {"procedure": ProcedureState()}, as_node="respond")
+        return graph.get_state(config)
+    return snapshot

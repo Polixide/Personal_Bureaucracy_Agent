@@ -1,10 +1,10 @@
 """Adapt semantic extraction to canonical documents without legal conclusions."""
 from src.core.state import AgentState
-from src.document_processing.processor import process_document
+from src.document_processing.processor import cached_process_document as process_document
 
 TYPE_MAP = {"student_enrollment_certificate": "student_certificate",
             "health_insurance_certificate": "health_insurance",
-            "ikamet_application_form": "ikamet_application_form", "passport_identity_page":"passport_copy", "turkiye_entry_stamp":"turkiye_entry_stamp", "declaration_control_document":"declaration_control_document", "card_fee_receipt":"card_fee_receipt", "unknown": "unknown"}
+            "ikamet_application_form": "ikamet_application_form", "passport_identity_page":"passport_copy", "turkiye_entry_stamp":"turkiye_entry_stamp", "declaration_control_document":"declaration_control_document", "card_fee_receipt":"card_fee_receipt", "utility_bill":"utility_bill", "address_form":"address_form", "unknown": "unknown"}
 
 
 def document_analyzer(state: AgentState, *, processor=None) -> dict:

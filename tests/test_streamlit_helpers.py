@@ -97,7 +97,7 @@ def test_model_and_dict_access_for_requirement_plan_and_issue():
 
 @pytest.mark.parametrize("internal,label", [
     ("VALIDATED", "Plan validated"), ("APPROVED", "Proposed plan approved"),
-    ("HUMAN_REVIEW_REQUIRED", "HUMAN_REVIEW_REQUIRED"), ("FUTURE_STATUS", "FUTURE_STATUS"),
+    ("HUMAN_REVIEW_REQUIRED", "We need your help to resolve an issue."), ("FUTURE_STATUS", "Future status"),
 ])
 def test_status_labels_are_presentation_only(internal, label):
     state = {"run_status": internal}
@@ -132,6 +132,6 @@ def test_unknown_scope_summary_keeps_legal_status_and_canonical_state():
     before=deepcopy(state)
     groups=unknown_requirement_groups(state)
     assert "R006" in groups["immediate"]
-    assert "R022" in groups["future"] and "R017" in groups["outside_scope"] and "R027" in groups["guardrail_only"]
+    assert "R022" in groups["future"] and "R017" in groups["outside_scope"] and "R028" in groups["guardrail_only"]
     assert state==before
     assert all(r.status=="missing_information" for r in state["relevant_requirements"])

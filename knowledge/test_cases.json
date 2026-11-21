@@ -1,5 +1,5 @@
 {
-  "dataset_version": "1.0.0",
+  "dataset_version": "2.0.0",
   "tests": [
     {
       "id": "T01",
@@ -127,14 +127,6 @@
         "all_core_documents_present": true
       },
       "expected": "PASS"
-    },
-    {
-      "id": "T14",
-      "rule": "R027",
-      "input": {
-        "approval_status": "guaranteed"
-      },
-      "expected": "FAIL"
     },
     {
       "id": "T15",

@@ -78,6 +78,34 @@
       "title": "Visa and Residence Permit – Exchange Students",
       "url": "https://exchange.bilkent.edu.tr/visa-and-residence-permit/",
       "retrieved_at": "2026-11-05"
+    },
+    {
+      "source_id": "SAB_IRO_TEAM_ADDRESS_INSTRUCTION",
+      "title": "Direct Sabanci IRO address instruction supplied by the project team",
+      "url": null,
+      "authority_level": "sabanci_direct_instruction",
+      "source_type": "team_supplied_direct_iro_instruction",
+      "retrieved_at": null,
+      "recorded_at": "2026-11-20",
+      "notes": "The team reports receiving and using utility bill + completed Address Form. No public URL, exact instruction date or universal legal acceptance is claimed."
+    },
+    {
+      "source_id": "MFA_VISA_COUNTRY",
+      "title": "MFA nationality-specific visa information",
+      "url": "https://www.mfa.gov.tr/visa-information-for-foreigners.en.mfa",
+      "authority_level": "government_primary",
+      "retrieved_at": "2026-11-20",
+      "source_type": "official_webpage",
+      "notes": "Checked for the limited V2 arithmetic profiles; applicability still depends on accepted individual entry status."
+    },
+    {
+      "source_id": "MFA_VISA_GENERAL",
+      "title": "MFA general visa information and rolling stay limits",
+      "url": "https://www.mfa.gov.tr/general-information-about-turkish-visas.en.mfa",
+      "authority_level": "government_primary",
+      "retrieved_at": "2026-11-20",
+      "source_type": "official_webpage",
+      "notes": "Checked for the limited V2 arithmetic profiles; applicability still depends on accepted individual entry status."
     }
   ]
 }
