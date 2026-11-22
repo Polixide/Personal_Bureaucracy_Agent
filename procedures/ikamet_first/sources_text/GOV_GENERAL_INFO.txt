@@ -1,10 +1,76 @@
 SOURCE: Residence Permit General Information (Presidency of Migration Management)
 URL: https://www.goc.gov.tr/ikamet-genel-bilgiler/
-RETRIEVED: 2026-11-05
+RETRIEVED: 2026-11-19
+SHA256: 463e0fbf377d896fcc585eef447ed481db013dbd7a2cb5f75a08d2ddff3d2354
 
-NOTE: This file is NOT a copy of the official page. It was compiled from the pack's rules.json
-(the rule descriptions and notes that cite this source). Replace it with the saved page text.
+İkamet Genel Bilgiler
 
-Requirements recorded from this source:
-- R005 (official_eikamet_channel): Use the official e-İkamet channel for the online application.
-- R029 (track_after_submission): After IRO submission, application status should be tracked through official e-İkamet.
+Ulusal hukuk ve uluslararası hukuk kurallarının uygulanmasında paralelliğin sağlanması; insan hakkı ihlallerinin önlenmesi ve insana yaraşır bir sistemin oluşturulması bağlamında önem taşımaktadır. Bu kapsamda ülkemizde bulunan yabancılar çeşitli hak ve yükümlülüklere sahiptir. İkamet izinleri bu hak ve yükümlülükler çerçevesinde yabancıların ülkemizde kalışını yasal bir zemine oturtmaktadır.
+
+6458 sayılı Yabancılar ve Uluslararası Koruma Kanununa (YUKK’a) göre ikamet izni Türkiye’de kalmak üzere verilen izin belgesini ifade etmektedir. Yetkili makamlar tarafından düzenlenen bu izin belgesi yabancıya ülkemizde belirli bir süreliğine ve belirli bir yerde yaşama hakkı sağlamaktadır. Kamusal düzenin sağlanması ve korunması açısından önem arz eden ikamet izni; yabancının talepte bulunması, istenilen evraklarla başvurması ve talepte bulunduğu ikamet izni türünde şartları taşıması halinde düzenlenmektedir.
+
+İkamet izni Türkiye’de kalmak isteyen yabancılara verilen izin belgesidir. Ülkemizde vize veya vize muafiyetinin tanıdığı süreden ya da doksan günden fazla kalacak yabancıların, e-ikamet sistemi üzerinden, şartlarını taşıdığını düşündüğü ikamet izni türüne müracaatta bulunmaları zorunludur. Başvurusunun tamamlayan yabancılar sistem tarafından belirlenen randevu gününde, yaşamak istedikleri ilde bulunan il/ilçe göç idaresi müdürlüğünde hazır bulunmalıdırlar. Geçerli bir mazereti olmaksızın randevu gününde il/ilçe göç idaresi müdürlüğünde hazır bulunmayan yabancılar, hiç başvuruda bulunmamış sayılırlar. Geçerli mazeretin tespitinde idarece bir takım bilgi ve belgeler talep edilebilir. İkamet izni uzatma başvuruları da kural olarak aynı usulle yapılmaktadır.
+
+Yabancılar İletişim Merkezi (YİMER):
+
+Yabancılar ikamet iznine ilişkin soru ve sorunlar için Yabancılar İletişim Merkezi'nin (YİMER) yurt içinden 157 ve yurt dışından +90 312 157 11 22 numaralı telefonlarından ayrıntılı bilgi alınabilmektedir.
+
+İkamet İzni Başvurusu
+
+Ülkemizde vizenin veya vize muafiyetinin tanıdığı süreden ya da doksan günden fazla kalacak yabancıların ikamet izni alması zorunludur. Kanunda öngörüldüğü şekilde ikamet izni başvurularının yabancıların vatandaşı olduğu ya da yasal olarak bulunduğu ülkedeki konsolosluklardan alınması yakın bir zamanda mümkün olacak olup bu durum ayrıca duyurulacaktır. Bu aşama gerçekleşene kadar yabancıların ikamet izni başvuruları ikamet edilmek istenilen il valiliğince alınmaktadır.
+Anılan Kanun ile ikamet izni başvurularında refakat uygulaması kaldırılmış olup her yabancının başvurusu ve izin belgesi ayrı olarak düzenlenmektedir. Ayrıca ikamet izni başvuruları yabancı tarafından bizzat yapılabileceği gibi yabancının yasal temsilcisi ya da avukatı aracılığıyla da yapılabilecektir. Fakat bu hususta idare gerekli görmesi halinde başvuru sırasında yabancının hazır bulunmasını da isteyebilir.
+
+e-İkamet Sistemi
+
+6458 sayılı Yabancılar ve Uluslararası Koruma Kanununun 30 uncu maddesinde altı çeşit ikamet izni düzenlenmiş olup ilk, uzatma ve geçiş başvuruları için e-İkamet sistemi ( https://e-ikamet.goc.gov.tr/ ) üzerinden online başvuru alınmaktadır.
+
+İlk, Uzatma ve Geçiş Başvuruları
+
+İlk ve geçiş başvuruları için yabancının e-İkamet sistemi üzerinden ikamet izni başvurusunda bulunması ve kendisine verilen randevu tarih ve saatinde bulunduğu ildeki İl Göç İdaresi Müdürlüğüne istenilen evraklarla başvurması ( https://e-ikamet.goc.gov.tr/Ikamet/IstenenBelgeler ) gerekmektedir.
+İkamet izni uzatma başvuruları, ikamet izin süresinin dolmasına altmış gün kalmasından itibaren ve her koşulda ikamet izni süresi dolmadan önce yapılmaktadır.
+
+Çalışma İzninin İkamet İzni Sayılması
+
+Anılan Kanun çerçevesinde çalışma izni ikamet izni yerine geçmektedir yani çalışma izni sahibi yabancı çalışma izni süresince ikamet izni almadan ülkemizde kalma hakkı elde etmektedir.
+
+Sağlık Sigortası Şartı
+
+Geçerli sağlık sigortası, istenilen ikamet izni süresini kapsamalıdır. Aşağıda yer alan sağlık sigortalarından biri yeterli sayılmaktadır:
+
+1-İkili sosyal güvenlik sözleşmeleri kapsamında Türkiye'de sağlık hizmetlerinden faydalanıldığına dair il sosyal güvenlik biriminden alınan e-imzalı/imzalı ve mühürlü/kaşeli belge,
+
+2-Sosyal Güvenlik Kurumundan alınmış e-imzalı/imzalı ve mühürlü/kaşeli provizyon belgesi (SGKdan getirilecek provizyon belgeleri aile ikamet izinlerinde hem destekleyici hem de aile bireylerini kapsayacak biçimde olmalıdır.),
+
+3-Sosyal Güvenlik Kurumuna Genel Sağlık Sigortalısı olmak için yapılan başvuruya dair e-imzalı/imzalı ve mühürlü/kaşeli belge,
+
+4-Özel Sağlık Sigortası.
+
+İkamet İzni Harcı
+
+İkamet izni harcı 492 sayılı Harçlar Kanununda düzenlenmiş olup yabancılardan bu Kanun gereği harç alınmaktadır. İkamet izni süresi bittikten sonra uzatma başvurusu yapılmaması durumunda ikamet izni olmaksızın Türkiye de geçirilen süreler için 492 sayılı Harçlar Kanunun 83 üncü maddesi gereği ikamet izni harcı bir kat fazlası ile tahsil edilmektedir.
+
+Türkiye’de Kalınacak Adres
+
+Yabancı Türkiyede kalacağı adres bilgilerini vermek zorunda olmakla birlikte yabancının Türkiyede kalacağı adres, sabit bir adres veya konaklama tesisine ait adreslerden biri olabilir. Ancak, her halükarda yabancının adres bilgilerini doğru ve eksiksiz olarak beyan etmesi gerekmektedir. Ayrıca ikamet izni belgesinin adrese ulaştırılabilmesi için adres, telefon numarası veya e-posta bilgilerinin güncel olması gerekmektedir.
+
+İkamet izni süresi içerisinde adres bilgilerinin değişmesi halinde, 20 (yirmi) iş günü içerisinde il göç idaresi müdürlüğüne ve il nüfus ve vatandaşlık işleri müdürlüğüne gerekli belgelerin ibraz edilmesi gerekmektedir.
+
+15 Günlük Çıkış-Giriş Hakkı
+
+İkamet İzni Müracaat Belgesi ilk başvuru sahibi yabancının e-İkamet sistemi üzerinden başvurması ve verilen randevu tarih ve saatinde bulunduğu ildeki İl Göç İdaresi Müdürlüğüne giderek başvurusunu tamamlaması halinde düzenlenmektedir.
+
+İkamet İzni Müracaat Belgesi ikamet izni uzatma başvuru sahibi yabancının e-İkamet sistemi üzerinden başvurusunu tamamlaması halinde sistem tarafından verilmektedir.
+
+Müdürlükçe onaylanmış İkamet İzni Müracaat Belgesi ve harç makbuzuyla birlikte yabancı 15 gün içerisinde giriş yapmak kaydıyla ülkemizden çıkış yapabilmektedir. Ancak 15 günden fazla yurt dışında kalınması halinde yabancıya ülkemize tekrar girişte vize hükümleri uygulanmaktadır.
+
+İkamet İzninin Sonuçlandırılması
+
+Anılan Kanunun 21 inci maddesine göre ikamet izni başvuruları en geç doksan gün içinde sonuçlandırılmaktadır.
+
+Ayrıca Yabancılar ve Uluslararası Koruma Kanunun Uygulanmasına İlişkin Yönetmeliğinin 22'nci maddesine göre doksan günlük süre, bilgi ve belgelerin tam olarak yetkili makama teslim edildiği tarihten başlamaktadır. Sürenin uzaması halinde yabancıya bilgi verilmektedir
+
+Sahte Belgeye İlişkin Uyarı
+
+Yabancılara ilişkin iş ve işlemlerde Göç İdaresi Başkanlığı üçüncü gerçek kişi ve/veya tüzel kişiler ile çalışmamaktadır. Belli bir ücret karşılığında iş yapan şahıs veya firmalar tarafından ikamet izni başvurularında kullanılmak üzere sahte belge üretildiği tespit edilmiştir. Bu kapsamda ikamet izni başvurularının bizzat yapılması ve üçüncü gerçek ve/veya tüzel kişilere itibar edilmemesi gerekmektedir.
+
+Daha fazla göster

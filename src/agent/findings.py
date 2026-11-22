@@ -21,9 +21,13 @@ def section_fields(pack: Pack, section_id: str) -> set[str]:
 
 
 def question_for(pack: Pack, field: str) -> str:
+    """The question for a field; a derived field (an age, a duration) is asked through the fields it uses."""
     spec = pack.field(field)
     if spec is not None and spec.question:
         return spec.question
+    derived = next((rule for rule in pack.procedure.derived if rule.field == field and rule.args), None)
+    if derived is not None:
+        return " ".join(question_for(pack, name) for name in derived.args)
     return "Please provide: " + field.replace("_", " ")
 
 

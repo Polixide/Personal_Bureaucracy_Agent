@@ -3,7 +3,8 @@
 ## What it does
 The Twin is the agent's environment: a SQLite database holding what is known about one user for one procedure.
 It stores documents, facts (with provenance and validity dates), events, proposed actions, sandbox simulations,
-episodes and run logs. `facts.py` turns the stored facts into the values the rule engine may use.
+episodes and run logs, including the rule verdicts at the end of each run (`run_results`, Neda's
+`run_requirements`), so progress across sessions can be read back. `facts.py` turns the stored facts into the values the rule engine may use.
 
 ## Where it sits in the flow
 - **`service.py` is the real → twin path:**
@@ -47,5 +48,8 @@ python -m pytest -q tests/test_twin_store.py tests/test_twin_facts.py tests/test
 ## Known limits
 - **Restating a value.** A new chat statement for a field replaces an earlier confirmed chat statement for that
   field; the user must confirm again. This is deliberate.
-- **Old schema.** Schema v1 files (Neda's milestone-1 store) are refused, not migrated; no such data exists.
+- **Schema versions.** v3 (2026-11-19) added `run_results`; v4 (2026-11-20) added `chat_messages` (the
+  assistant's conversation: role, text, procedure, trace id, JSON details such as cited sources and recorded facts;
+  deleted with the user, or with "Clear the conversation"). A v2 or v3 file gains the missing tables on open, with
+  its data kept (`MIGRATIONS` in `store.py`). Schema v1 files (Neda's milestone-1 store) are refused; no such data exists.
 - **Concurrency.** One process at a time per database file. This is a local prototype.

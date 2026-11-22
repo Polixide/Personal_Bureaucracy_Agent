@@ -20,15 +20,23 @@ def no_procedure_answer(ctx: ToolContext) -> FinalAnswer:
 
 
 def _actions(pack: Pack, results: list[RuleResult]) -> list[NextAction]:
-    """Blocking failures first, then the first missing information of blocking unknown rules."""
+    """Blocking failures first, then the first missing information of blocking unknown rules.
+
+    A question that several rules wait for (for example the reason of the application) is asked once.
+    """
     actions = []
     for result in results:
         if result.status == "fail" and result.severity == "blocking":
             name = pack.rule(result.rule_id).name.replace("_", " ") or result.rule_id
             actions.append(NextAction(title=f"Correct the problem with {name} ({result.rule_id})", ref=result.rule_id))
+    asked: set[str] = set()
     for result in results:
         if result.status == "unknown" and result.severity == "blocking" and result.missing_fields:
-            actions.append(NextAction(title=question_for(pack, result.missing_fields[0])[:240], ref=result.rule_id))
+            field = next((name for name in result.missing_fields if name not in asked), None)
+            if field is None:
+                continue
+            asked.add(field)
+            actions.append(NextAction(title=question_for(pack, field)[:240], ref=result.rule_id))
     return actions[:MAX_NEXT_ACTIONS]
 
 

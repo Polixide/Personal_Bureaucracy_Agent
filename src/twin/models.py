@@ -104,6 +104,14 @@ class Episode(BaseModel):
     created_at: datetime | None = None
 
 
+class RunRuleResult(BaseModel):
+    """One rule verdict saved with a run."""
+    rule_id: str
+    status: Literal["pass", "fail", "unknown"]
+    severity: str
+    missing_fields: list[str] = Field(default_factory=list)
+
+
 class RunRecord(BaseModel):
     """Summary of one agent run (used by evaluation)."""
     trace_id: str
@@ -120,3 +128,16 @@ class RunRecord(BaseModel):
     started_at: datetime
     finished_at: datetime
     issues: list[Issue] = Field(default_factory=list)
+    results: list[RunRuleResult] = Field(default_factory=list)
+
+
+class ChatMessage(BaseModel):
+    """One message of the conversation with the assistant. `details`: sources, recorded facts, run status."""
+    user_id: str
+    role: Literal["user", "assistant"]
+    content: str
+    procedure_id: str | None = None
+    trace_id: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    message_id: int | None = None
+    created_at: datetime | None = None

@@ -24,12 +24,12 @@ from src.agent.prompts import ORCHESTRATOR_SYSTEM, orchestrator_intro
 from src.agent.worker import DELEGATE_SPEC, run_worker
 from src.llm import Backend, short_validation_error, to_json
 from src.memory.episodes import lessons_for, record_repairs
-from src.models import Issue, Pack
+from src.models import Issue, Pack, RuleResult
 from src.tools.common import ToolContext, ToolSpec
 from src.tools.evaluate_rules import current_results
 from src.tools.registry import build_registry, run_tool, tools_for
 from src.twin.codec import utc_now
-from src.twin.models import RunRecord
+from src.twin.models import RunRecord, RunRuleResult
 from src.twin.store import TwinStore
 
 
@@ -235,13 +235,17 @@ def make_context(store: TwinStore, packs: dict[str, Pack], user_id: str, today: 
                        procedure_id=active if active in packs else None, outbox_dir=outbox_dir, trace_id=uuid4().hex)
 
 
-def log_result(store: TwinStore, user_id: str, goal: str, result: AgentResult, started) -> None:
+def log_result(store: TwinStore, user_id: str, goal: str, result: AgentResult, started,
+               results: list[RuleResult] | None = None) -> None:
+    """Save the run, its Gate 1 issues and the rule verdicts at its end (memory across sessions)."""
     summary = result.answer.summary if result.answer else (result.question or "")
+    verdicts = [RunRuleResult(rule_id=r.rule_id, status=r.status, severity=r.severity, missing_fields=r.missing_fields)
+                for r in results or []]
     store.log_run(RunRecord(trace_id=result.trace_id, user_id=user_id, procedure_id=result.procedure_id, goal=goal,
                             status=result.status, llm_calls=result.llm_calls, steps=len(result.steps),
                             repairs=result.repairs, fallback_used=result.fallback_used,
                             needs_human_review=result.needs_human_review, summary=summary[:500],
-                            started_at=started, finished_at=utc_now(), issues=result.gate_issues))
+                            started_at=started, finished_at=utc_now(), issues=result.gate_issues, results=verdicts))
 
 
 def run_agent(goal: str, store: TwinStore, packs: dict[str, Pack], user_id: str, today: date, backend: Backend,
@@ -269,5 +273,5 @@ def run_agent(goal: str, store: TwinStore, packs: dict[str, Pack], user_id: str,
     state = orchestrator.graph().invoke(orchestrator.initial_state(goal, lessons),
                                         {"recursion_limit": AGENT_RECURSION_LIMIT})
     result = orchestrator.result(state)
-    log_result(store, user_id, goal, result, started)
+    log_result(store, user_id, goal, result, started, current_results(ctx) if ctx.pack() else [])
     return result

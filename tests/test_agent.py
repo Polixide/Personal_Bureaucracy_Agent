@@ -71,6 +71,15 @@ def test_fallback_keeps_the_active_procedure_when_the_goal_names_none(store):
     assert result.status == "fallback" and result.procedure_id == "ikamet_first"
 
 
+def test_fallback_asks_each_question_once_and_derived_values_through_their_inputs(store):
+    """Seen live on 2026-11-19: three rules waiting for the same reason gave the same question three times."""
+    seed(store, {}, procedure_id="tc_kimlik_renewal")
+    result, _ = run(store, [d("no_such_tool"), d("no_such_tool")], goal="I lost my Turkish ID card (TC kimlik)")
+    titles = [action.title for action in result.answer.next_actions]
+    assert result.status == "fallback" and len(titles) == len(set(titles))
+    assert not any("Please provide: applicant age months" in title for title in titles)
+
+
 def test_wrong_claim_is_caught_by_gate_1_and_repaired(store):
     seed(store, PASSPORT_TOO_SHORT)
     wrong = d("final_answer", {"summary": "Your passport is fine.", "claims": [{"rule_id": "R006", "status": "pass"}],

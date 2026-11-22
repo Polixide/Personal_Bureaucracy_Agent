@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://iro.sabanciuniv.edu/en/exchange-students-guide",
+    "topic": "Practical procedures for exchange students in Türkiye (Sabancı University International Relations Office)",
+    "max_depth": 1,
+    "max_pages": 25,
+    "prefix": "/en/",
+    "skip": ["campus-map", "how-get-campus", "test-", "student-testimonials", "student-accomodation", "contact-us"]
+  },
+  {
+    "url": "https://iro.sabanciuniv.edu/en/degree-students-guide",
+    "topic": "Practical procedures for full-time international students in Türkiye (Sabancı University International Relations Office)",
+    "max_depth": 1,
+    "max_pages": 25,
+    "prefix": "/en/",
+    "skip": ["campus-map", "how-get-campus", "test-", "student-testimonials", "student-accomodation", "contact-us"]
+  }
+]

@@ -1,0 +1,485 @@
+[
+  {
+    "rule_id": "TCF001",
+    "name": "card_holder_is_citizen",
+    "section": "eligibility",
+    "description": "The T.C. identity card is issued to Turkish citizens registered in the family register.",
+    "category": "eligibility",
+    "severity": "blocking",
+    "condition": {
+      "op": "is_true",
+      "field": "is_turkish_citizen"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_PROCEDURES"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Kişinin Türk vatandaşı olduğunu ve aile kütüğüne kayıtlı bulunduğunu gösteren ... kimlik kartıdır.\""
+  },
+  {
+    "rule_id": "TCF002",
+    "name": "reason_is_a_first_card",
+    "section": "eligibility",
+    "description": "The reason is one this procedure covers: a birth, newly acquired citizenship, or replacing an old paper nüfus cüzdanı (a lost, expired or damaged chip card: see the renewal procedure).",
+    "category": "eligibility",
+    "severity": "blocking",
+    "condition": {
+      "op": "in",
+      "field": "application_reason",
+      "value": [
+        "birth",
+        "citizenship",
+        "nufus_cuzdani"
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Kimlik kartı; doğum, değiştirme, kayıp, yeniden kayıt ve vatandaşlığın kazanılması nedenleriyle düzenlenir.\" Replacing a nüfus cüzdanı is the \"değiştirme\" reason in NVİ terms."
+  },
+  {
+    "rule_id": "TCF003",
+    "name": "citizenship_registered_first",
+    "section": "eligibility",
+    "description": "For newly acquired citizenship, the citizenship is registered in the family register before the card application.",
+    "category": "prerequisite",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "not",
+          "arg": {
+            "op": "eq",
+            "field": "application_reason",
+            "value": "citizenship"
+          }
+        },
+        {
+          "op": "is_true",
+          "field": "registered_in_family_register"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Türk vatandaşlığının kazanılması nedeniyle kimlik kartı düzenlenmesinde, (kişinin vatandaşlık kazanma olayının aile kütüklerine tescili sonrasında) ...\""
+  },
+  {
+    "rule_id": "TCF004",
+    "name": "address_registered_for_new_citizens",
+    "section": "eligibility",
+    "description": "For newly acquired citizenship, the residence address is registered in MERNİS before the application.",
+    "category": "prerequisite",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "not",
+          "arg": {
+            "op": "eq",
+            "field": "application_reason",
+            "value": "citizenship"
+          }
+        },
+        {
+          "op": "is_true",
+          "field": "residence_address_registered"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_APPOINTMENT_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"MERNİS sisteminde Başvurudan önce mutlaka yerleşim yeri adres kaydı yapılmış olmalıdır.\""
+  },
+  {
+    "rule_id": "TCF005",
+    "name": "photo_id_from_age_15",
+    "section": "identity_photo",
+    "description": "A card holder aged 15 or over brings a valid identity document with a photo, or a parent, spouse, adult sibling or adult child confirms their identity.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "lt",
+          "field": "applicant_age_months",
+          "value": 180
+        },
+        {
+          "op": "is_true",
+          "field": "photo_id_present"
+        },
+        {
+          "op": "is_true",
+          "field": "relative_statement_available"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_PROCEDURES",
+      "NVI_APPOINTMENT_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Fotoğraflı ve geçerli bir kimlik belgesi (Nüfus cüzdanı, kimlik kartı, uluslararası aile cüzdanı, sürücü belgesi, pasaport, geçici kimlik belgesi ...)\" and \"On beş yaşını tamamlayanların fotoğraflı bir kimlik belgesi sunamaması halinde anne, baba, eş, varsa ergin kardeş veya ergin çocuklarının veya vasinin beyanı alınır.\" The second quote is in the \"değiştirme\" answer; its use for births and new citizens must be checked."
+  },
+  {
+    "rule_id": "TCF006",
+    "name": "old_nufus_cuzdani_brought",
+    "section": "identity_photo",
+    "description": "When the card replaces an old paper ID, the nüfus cüzdanı is brought to the application.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "not",
+          "arg": {
+            "op": "eq",
+            "field": "application_reason",
+            "value": "nufus_cuzdani"
+          }
+        },
+        {
+          "op": "is_true",
+          "field": "nufus_cuzdani_present"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_APPOINTMENT_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Değiştirme T.C. Kimlik Kartı Başvurusu İçin Gerekli Evraklar ... Nüfus cüzdanı veya kimlik kartı\""
+  },
+  {
+    "rule_id": "TCF007",
+    "name": "citizenship_announcement_brought",
+    "section": "identity_photo",
+    "description": "For newly acquired citizenship, the official announcement that citizenship was acquired is brought.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "not",
+          "arg": {
+            "op": "eq",
+            "field": "application_reason",
+            "value": "citizenship"
+          }
+        },
+        {
+          "op": "is_true",
+          "field": "citizenship_announcement_present"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_APPOINTMENT_FAQ",
+      "NVI_TCKK_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Türk vatandaşlığının kazanıldığına dair duyuru belgesi\"; the FAQ also asks for \"kimliğini ispatlayan pasaport benzeri bir belge\"."
+  },
+  {
+    "rule_id": "TCF008",
+    "name": "recent_biometric_photo",
+    "section": "identity_photo",
+    "description": "A biometric photo taken in the last 6 months is brought; it is required from age 15, and at any age when the card will be a travel document.",
+    "category": "date_constraint",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "all",
+          "args": [
+            {
+              "op": "lt",
+              "field": "applicant_age_months",
+              "value": 180
+            },
+            {
+              "op": "not",
+              "arg": {
+                "op": "is_true",
+                "field": "travel_document_use"
+              }
+            }
+          ]
+        },
+        {
+          "op": "lt",
+          "field": "photo_age_months",
+          "value": 6
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_PROCEDURES"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"1 adet Son altı ay içinde çekilmiş Biyometrik Fotoğraf (On beş yaşını tamamlamış olanların kimlik kartı başvurusunda biyometrik fotoğraf bulunması zorunludur. Ancak, kimlik kartının seyahat belgesi olarak kullanılmasının talep veya beyan edilmesi halinde her yaş grubu için biyometrik fotoğraf istenir.)\""
+  },
+  {
+    "rule_id": "TCF009",
+    "name": "in_person_from_age_15",
+    "section": "applicant",
+    "description": "A card holder aged 15 or over applies in person.",
+    "category": "procedure",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "lt",
+          "field": "applicant_age_months",
+          "value": 180
+        },
+        {
+          "op": "is_true",
+          "field": "applies_in_person"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Kimlik kartı başvurusunda; on beş yaşını tamamlayan kişilerin şahsen başvurmaları esastır.\""
+  },
+  {
+    "rule_id": "TCF010",
+    "name": "representative_under_15",
+    "section": "applicant",
+    "description": "For a child under 15, a parent, guardian or another allowed relative makes the application.",
+    "category": "procedure",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "gte",
+          "field": "applicant_age_months",
+          "value": 180
+        },
+        {
+          "op": "is_true",
+          "field": "legal_representative_applies"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"On beş yaşını tamamlamayanların başvuruları ise veli, vasi, kayyum, bunların bulunmaması halinde, çocuğun büyük ana, büyük baba, ergin kardeşleri, çocuğu yanında bulunduranlar ya da vekâletname ibraz eden resmî vekil tarafından yapılır.\""
+  },
+  {
+    "rule_id": "TCF011",
+    "name": "fee_paid_before_applying",
+    "section": "fee_appointment",
+    "description": "The card fee is paid before the application, unless the card follows a birth notified within the legal period (then it is free).",
+    "category": "fee",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "all",
+          "args": [
+            {
+              "op": "eq",
+              "field": "application_reason",
+              "value": "birth"
+            },
+            {
+              "op": "is_true",
+              "field": "birth_notified_within_legal_period"
+            }
+          ]
+        },
+        {
+          "op": "lte",
+          "field": "fee_payment_date",
+          "other_field": "application_date"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_APPOINTMENT_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"T.C. Kimlik kartı, pasaport ve sürücü belgesi başvuru bedellerinin, başvurudan önce ... yatırılması gerekmektedir.\" and \"Kanuni süresi içinde (Yurt içinde 30 gün, yurt dışında 60 gün) ... doğum bildirimleri sonucu düzenlenen kimlik kartlarından değerli kâğıt bedeli alınmaz.\" The amount is published every year; it is not stored in this pack."
+  },
+  {
+    "rule_id": "TCF012",
+    "name": "fee_of_the_application_year",
+    "section": "fee_appointment",
+    "description": "The amount paid is the fee published for the year of the application (an earlier year's amount is not enough).",
+    "category": "fee",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "all",
+          "args": [
+            {
+              "op": "eq",
+              "field": "application_reason",
+              "value": "birth"
+            },
+            {
+              "op": "is_true",
+              "field": "birth_notified_within_legal_period"
+            }
+          ]
+        },
+        {
+          "op": "is_true",
+          "field": "fee_is_current_year_rate"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"... kimlik kartı başvurusunun yapıldığı tarihte Hazine ve Maliye Bakanlığınca belirlenerek Resmî Gazetede yayımlanan kimlik kartı satış bedelinin ödenmesi gerekmektedir.\""
+  },
+  {
+    "rule_id": "TCF013",
+    "name": "appointment_booked",
+    "section": "fee_appointment",
+    "description": "Book an appointment before going (randevu.nvi.gov.tr, Alo 199, e-Devlet, NVİ Mobil or Nüfusmatik); a card applied for together with a birth notification needs none.",
+    "category": "procedure",
+    "severity": "advisory",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "eq",
+          "field": "application_reason",
+          "value": "birth"
+        },
+        {
+          "op": "is_true",
+          "field": "appointment_booked"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_APPOINTMENT_FAQ",
+      "NVI_TCKK_PROCEDURES"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"Doğum Bildirimi işlemi dışında randevusuz işlem yapılmamaktadır.\" CONFLICT: NVI_TCKK_PROCEDURES says applications in Türkiye are taken \"randevulu veya randevusuz\". Advisory until a person checks which page is current."
+  },
+  {
+    "rule_id": "TCF014",
+    "name": "appointment_not_missed",
+    "section": "fee_appointment",
+    "description": "The appointment date has not passed; an appointment missed without cancelling blocks new appointments for the same document for 15 days.",
+    "category": "deadline",
+    "severity": "advisory",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "not",
+          "arg": {
+            "op": "is_true",
+            "field": "appointment_booked"
+          }
+        },
+        {
+          "op": "gte",
+          "field": "application_date",
+          "other_field": "current_date"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_APPOINTMENT_FAQ"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"İptal edilmeyen randevunun ardından, aynı belge türü için 15 gün süreyle yeni randevu alınamamaktadır.\""
+  },
+  {
+    "rule_id": "TCF015",
+    "name": "issuance_not_guaranteed",
+    "section": "guardrails",
+    "description": "Preparing the file does not guarantee the card: the population directorate checks the identity and decides.",
+    "category": "evaluation",
+    "severity": "guardrail",
+    "condition": {
+      "op": "not",
+      "arg": {
+        "op": "eq",
+        "field": "card_issuance_status",
+        "value": "guaranteed"
+      }
+    },
+    "depends_on": [],
+    "source_ids": [
+      "NVI_TCKK_PROCEDURES"
+    ],
+    "version": "0.1",
+    "status": "unverified",
+    "volatility": "low",
+    "notes": "Draft from the saved official text. Quote: \"... MERNİS’te kayıtlı aynı kişi olup olmadığı hususunda tereddüde düşülmesi durumunda Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 12’nci maddesindeki usul ve esaslara göre başvuru işlemleri yapılır.\""
+  }
+]

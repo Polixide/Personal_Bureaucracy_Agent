@@ -557,6 +557,25 @@
         {
           "field": "program_end_date"
         }
+      ],
+      "titles": [
+        "student certificate",
+        "student enrollment certificate",
+        "enrollment certificate",
+        "certificate of enrollment",
+        "certificate of registration",
+        "ogrenci belgesi"
+      ],
+      "keywords": [
+        "student certificate",
+        "student enrollment certificate",
+        "enrollment certificate",
+        "certificate of enrollment",
+        "ogrenci belgesi",
+        "student id",
+        "exchange student",
+        "registered student",
+        "kayitli ogrencisi"
       ]
     },
     {
@@ -585,6 +604,28 @@
         {
           "field": "passport_or_foreign_id"
         }
+      ],
+      "titles": [
+        "health insurance certificate",
+        "health insurance policy",
+        "insurance certificate",
+        "insurance policy",
+        "certificate of insurance",
+        "saglik sigortasi policesi",
+        "sigorta policesi",
+        "sigorta sertifikasi"
+      ],
+      "keywords": [
+        "health insurance",
+        "insurance policy",
+        "insurance certificate",
+        "saglik sigortasi",
+        "sigorta policesi",
+        "insurer",
+        "coverage",
+        "policy number",
+        "police no",
+        "insured person"
       ]
     },
     {
@@ -614,6 +655,22 @@
           "field": "requested_permit_end_date",
           "from_field": "requested_end_date"
         }
+      ],
+      "titles": [
+        "residence permit application form",
+        "residence permit registration form",
+        "ikamet izni basvuru formu",
+        "ikamet izni kisa donem kayit formu"
+      ],
+      "keywords": [
+        "residence permit application form",
+        "residence permit registration form",
+        "ikamet izni basvuru formu",
+        "application number",
+        "basvuru numarasi",
+        "requested period",
+        "short term residence permit",
+        "e-ikamet"
       ]
     },
     {
@@ -638,7 +695,23 @@
           "field": "passport_id_page_present",
           "from_field": "identity_page_present"
         }
-      ]
+      ],
+      "titles": [
+        "passport",
+        "pasaport",
+        "passeport",
+        "reisepass"
+      ],
+      "keywords": [
+        "passport",
+        "pasaport",
+        "passeport",
+        "reisepass",
+        "date of expiry",
+        "nationality",
+        "place of birth"
+      ],
+      "mrz": "passport"
     },
     {
       "doc_type": "turkiye_entry_stamp",
@@ -655,6 +728,20 @@
           "field": "latest_entry_date",
           "requires_confirmation": true
         }
+      ],
+      "titles": [
+        "entry stamp",
+        "turkiye entry",
+        "turkey entry",
+        "giris"
+      ],
+      "keywords": [
+        "entry stamp",
+        "turkiye entry",
+        "turkey entry",
+        "entry date",
+        "giris tarihi",
+        "giris"
       ]
     },
     {
@@ -672,6 +759,17 @@
           "field": "declaration_control_document_signed",
           "from_field": "signed"
         }
+      ],
+      "titles": [
+        "declaration control document",
+        "beyan kontrol belgesi",
+        "beyan/kontrol belgesi"
+      ],
+      "keywords": [
+        "declaration control document",
+        "declaration control",
+        "beyan kontrol belgesi",
+        "beyan/kontrol"
       ]
     },
     {
@@ -697,6 +795,22 @@
           "field": "receipt_amount",
           "from_field": "amount"
         }
+      ],
+      "titles": [
+        "residence permit card fee",
+        "card fee payment receipt",
+        "document fee payment receipt",
+        "ikamet belge bedeli"
+      ],
+      "keywords": [
+        "card fee",
+        "document fee",
+        "belge bedeli",
+        "ikamet belge bedeli",
+        "residence permit card fee",
+        "dekont",
+        "makbuz",
+        "payment receipt"
       ]
     }
   ],

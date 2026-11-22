@@ -16,6 +16,7 @@ from pathlib import Path
 from time import perf_counter
 
 from config import EMBED_MODEL, LLM_MODEL, PROJECT_ROOT
+from eval.memory_eval import run_memory_checks
 from eval.metrics import RunMeasure, agent_behaviour, classify_failure, measure, system_row
 from eval.policy import RuleFollowingPolicy
 from eval.systems import full_agent, single_llm, static_checklist
@@ -101,7 +102,11 @@ def evaluate(packs: dict[str, Pack], backend: Backend, k: int, live: bool, live_
     # With --procedure only some packs are loaded; skip goals that expect a pack that is not loaded.
     goals = [g for g in goals if g["expected_procedure"] is None or g["expected_procedure"] in packs]
     identification = [run_goal(packs, scenario, backend) for scenario in goals]
-    return {"runs": runs, "identification": identification}
+    memory = []
+    if "ikamet_first" in packs:   # the memory scenarios use that pack's facts
+        with tempfile.TemporaryDirectory() as folder:
+            memory = run_memory_checks(Path(folder), packs)
+    return {"runs": runs, "identification": identification, "memory": memory}
 
 
 # --------------------------------------------------------------- report --
@@ -131,6 +136,10 @@ def report(outcome: dict, k: int, live: bool) -> str:
     lines += table([agent_behaviour(d_runs)], list(agent_behaviour(d_runs)))
     lines += ["", "## Procedure identification (D)", ""]
     lines += table(outcome["identification"], ["scenario_id", "expected", "selected", "status", "ok"])
+    memory = outcome.get("memory", [])
+    lines += ["", "## Memory across sessions (Twin closed and reopened; offline policy)", ""]
+    lines += [f"- {sum(c.ok for c in memory)}/{len(memory)} checks passed"]
+    lines += [f"  - FAILED {c.scenario}: {c.name}" for c in memory if not c.ok]
     failed = [r for r in d_runs if not r.success]
     lines += ["", "## Scenarios where D failed", ""]
     lines += [f"- {r.scenario_id}: {classify_failure(r)} (gate: {', '.join(r.gate_codes) or 'passed'}, "

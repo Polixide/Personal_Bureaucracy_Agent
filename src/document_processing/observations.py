@@ -25,6 +25,9 @@ class DocumentObservation(BaseModel):
     issues: list[str] = Field(default_factory=list)
     facts: list[FactProposal] = Field(default_factory=list)
     info: dict[str, Any] | None = None
+    pages: list[int] = Field(default_factory=list)        # the pages of the upload this document is on
+    found_by: str = ""                                    # how its type was found: user, mrz, title, keywords, model
+    notes: list[str] = Field(default_factory=list)        # what went right (shown next to issues, not as a warning)
 
 
 class ExtractionResult(BaseModel):

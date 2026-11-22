@@ -94,6 +94,152 @@ must match a row in this file, or update this file first.
 - **App simplified (2026-11-18).** `app.py` was rebuilt around the presentation's three questions: a goal box
   and the tabs *Where am I?*, *What is missing?*, *What next?* (see `docs/modules/app.md`). Same functions as
   before; the seven stacked panels, raw field names and the stage-id sandbox panel are gone.
+- **Integration of Neda's `main` (2026-11-19, not committed).** `origin/main` gained three commits by Neda
+  (`fa12d19` memory & evaluation, `d04e590` simpler UI + public test documents, `0f3e628` one run per profile).
+  They are built on the milestone-1 pipeline that phase 9 deleted, so there was **no `git merge`**: it would bring
+  back about 60 deleted files and a second store. Each idea was ported instead:
+
+  | What (on `main`) | Decision | Where it is now |
+  |---|---|---|
+  | `streamlit_app.py` layout: status bar, decision first, five views, plain wording | adapt | `app.py` rebuilt on our engine (`docs/modules/app.md`); replaces the three tabs |
+  | one run per profile (`0f3e628`) and `tests/test_ui_guard.py` | adapt | `profile_lock` / `run_locked` / `wait_for_run`, the 3 tests in `tests/test_app.py` |
+  | twin record mirroring the LangGraph checkpoint (`twin_store.py`, `twin_sync.py`) | replace (not needed) | our Twin is the single source of truth (D2): there is no checkpoint to mirror |
+  | `run_requirements` (rule results of each run) | adapt | table `run_results`, schema v3, upgraded in place from v2; Technical view and memory checks |
+  | validated reflection lessons | already ported (phase 8) | `src/memory/episodes.py`; our orchestrator already reads them (her "not yet done") |
+  | harness multi-session scenarios M1-M3 | adapt | `eval/memory_eval.py`, `tests/test_memory_sessions.py`, a section of the eval report |
+  | `data/reference_samples/` (6 public PDFs + `SOURCES.md`) | keep | copied unchanged; `SOURCES.md` maps them to our document types |
+  | `knowledge/`, `docs/INTEGRATION_REPORT.md`, `docs/memory_and_evaluation.md`, `example.pdf`, `prova.txt` | not brought back | they describe milestone-1 code removed after phase 10 |
+
+  When this branch goes to `main`, the pull request replaces the milestone-1 prototype there; Neda's three commits
+  stay in history.
+- **Knowledge base for rule extraction (2026-11-19).** New: `src/rag/ingest.py` (page/PDF → text, standard
+  library + httpx + PyMuPDF), `knowledge.py` (`fetch`, `add`, `check` with SHA-256 change detection and the rules
+  to review), `drafts.py` (RAG rule drafts whose quotes are checked against the saved text, written to
+  `rule_drafts.json`, never to `rules.json`) and the CLI `python -m src.rag`. `Source` gained `content_sha256`.
+  - All sources of the four packs were downloaded on 2026-11-19 (the e-İkamet form also from Neda's sample PDF).
+    The real GOV_FAQ text confirms R006 (60 days) and adds an earliest extension date, now in the
+    `ikamet_extension` review list (no rule changed).
+  - **Tests.** `test_rag.py` keeps its 10 query/source pairs unchanged; its input texts are now pinned in
+    `tests/data/placeholder_sources/` (the old placeholders) so a website cannot change them.
+    `test_vectors_are_cached_in_the_twin` was **changed on purpose**: embeddings now go in batches of 16 (one
+    call for 567 real passages timed out), so the test checks "every passage once, then only the question"
+    instead of "one call".
+  - **Turkish text.** Quote checks fold I/ı/İ like `evidence.normalized`; plain `casefold` missed "ALTI" vs "altı".
+- **Embedding model kept: `bge-m3` (2026-11-19, measured).** `eval/rag_eval.py` asks one question per rule (its
+  English description) and expects the rule's source, and its quoted passage when the rule has a quote:
+
+  | model | hit@1 | hit@3 | MRR | hit@3 on the Turkish NVİ pages | indexing (once) | VRAM in use |
+  |---|---|---|---|---|---|---|
+  | `bge-m3` | 0.561 | **0.758** | **0.644** | **0.60 / 0.64** | 392 s | 689 MB |
+  | `qwen3-embedding:0.6b` (with its query instruction) | 0.561 | 0.667 | 0.606 | 0.33 / 0.36 | 175 s | 1.2 GB |
+
+  `qwen3-embedding:0.6b` was pulled only for this comparison (`ollama rm qwen3-embedding:0.6b` frees 639 MB).
+- **Two Procedure Packs for the Turkish identity card (2026-11-19).** `tc_kimlik_first` (15 rules) and
+  `tc_kimlik_renewal` (14 rules), from four NVİ sources saved with the new CLI, all rules `unverified` with their
+  quote in `notes`, 6 scenarios each (hand-computed verdicts, all matching the engine). No change in `src/`
+  was needed for the packs. Two NVİ pages disagree on appointments; the rule is advisory with a `CONFLICT` note.
+  Three goal scenarios (G05-G07) check that the right pack is chosen.
+- **Live RAG rule drafts (qwen3:4b, `tc_kimlik_renewal`, 3 topics).** 10 drafts, every quote verified in the
+  saved text, 3 linked to existing rules (TCR003, TCR010, TCR011), one new lead (e-Devlet re-application for a
+  lost card, to review), one wrong field. A first run copied the topic as description and listed six fields:
+  the prompt now asks for 1-3 fields and the code flags both cases. The drafts are in
+  `procedures/tc_kimlik_renewal/rule_drafts.json` as an example; `rules.json` was not touched.
+- **UX fix found in the browser.** A field used by several sections was asked in each of them (the TC kimlik
+  reason appeared twice); it is now asked once, in the first section (test added).
+- **Live check of the ID-card packs (qwen3:4b, 2026-11-19).** Goal: "I lost my Turkish ID card (TC kimlik) last
+  week. What do I need to get a new one?". Found and fixed:
+  - **Wrong pack.** The generic words ("tc kimlik", "turkish id card") were aliases of `tc_kimlik_first` only, so
+    it won. Both packs now share the generic aliases and the pack-specific words decide (lost / expired / renew /
+    kayıp / yenileme for the renewal; first / birth / citizenship / nüfus cüzdanı for the first card). A goal
+    with neither ("I want to get a Turkish ID card") is a tie, so the agent asks. Goal scenarios G05-G09 cover
+    these cases; the first-card scenarios' goal now says "my first Turkish ID card" (their verdicts unchanged).
+  - **Repeated question in the fallback.** Three rules waiting for the same reason produced the same question
+    three times, and a derived value was asked as "Please provide: applicant age months". The fallback now asks
+    each field once, and `question_for` asks a derived value through its inputs (birth date, application date).
+  - **After the fix** the same goal chose `tc_kimlik_renewal`, and the fallback asked each question once (413 s).
+  - **Still slow.** Two orchestrator calls hit the 120 s timeout once the observations of five worker runs were in
+    the prompt, so the deterministic fallback answered after 482 s (18 model calls). This is the known 4 GB GPU
+    limit (see the `num_ctx` measurement still to do), not a correctness problem: the fallback answer passed Gate 1.
+- **Documents, chat assistant, web corpus, vision model (2026-11-20).** Asked by the team: read documents better
+  (also several documents in one PDF), keep RAG only where it is useful, try web scraping for other procedures, and
+  an assistant that explains the state step by step and answers questions instead of only static points.
+
+  | Module | Decision | Why |
+  |---|---|---|
+  | `src/document_processing/segment.py` | **new** | One upload → several documents: a page opens a document by MRZ or title, every other page continues it; keywords name an untitled document; the model only breaks ties. |
+  | `src/document_processing/mrz.py` | **new** | ICAO TD3 (passports) and TD1 (ID cards, the back of the T.C. card) read by code with check digits. |
+  | `src/document_processing/generic.py` | **adapt** | All pages in batches (before: 3,400 characters), only missing fields asked again, MRZ values from code. |
+  | `src/document_processing/vision.py` | **new** | Vision model for pictures; values compared with the OCR text; what code cannot check waits for confirmation. |
+  | `src/document_processing/extractor.py` | **adapt** | Photos (JPG/PNG); OCR also for scans with only a watermark; `TextPage.ocr`. |
+  | `src/tools/extract_document.py` | **adapt** | Segments, then typed or generic reading per document, a second pass for typed documents (values to confirm), the vision step, `pages` to read one part again. The seven typed kinds keep the milestone-1 processor. |
+  | `src/models.py` `DocumentSpec` | **adapt** | `titles`, `keywords`, `mrz` (pack data, so a new procedure needs no Python). |
+  | `src/agent/briefing.py` | **new** | The plan computed by code; the app's shared helpers (questions, document status) moved here from `app.py`. |
+  | `src/agent/chat.py` | **new** | The chat assistant: the orchestrator graph with the chat's prompt, tools, Gate 1 subset and plan fallback. |
+  | `src/twin` schema v4 | **adapt** | `chat_messages`; v2 and v3 files are upgraded on open. |
+  | `src/rag/crawl.py`, `index.py` | **new / adapt** | Polite crawler (robots.txt, content links only); the index searches a pack or the web corpus. |
+  | `src/llm.py` | **adapt** | `OllamaBackend.see` and `ask_vision` (same contract as `ask_structured`). |
+  | `app.py` "Next steps" | **replace** | By the Assistant tab (chat + documents + tools). The goal box and the agent's question card are gone: the conversation replaces them. The orchestrator with its workers stays one click away ("Run a full check"). |
+
+  - **Measured: reading documents** (`python -m eval.document_eval`, 13 files, `docs/eval_documents.md`):
+
+    | | documents found | values read correctly | of which to confirm | values believed wrong |
+    |---|---|---|---|---|
+    | before (committed code) | 8/17 | 46% | 0 | 0 |
+    | after (segments, pack classification, all pages, MRZ) | 16/17 | 75% | 0 | 0 |
+    | + second pass and vision model | 17/17 | 86% | 6 | 1 (a partial name read from a photo) |
+    | + the two vision fixes below (rerun of the two pictures) | 17/17 | 89% | 8 | 0 (the partial name is shown for confirmation) |
+
+    Before, every T.C. kimlik document was unknown ("detect automatically" knew only the seven İkamet kinds), the
+    second document of a file was lost, photos were refused and border stamps were never recognised.
+  - **Measured: speed of one reply** (1,250-token prompt, 4 GB GPU): `qwen3:4b` 42 s at `num_ctx` 8192 (45% CPU),
+    37 s at 4096 (34% CPU); `qwen2.5:3b` 16 s at 8192 (100% GPU). The chat runs on `qwen2.5:3b` (`CHAT_MODEL`); the
+    agent team and documents keep `qwen3:4b`; `num_ctx` stays 8192 (4096 gains little). `docs/eval_chat.md`
+    compares the two models on 8 typical messages.
+  - **Vision model `qwen3-vl:2b-instruct`.** The default `qwen3-vl:2b` tag always thinks first: with a JSON format
+    it spent 3,000 tokens and returned nothing (132 s). The instruct variant named both stamp specimens correctly and
+    read their dates (31-37 s), but a full-page photo takes 2-3 minutes, so it runs only on pictures, only when
+    something is missing. Asked to name a page and read 29 fields at once it returned all fields empty: naming and
+    reading are now two calls. It read a partial name ("DENİZ") that the OCR text also contained: only dates and
+    numbers found in the OCR text count without confirmation now.
+  - **Web scraping.** First crawl followed the site menu and filled its page budget with programme and news pages;
+    links in navigation, headers, footers and sidebars are now ignored. A seed reached from another seed was not
+    expanded; fixed. Corpus: 25 pages of Sabancı IRO guides (tax ID, bank account, SIM, IMEI, health insurance,
+    address registration, e-Devlet, residence permit and extension, official documents). NVİ and Göç disallow
+    `/kurumlar` in robots.txt; the crawler skips it. (The pack source `NVI_DAMAGED_CARD_2020`, fetched once on
+    2026-11-19 as a hand-picked source, is under that path; it is not re-crawled.)
+  - **Live chat debugging (qwen2.5:3b).** Asked "Explain where I am", it recorded facts the user never wrote
+    ("exchange student: yes", a stay end date) and built a checklist instead of answering; told "I lost my ID card",
+    it also recorded "loss reported: yes" and called `evaluate_rules` with invented section names. Fixes in code:
+    facts must be in the user's words (`src/agent/stated.py`), `evaluate_rules` is not a chat tool, artifact tools
+    are offered only when asked, `final_answer` is the first option, the state sent to the model was cut from
+    11,000 to 3,600 characters (the first call took a minute). It also wrote 3,900-character answers, statuses as
+    "not met" and whole plan steps as refs: summaries may now be 4,000 characters (`SUMMARY_MAX_CHARS`) and code
+    tidies status words and refs that contain exactly one valid ref; Gate 1 still checks the result.
+    Later runs showed the same models recording facts for questions, inventing fields and claiming rule ids when no
+    rule was failing: code now offers `record_fact` only when the message tells something (a date, a first-person
+    sentence), offers `search_procedures` only without a procedure or when the message names another one (two alias
+    words), gives the model every rule id with its status, drops claims about rule ids that do not exist (never shown;
+    the text is still checked), and links the web pages under a reply that has no procedure.
+  - **Measured: chat model** (`python -m eval.chat_eval`, 8 typical messages, `docs/eval_chat.md`): `qwen2.5:3b`
+    passed Gate 1 on 6/8 (5 at the first try) in about 50 s per turn; `qwen3:4b` on 4/8 in about 210 s. The other
+    replies were replaced by the plan written by code. `CHAT_MODEL` stays `qwen2.5:3b`. With the final code
+    `qwen2.5:3b` passed 6/8, all at the first try, 69 s per turn on average.
+  - **Live browser tour** (Edge, scratch Twin): a first message without procedure chose `tc_kimlik_renewal` and
+    recorded "lost" (unconfirmed); a PDF holding the card and the fee receipt was split into two documents
+    (47 s); a suggestion and a tax-number question without procedure were answered and checked; 0 exceptions,
+    0 console errors. Found and fixed: a passage cut at 600 characters gave a broken URL (passages now end at a word
+    boundary), the plan asked a question whose value already waited for confirmation, a raw extraction warning,
+    "1 values".
+  - **RAG kept where useful** (`docs/modules/rag.md`): not for deciding or explaining rules (rules carry their
+    quote), yes for questions outside the rules, for procedures without a pack (web corpus), for drafts and for
+    change detection.
+  - **Tests changed on purpose.**
+    - `tests/test_app.py`: the goal-box and agent-question tests were replaced by chat tests, because that UI was
+      replaced (chat message, suggestion, confirming a fact from the chat, full check posted in the chat, reading
+      summary). No expected verdict changed.
+    - `tests/test_twin_store.py`: the v2 upgrade test now also leaves out `chat_messages` (a v2 file never had it),
+      expects version 4, and a v3 case was added.
+    - New: `test_chat.py`, `test_segment.py`, `test_vision_and_crawl.py`.
 
 ## 1. What was audited
 

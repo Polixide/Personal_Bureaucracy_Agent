@@ -2,20 +2,23 @@
 
 The agent is replaced by a fake (no model call); everything else (Twin, rules, sandbox, approval) is real.
 """
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
 import app
 import config
+import src.agent.chat as chat
 import src.agent.orchestrator as orchestrator
+from src.agent.chat import ChatReply
 from src.agent.answer import AgentResult, FinalAnswer, NextAction
-from src.pack import load_pack
+from src.pack import load_all_packs, load_pack
 from src.rules import evaluate_rules
 from src.sandbox.mock_world import simulate
 from src.twin import service
 from src.twin.facts import build_view
+from src.twin.models import ChatMessage, RunRecord, RunRuleResult, TwinDocument
 from src.twin.store import TwinStore
 
 IKAMET = load_pack("ikamet_first")
@@ -129,6 +132,57 @@ def test_sandbox_refusal_is_explained_in_plain_words():
     assert not any("R0" in line for line in lines)
 
 
+
+def test_document_checklist_follows_the_twin():
+    with TwinStore(":memory:") as store:
+        empty = build_view(IKAMET, [], [], date(2026, 11, 18))
+        rows = {row["doc_type"]: row["status"] for row in app.checklist_rows(IKAMET, [], empty)}
+        assert set(rows.values()) == {"missing"} and len(rows) == len(IKAMET.procedure.documents)
+        service.register_upload(store, "u", "doc_1", "x.pdf", IKAMET.id)
+        documents = store.list_documents("u")
+    pending = app.document_status(IKAMET, [d.model_copy(update={"doc_type": "passport_identity_page"}) for d in documents],
+                                  empty, "passport_identity_page")
+    assert pending == "ambiguous"
+
+
+def test_run_labels_are_plain_words():
+    assert app.run_label(None) == "Not started"
+    assert app.run_label("fallback") == "Answer built from the rules alone"
+
+
+# ----------------------------------------------------- one run per profile --
+def test_second_action_is_refused_while_a_run_holds_the_lock():
+    calls = []
+    lock = app.profile_lock("guard-busy")
+    assert lock.acquire(blocking=False)                 # another tab is mid-run
+    try:
+        assert app.run_locked("guard-busy", "working", lambda: calls.append(1)) is False
+        assert calls == []
+    finally:
+        lock.release()
+
+
+def test_lock_is_released_after_success_and_after_failure():
+    assert app.run_locked("guard-free", "working", lambda: None) is True
+    assert not app.profile_lock("guard-free").locked()
+
+    def failing():
+        raise RuntimeError("model down")
+
+    assert app.run_locked("guard-free", "working", failing) is False
+    assert not app.profile_lock("guard-free").locked()
+
+
+def test_profiles_do_not_block_each_other():
+    lock = app.profile_lock("guard-a")
+    assert lock.acquire(blocking=False)
+    try:
+        assert app.profile_lock("guard-a") is lock      # same profile, same lock
+        assert not app.profile_lock("guard-b").locked()
+    finally:
+        lock.release()
+
+
 # ------------------------------------------------------- headless page runs --
 @pytest.fixture()
 def page_env(tmp_path, monkeypatch):
@@ -139,8 +193,11 @@ def page_env(tmp_path, monkeypatch):
     return database
 
 
-def run_page() -> AppTest:
-    return AppTest.from_file(APP_FILE, default_timeout=60).run()
+def run_page(view: str | None = None) -> AppTest:
+    page = AppTest.from_file(APP_FILE, default_timeout=60)
+    if view:
+        page.session_state["view"] = view
+    return page.run()
 
 
 def widget(widgets, label):
@@ -148,33 +205,48 @@ def widget(widgets, label):
     return next(w for w in widgets if w.label == label)
 
 
-def seed(database, **facts) -> None:
+def seed(database, procedure_id: str = "ikamet_first", **facts) -> None:
+    pack = load_pack(procedure_id)
     with TwinStore(database) as store:
-        store.set_active_procedure("demo-user", "ikamet_first")
+        store.set_active_procedure("demo-user", procedure_id)
         for field, value in facts.items():
-            service.record_app_value(store, IKAMET, "demo-user", field, value)
+            service.record_app_value(store, pack, "demo-user", field, value)
 
 
-def test_empty_twin_asks_for_a_goal_or_a_procedure(page_env):
+def test_empty_twin_opens_the_chat_with_a_welcome(page_env):
     page = run_page()
     assert not page.exception
     assert "What do you want to do?" in [t.value for t in page.title]
-    assert "Ask the agent" in page.info[0].value
+    assert any("Tell me what you need" in m.value for m in page.markdown)
+    assert len(page.chat_input) == 1
 
 
-def test_seeded_twin_shows_the_three_questions_as_tabs(page_env):
+def test_status_bar_and_checks_view_show_where_you_are(page_env):
     seed(page_env, passport_expiry_date="2027-07-15")
     page = run_page()
     assert not page.exception
-    assert [tab.label for tab in page.tabs] == app.TAB_NAMES
-    assert any(e.label.endswith("Eligibility and legal stay · 0/4") for e in page.expander)
+    labels = [metric.label for metric in page.metric]
+    assert labels[:2] == ["Documents ready", "Checks passed"]
+    assert widget(page.metric, "Documents ready").value == f"0 / {len(IKAMET.procedure.documents)}"
+    checks = run_page("checks")
+    assert not checks.exception
+    assert any(e.label.endswith("Eligibility and legal stay · 0/4") for e in checks.expander)
+    assert any(e.label.startswith("Official sources") for e in checks.expander)
+
+
+@pytest.mark.parametrize("procedure_id", sorted(load_all_packs()))
+def test_every_view_of_every_procedure_renders(page_env, procedure_id):
+    seed(page_env, procedure_id)
+    for view in app.VIEWS:
+        page = run_page(view)
+        assert not page.exception, (procedure_id, view, page.exception)
 
 
 def test_answers_typed_in_the_app_become_confirmed_facts(page_env):
     seed(page_env)
-    page = run_page()
+    page = run_page("details")
     widget(page.text_input, "Permit type").input("short-term residence permit")
-    widget(page.button, "Save answers").click()
+    widget(page.button, "Save answers and recheck").click()
     page.run()
     assert not page.exception
     with TwinStore(page_env) as store:
@@ -185,11 +257,12 @@ def test_answers_typed_in_the_app_become_confirmed_facts(page_env):
 def test_checklist_is_proposed_then_written_only_after_approval(page_env):
     seed(page_env)
     page = run_page()
-    widget(page.button, "☑️ Prepare my checklist").click()
+    widget(page.button, "Prepare my checklist").click()
     page.run()
     with TwinStore(page_env) as store:
         [proposal] = store.list_proposals("demo-user")
     assert proposal.status == "proposed" and not (config.OUTBOX_DIR / "demo-user").exists()
+    assert any("Waiting for your decision" in m.value for m in page.markdown)
     widget(page.button, "Approve").click()
     page.run()
     assert not page.exception
@@ -209,26 +282,111 @@ def test_sandbox_button_stores_a_simulation_and_explains_the_refusal(page_env):
         assert store.list_simulations("demo-user", IKAMET.id)[-1].accepted is False
 
 
-def test_agent_question_is_answered_with_the_original_goal(page_env, monkeypatch):
+def fake_chat(calls):
+    """Stands in for the chat assistant: stores the turn like the real one, without a model."""
+    def run(message, store, packs, user_id, today, backend, outbox_dir=None, embedder=None, progress=None):
+        calls.append(message)
+        if progress:
+            progress("Writing the answer")
+        store.add_chat_message(ChatMessage(user_id=user_id, role="user", content=message))
+        reply = ChatReply(text=f"Answer to: {message}", status="answered", trace_id=f"t{len(calls)}",
+                          sources=[{"source_id": "GOV_FAQ", "title": "Official FAQ", "url": "https://example.org"}])
+        store.add_chat_message(ChatMessage(user_id=user_id, role="assistant", content=reply.text,
+                                           details=reply.model_dump(exclude={"text"})))
+        return reply
+    return run
+
+
+def test_the_plan_opens_the_chat_and_a_message_gets_an_answer(page_env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(chat, "run_chat", fake_chat(calls))
+    seed(page_env, passport_expiry_date="2027-07-15")
+    page = run_page()
+    assert any("What to do next" in m.value for m in page.markdown)
+    page.chat_input[0].set_value("When does my passport expire?").run()
+    assert not page.exception and calls == ["When does my passport expire?"]
+    assert "Answer to: When does my passport expire?" in [m.value for m in page.markdown]
+    assert any("Official FAQ" in c.value for c in page.caption)
+    assert not app.profile_lock("demo-user").locked()
+
+
+def test_a_suggestion_is_sent_with_one_click(page_env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(chat, "run_chat", fake_chat(calls))
+    seed(page_env)
+    page = run_page()
+    widget(page.button, app.SUGGESTIONS[0]).click()
+    page.run()
+    assert not page.exception and calls == [app.SUGGESTIONS[0]]
+
+
+def test_a_fact_from_the_chat_is_confirmed_with_its_button(page_env):
+    seed(page_env)
+    pack = load_pack("ikamet_first")
+    with TwinStore(page_env) as store:
+        fact = service.record_statement(store, pack, "demo-user", "permit_type", "short-term residence permit",
+                                        confirmed=False)
+        store.add_chat_message(ChatMessage(user_id="demo-user", role="assistant", content="Noted.",
+                                           details={"status": "answered", "facts": [
+                                               {"fact_id": fact.fact_id, "field": "permit_type", "value": fact.value}]}))
+    page = run_page()
+    widget(page.button, "Confirm").click()
+    page.run()
+    assert not page.exception
+    with TwinStore(page_env) as store:
+        facts = {f.field: f for f in store.current_facts("demo-user", pack.id)}
+    assert facts["permit_type"].confirmed
+
+
+def test_full_check_by_the_agent_team_is_posted_in_the_chat(page_env, monkeypatch):
     goals = []
 
     def fake_run_agent(goal, store, packs, user_id, today, backend, outbox_dir):
-        """Stands in for the real agent: asks once, then answers."""
         goals.append(goal)
-        if len(goals) == 1:
-            return AgentResult(trace_id="t1", status="needs_user_input", question="Which procedure?")
-        answer = FinalAnswer(summary="Here is where you are.",
-                             next_actions=[NextAction(title="Upload passport", ref="R006")])
+        answer = FinalAnswer(summary="Here is where you are.", next_actions=[NextAction(title="Upload passport", ref="R006")])
         return AgentResult(trace_id="t2", status="answered", answer=answer)
 
     monkeypatch.setattr(orchestrator, "run_agent", fake_run_agent)
+    seed(page_env)
     page = run_page()
-    widget(page.button, "Ask the agent").click()
+    widget(page.button, "Run a full check").click()
     page.run()
-    assert "Which procedure?" in page.info[0].value
-    widget(page.text_input, "Your answer").input("the first permit")
-    widget(page.button, "Send").click()
-    page.run()
+    assert not page.exception and goals == [app.FULL_CHECK_GOAL]
+    assert any("Here is where you are." in m.value and "1. Upload passport" in m.value for m in page.markdown)
+
+
+def test_reading_summary_says_what_each_document_of_an_upload_gave():
+    pack = load_pack("tc_kimlik_renewal")
+    card = TwinDocument(doc_id="d", file_path="x.pdf", status="analyzed", doc_type="tc_kimlik_karti",
+                        observation={"pages": [1, 2], "found_by": "mrz", "facts": [
+                            {"field": "birth_date", "requires_confirmation": False},
+                            {"field": "holder_name", "requires_confirmation": True}]})
+    unknown = TwinDocument(doc_id="d_part2", file_path="x.pdf", status="analyzed", doc_type="unknown",
+                           observation={"pages": [3]})
+    text = app.reading_summary(pack, "scan.pdf", [card, unknown])
+    assert "found 2 documents" in text and "pages 1–2" in text and "machine-readable zone" in text
+    assert "2 values read, 1 to confirm" in text and "page 3: I could not tell" in text
+
+
+def test_technical_view_shows_the_run_log_with_its_rule_results(page_env):
+    seed(page_env)
+    results = [RunRuleResult(rule_id=r.rule_id, status=r.status, severity=r.severity)
+               for r in evaluate_rules(IKAMET, {})]
+    with TwinStore(page_env) as store:
+        store.log_run(RunRecord(trace_id="t9", user_id="demo-user", procedure_id=IKAMET.id, goal="g",
+                                status="answered", started_at=datetime.now(timezone.utc),
+                                finished_at=datetime.now(timezone.utc), results=results))
+    page = run_page("technical")
     assert not page.exception
-    assert goals[1] == app.follow_up_goal("I want to apply for İkamet", "Which procedure?", "the first permit")
-    assert "Here is where you are." in [m.value for m in page.markdown]
+    assert any(e.label.startswith("Run log") for e in page.expander)
+    assert app.run_passed(RunRecord(trace_id="x", user_id="u", procedure_id=None, goal="g", status="answered",
+                                    started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
+                                    results=results)) == f"0/{len(results)}"
+
+
+def test_a_question_used_by_several_sections_is_asked_once(page_env):
+    seed(page_env, "tc_kimlik_renewal")
+    page = run_page("details")
+    assert not page.exception
+    labels = [w.label for w in page.text_input]
+    assert labels.count("Why do you need a new card: expired, lost (or stolen) or damaged?") == 1

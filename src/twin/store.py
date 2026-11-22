@@ -1,4 +1,4 @@
-"""SQLite storage of the Digital Twin (schema v2 in schema.sql). Adapted from Neda's TwinStore.
+"""SQLite storage of the Digital Twin (schema v3 in schema.sql). Adapted from Neda's TwinStore.
 
 Write rules:
   * every write runs in a transaction (all-or-nothing); transactions nest safely;
@@ -16,9 +16,12 @@ from typing import Any
 
 from src.models import Issue
 from src.twin.codec import decode_fact, decode_timestamp, encode_fact, encode_timestamp, utc_now
-from src.twin.models import Episode, Event, Fact, ProposedAction, RunRecord, Simulation, TwinDocument
+from src.twin.models import (ChatMessage, Episode, Event, Fact, ProposedAction, RunRecord, RunRuleResult,
+                             Simulation, TwinDocument)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
+# Tables added by each version step; an older file gets them without losing data.
+MIGRATIONS = {2: ("run_results", "chat_messages"), 3: ("chat_messages",)}
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 
 
@@ -95,10 +98,15 @@ class TwinStore:
         version = self._conn.execute("PRAGMA user_version").fetchone()[0]
         if version == SCHEMA_VERSION:
             return
-        if version != 0:
+        if version == 0:
+            statements = schema_statements()
+        elif version in MIGRATIONS:
+            statements = [s for s in schema_statements() for table in MIGRATIONS[version]
+                          if s.startswith(f"CREATE TABLE {table} ")]
+        else:
             raise SchemaVersionError(f"{self.path} has schema v{version}, this code expects v{SCHEMA_VERSION}")
         with self.transaction() as conn:
-            for statement in schema_statements():
+            for statement in statements:
                 conn.execute(statement)
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
@@ -367,6 +375,9 @@ class TwinStore:
                  encode_timestamp(run.started_at), encode_timestamp(run.finished_at)))
             conn.executemany("INSERT INTO run_issues (trace_id, position, code, message, item) VALUES (?, ?, ?, ?, ?)",
                              [(run.trace_id, i, issue.code, issue.message, issue.item) for i, issue in enumerate(run.issues)])
+            conn.executemany("INSERT INTO run_results (trace_id, rule_id, status, severity, missing_fields) "
+                             "VALUES (?, ?, ?, ?, ?)",
+                             [(run.trace_id, r.rule_id, r.status, r.severity, _json(r.missing_fields)) for r in run.results])
 
     def list_runs(self, user_id: str) -> list[RunRecord]:
         records = []
@@ -378,8 +389,40 @@ class TwinStore:
                 status=row["status"], llm_calls=row["llm_calls"], steps=row["steps"], repairs=row["repairs"],
                 fallback_used=bool(row["fallback_used"]), needs_human_review=bool(row["needs_human_review"]),
                 summary=row["summary"], started_at=_instant(row["started_at"]),
-                finished_at=_instant(row["finished_at"]), issues=issues))
+                finished_at=_instant(row["finished_at"]), issues=issues, results=self._run_results(row["trace_id"])))
         return records
+
+    def _run_results(self, trace_id: str) -> list[RunRuleResult]:
+        rows = self._conn.execute("SELECT * FROM run_results WHERE trace_id = ? ORDER BY rowid", (trace_id,))
+        return [RunRuleResult(rule_id=r["rule_id"], status=r["status"], severity=r["severity"],
+                              missing_fields=json.loads(r["missing_fields"])) for r in rows]
+
+    # ---------------------------------------------------------------- chat --
+    def add_chat_message(self, message: ChatMessage) -> ChatMessage:
+        """Append one chat message (user or assistant) and return it with its id and time."""
+        with self.transaction() as conn:
+            self.ensure_user(message.user_id)
+            created = self.now()
+            cursor = conn.execute(
+                "INSERT INTO chat_messages (user_id, procedure_id, role, content, trace_id, details, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (message.user_id, message.procedure_id, message.role, message.content, message.trace_id,
+                 _json(message.details), created))
+        return message.model_copy(update={"message_id": cursor.lastrowid, "created_at": _instant(created)})
+
+    def list_chat(self, user_id: str, limit: int = 200) -> list[ChatMessage]:
+        """The user's last `limit` chat messages, oldest first."""
+        rows = self._conn.execute("SELECT * FROM chat_messages WHERE user_id = ? ORDER BY message_id DESC LIMIT ?",
+                                  (user_id, limit)).fetchall()
+        return [ChatMessage(message_id=r["message_id"], user_id=r["user_id"], procedure_id=r["procedure_id"],
+                            role=r["role"], content=r["content"], trace_id=r["trace_id"],
+                            details=json.loads(r["details"]), created_at=_instant(r["created_at"]))
+                for r in reversed(rows)]
+
+    def clear_chat(self, user_id: str) -> int:
+        """Forget the conversation (the Twin's facts and documents stay)."""
+        with self.transaction() as conn:
+            return conn.execute("DELETE FROM chat_messages WHERE user_id = ?", (user_id,)).rowcount
 
     # ------------------------------------------------------------- vectors --
     def get_vector(self, procedure_id: str, chunk_id: str, model: str, text_hash: str) -> list[float] | None:

@@ -7,8 +7,8 @@ from datetime import date, datetime, timezone
 import pytest
 
 from src.models import Issue
-from src.twin.models import Episode, Event, Fact, ProposedAction, RunRecord, Simulation, TwinDocument
-from src.twin.store import SCHEMA_VERSION, SchemaVersionError, TwinStore
+from src.twin.models import Episode, Event, Fact, ProposedAction, RunRecord, RunRuleResult, Simulation, TwinDocument
+from src.twin.store import SCHEMA_VERSION, SchemaVersionError, TwinStore, schema_statements
 
 USER = "synthetic_student_01"
 
@@ -182,6 +182,57 @@ def test_runs_are_logged_with_issues(store):
                             issues=[Issue(code="CLAIM_MISMATCH", message="m", item="R015")]))
     run = store.list_runs(USER)[0]
     assert run.llm_calls == 4 and run.issues[0].code == "CLAIM_MISMATCH"
+
+
+def test_runs_keep_the_rule_verdicts_at_their_end(store):
+    start = datetime(2026, 11, 18, 9, tzinfo=timezone.utc)
+    verdicts = [RunRuleResult(rule_id="R006", status="unknown", severity="blocking", missing_fields=["passport_expiry_date"]),
+                RunRuleResult(rule_id="R027", status="pass", severity="guardrail")]
+    store.log_run(RunRecord(trace_id="t2", user_id=USER, procedure_id="ikamet_first", goal="apply", status="answered",
+                            started_at=start, finished_at=start, results=verdicts))
+    assert store.list_runs(USER)[0].results == verdicts
+    store.delete_user(USER)
+    assert store._conn.execute("SELECT COUNT(*) FROM run_results").fetchone()[0] == 0
+
+
+def old_twin(db_path, version: int, missing: tuple[str, ...]) -> None:
+    """A Twin file as an older version wrote it: without the tables added later, with one run."""
+    connection = sqlite3.connect(db_path)
+    for statement in schema_statements():
+        if not any(statement.startswith(f"CREATE TABLE {table} ") for table in missing):
+            connection.execute(statement)
+    connection.execute("INSERT INTO users (user_id, created_at, updated_at) VALUES ('old', '2026-11-18T09:00:00+00:00', "
+                       "'2026-11-18T09:00:00+00:00')")
+    connection.execute("INSERT INTO runs (trace_id, user_id, goal, status, started_at, finished_at) VALUES "
+                       "('t0', 'old', 'g', 'answered', '2026-11-18T09:00:00+00:00', '2026-11-18T09:00:01+00:00')")
+    connection.execute(f"PRAGMA user_version = {version}")
+    connection.commit()
+    connection.close()
+
+
+@pytest.mark.parametrize("version,missing", [(2, ("run_results", "chat_messages")), (3, ("chat_messages",))])
+def test_an_older_twin_is_upgraded_without_losing_data(db_path, version, missing):
+    """v2 files (before run_results) and v3 files (before chat_messages) gain the new tables; their runs stay."""
+    old_twin(db_path, version, missing)
+    with TwinStore(db_path) as store:
+        assert store._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
+        [run] = store.list_runs("old")
+        assert run.trace_id == "t0" and run.results == []
+        assert store.list_chat("old") == []
+
+
+def test_chat_messages_are_kept_in_order_and_cleared_per_user(store):
+    from src.twin.models import ChatMessage
+    store.add_chat_message(ChatMessage(user_id="u1", role="user", content="What is missing?"))
+    saved = store.add_chat_message(ChatMessage(user_id="u1", role="assistant", content="Your insurance.",
+                                               details={"sources": ["GOV_FAQ"]}))
+    store.add_chat_message(ChatMessage(user_id="u2", role="user", content="Hello"))
+    assert saved.message_id and saved.created_at is not None
+    assert [(m.role, m.content) for m in store.list_chat("u1")] == [("user", "What is missing?"), ("assistant", "Your insurance.")]
+    assert store.list_chat("u1")[1].details == {"sources": ["GOV_FAQ"]}
+    assert store.clear_chat("u1") == 2 and store.list_chat("u1") == [] and len(store.list_chat("u2")) == 1
+    store.delete_user("u2")
+    assert store.list_chat("u2") == []
 
 
 def test_vector_cache_detects_changed_text(store):

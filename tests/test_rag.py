@@ -2,19 +2,24 @@
 
 The embedder is tests/fakes.py:hash_embedding (bag of words), so results are deterministic offline.
 Each expected set lists the sources that state the requirement (from the rules' source_ids).
+The texts are pinned in tests/data/placeholder_sources/ (the summaries the pack had before its official
+pages were downloaded), so a change on a government website cannot change these results.
 """
 from datetime import date
+from pathlib import Path
 
 import pytest
 
 from fakes import ScriptedBackend
+from config import RAG_EMBED_BATCH
 from src.pack import load_all_packs
 from src.rag.index import chunk_text, pack_chunks, search
 from src.tools.common import ToolContext
 from src.tools.registry import build_registry, run_tool
 
 PACKS = load_all_packs()
-PACK = PACKS["ikamet_first"]
+PINNED_TEXTS = Path(__file__).parent / "data" / "placeholder_sources" / "ikamet_first"
+PACK = PACKS["ikamet_first"].model_copy(update={"root": PINNED_TEXTS})
 
 
 def sources_of(rule_id: str) -> set[str]:
@@ -50,12 +55,23 @@ def test_chunks_respect_the_size_limit_and_keep_source_ids():
 
 
 def test_vectors_are_cached_in_the_twin(store):
+    """The first search embeds every passage once (in small batches), later searches only the question."""
     backend = ScriptedBackend()
     search(store, PACK, backend, "passport validity")
-    first_batch = len(backend.embed_calls[0])
+    *passage_batches, first_question = backend.embed_calls
     search(store, PACK, backend, "address proof")
-    assert first_batch == len(pack_chunks(PACK))
-    assert [len(call) for call in backend.embed_calls[1:]] == [1, 1]
+    assert sum(len(batch) for batch in passage_batches) == len(pack_chunks(PACK))
+    assert all(len(batch) <= RAG_EMBED_BATCH for batch in passage_batches) and len(passage_batches) > 1
+    assert len(first_question) == 1 and backend.embed_calls[len(passage_batches) + 1:] == [["address proof"]]
+
+
+def test_qwen3_embedding_queries_get_the_instruction_but_passages_do_not(store):
+    backend = ScriptedBackend()
+    backend.embed_model = "qwen3-embedding:0.6b"
+    search(store, PACK, backend, "passport validity")
+    *passages, question = backend.embed_calls
+    assert question[0].startswith("Instruct: ") and question[0].endswith("Query: passport validity")
+    assert not any(text.startswith("Instruct: ") for batch in passages for text in batch)
 
 
 def test_search_sources_tool_cites_and_never_decides(store):
@@ -70,3 +86,11 @@ def test_search_sources_tool_cites_and_never_decides(store):
 def test_search_without_embedding_model_is_an_error(store):
     ctx = ToolContext(store=store, packs=PACKS, user_id="u", today=date(2026, 11, 18), procedure_id=PACK.id)
     assert "No embedding model" in run_tool(build_registry(), "search_sources", {"query": "passport"}, ctx, "worker").error
+
+
+def test_a_passage_is_never_cut_inside_a_word_or_a_link():
+    """Seen live: a passage cut at 600 characters gave the model, and the user, a broken URL."""
+    from src.rag.index import passage_text
+    text = "word " * 119 + "https://dijital.gib.gov.tr/foreigners/kimlikNoBasvuru and the rest"
+    passage = passage_text(text)
+    assert passage.startswith(text[:600]) and passage.endswith("kimlikNoBasvuru")

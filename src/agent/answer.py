@@ -8,6 +8,8 @@ from src.models import Issue, RuleResult, RuleStatus
 
 FINAL_ACTION = "final_answer"   # orchestrator's terminal action
 FINISH_ACTION = "finish"        # worker's terminal action
+# A step-by-step explanation in the chat needs more room than a 2,000-character summary (seen live: 3,900).
+SUMMARY_MAX_CHARS = 4000
 
 
 class Decision(BaseModel):
@@ -38,7 +40,7 @@ class NextAction(BaseModel):
 
 class FinalAnswer(BaseModel):
     """The orchestrator's answer to the user."""
-    summary: str = Field(min_length=1, max_length=2000)
+    summary: str = Field(min_length=1, max_length=SUMMARY_MAX_CHARS)
     claims: list[Claim] = Field(default_factory=list)
     next_actions: list[NextAction] = Field(default_factory=list, max_length=MAX_NEXT_ACTIONS)
 

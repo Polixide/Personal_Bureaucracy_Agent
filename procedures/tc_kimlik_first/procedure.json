@@ -1,0 +1,91 @@
+{
+  "id": "tc_kimlik_first",
+  "title": "First Turkish identity card (T.C. Kimlik Kartı)",
+  "status": "unverified",
+  "version": "0.1",
+  "aliases": ["tc kimlik", "t c kimlik", "tc kimlik karti", "kimlik karti", "kimlik", "turkish identity card",
+              "turkish id card", "turkish id", "id card", "identity card", "chip id card", "nufus cuzdani",
+              "carta d identita turca", "first", "birth", "baby", "newborn", "citizenship", "new citizen",
+              "dogum", "vatandaslik", "ilk", "yeni kimlik", "kimlik cikarma", "id card for my child",
+              "replace my nufus cuzdani", "nufus cuzdani degistirme"],
+  "scope": "Turkish citizens applying in Türkiye for their first chip identity card (T.C. Kimlik Kartı): after a birth, after acquiring Turkish citizenship, or to replace an old paper nüfus cüzdanı.",
+  "excluded": ["applications abroad (consulates)", "renewal of an existing chip card (see tc_kimlik_renewal)",
+               "foreigners: they receive a foreigner identity number with their residence permit",
+               "temporary identity document (geçici kimlik belgesi)",
+               "people under legal restriction and children under state protection"],
+  "scope_conditions": [
+    {"op": "is_true", "field": "is_turkish_citizen"},
+    {"op": "is_true", "field": "applying_in_turkiye"}
+  ],
+  "sections": [
+    {"id": "eligibility", "title": "Who can apply and why", "order": 1},
+    {"id": "identity_photo", "title": "Identity documents and photo", "order": 2},
+    {"id": "applicant", "title": "Who goes to the office", "order": 3},
+    {"id": "fee_appointment", "title": "Fee and appointment", "order": 4},
+    {"id": "guardrails", "title": "Authority", "order": 5, "delegate": false}
+  ],
+  "stages": [
+    {"id": "card_application", "title": "ID card application at the population directorate (nüfus müdürlüğü)",
+     "requires": ["TCF001", "TCF002", "TCF003", "TCF004", "TCF005", "TCF006", "TCF007", "TCF008", "TCF009",
+                  "TCF010", "TCF011", "TCF012"]}
+  ],
+  "fields": [
+    {"name": "is_turkish_citizen", "type": "bool", "question": "Is the future card holder a Turkish citizen?"},
+    {"name": "applying_in_turkiye", "type": "bool", "question": "Will you apply at a population directorate (nüfus müdürlüğü) in Türkiye?"},
+    {"name": "application_reason", "type": "str",
+     "question": "Why is the card needed: birth, citizenship (newly acquired) or nufus_cuzdani (replacing the old paper ID)?",
+     "aliases": {"birth": "birth", "dogum": "birth", "doğum": "birth", "newborn": "birth", "baby": "birth",
+                 "citizenship": "citizenship", "vatandaslik": "citizenship", "vatandaşlık": "citizenship",
+                 "new citizen": "citizenship", "nufus_cuzdani": "nufus_cuzdani", "nufus cuzdani": "nufus_cuzdani",
+                 "nüfus cüzdanı": "nufus_cuzdani", "old id": "nufus_cuzdani", "paper id": "nufus_cuzdani",
+                 "lost": "lost", "kayip": "lost", "kayıp": "lost", "expired": "expired", "damaged": "damaged"}},
+    {"name": "birth_date", "type": "date", "question": "What is the date of birth of the future card holder?"},
+    {"name": "application_date", "type": "date", "question": "On which date will you apply (your appointment date)?"},
+    {"name": "applicant_age_months", "type": "int", "question": ""},
+    {"name": "registered_in_family_register", "type": "bool", "question": "Is the acquired citizenship already registered in the family register (aile kütüğü)?"},
+    {"name": "residence_address_registered", "type": "bool", "question": "Is your residence address registered in the address register (MERNİS adres kaydı)?"},
+    {"name": "citizenship_announcement_present", "type": "bool", "question": "Do you have the official announcement (duyuru belgesi) that you acquired Turkish citizenship?"},
+    {"name": "photo_id_present", "type": "bool", "question": "Will the card holder bring a valid identity document with a photo (nüfus cüzdanı, passport, driving licence...)?"},
+    {"name": "relative_statement_available", "type": "bool", "question": "If there is no photo ID: can a parent, spouse, adult sibling or adult child come to confirm the identity?"},
+    {"name": "nufus_cuzdani_present", "type": "bool", "question": "Will you bring the old nüfus cüzdanı that the card replaces?"},
+    {"name": "photo_date", "type": "date", "question": "When was the biometric photo taken?"},
+    {"name": "photo_age_months", "type": "int", "question": ""},
+    {"name": "travel_document_use", "type": "bool", "question": "Will the card be used as a travel document?"},
+    {"name": "applies_in_person", "type": "bool", "question": "Will the card holder go to the office in person?"},
+    {"name": "legal_representative_applies", "type": "bool", "question": "For a child under 15: will a parent, guardian or another allowed relative make the application?"},
+    {"name": "birth_notified_within_legal_period", "type": "bool", "question": "Was the birth notified within the legal period (30 days in Türkiye)?"},
+    {"name": "fee_payment_date", "type": "date", "question": "On which date did you pay the card fee (değerli kâğıt bedeli)?"},
+    {"name": "fee_is_current_year_rate", "type": "bool", "question": "Is the amount you paid the fee published for the year of your application?"},
+    {"name": "appointment_booked", "type": "bool", "question": "Do you have an appointment (randevu.nvi.gov.tr, Alo 199, e-Devlet, NVİ Mobil or Nüfusmatik)?"},
+    {"name": "card_issuance_status", "type": "str", "question": ""},
+    {"name": "holder_name", "type": "str", "question": "What is the full name of the future card holder?"},
+    {"name": "current_date", "type": "date", "question": ""}
+  ],
+  "documents": [
+    {"doc_type": "nufus_cuzdani", "description": "Old paper identity card (nüfus cüzdanı)",
+     "extracts": ["holder_name", "birth_date"],
+     "titles": ["nufus cuzdani", "nufus hufus cuzdani"],
+     "keywords": ["nufus cuzdani", "nufus hufus", "cilt no", "aile sira no", "sira no", "verildigi yer",
+                  "verilis nedeni", "kayit no"]},
+    {"doc_type": "citizenship_announcement", "description": "Announcement of acquired Turkish citizenship (duyuru belgesi)",
+     "extracts": ["holder_name"],
+     "titles": ["duyuru belgesi", "vatandaslik duyuru belgesi"],
+     "keywords": ["duyuru belgesi", "vatandasligin kazanilmasi", "vatandasligini kazanmistir",
+                  "turk vatandasligi", "citizenship announcement", "acquired turkish citizenship"]},
+    {"doc_type": "id_card_fee_receipt", "description": "Receipt of the ID card fee payment (makbuz or dekont)",
+     "extracts": [{"field": "fee_payment_date", "from_field": "payment_date"}],
+     "titles": ["kimlik karti bedeli", "kimlik karti ucreti", "degerli kagit bedeli", "identity card fee"],
+     "keywords": ["kimlik karti bedeli", "kimlik karti ucreti", "degerli kagit bedeli", "identity card fee",
+                  "makbuz", "dekont", "tahsilat", "payment receipt", "vergi dairesi"]}
+  ],
+  "derived": [
+    {"field": "current_date", "op": "today"},
+    {"field": "applicant_age_months", "op": "months_between", "args": ["birth_date", "application_date"]},
+    {"field": "photo_age_months", "op": "months_between", "args": ["photo_date", "application_date"]}
+  ],
+  "contacts": [
+    {"role": "NVİ call centre", "name": "Alo 199 (Nüfus ve Vatandaşlık İşleri)", "email": null},
+    {"role": "Population directorate", "name": "District population directorate (ilçe nüfus müdürlüğü)", "email": null}
+  ],
+  "forms": []
+}

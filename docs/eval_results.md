@@ -1,4 +1,4 @@
-# Evaluation results (2026-11-18)
+# Evaluation results (2026-11-20)
 
 - Mode: offline; models: offline: eval.policy.RuleFollowingPolicy (no language model); k = 3 runs per scenario.
 - A = static checklist, B = single LLM (no state/rules/tools), D = orchestrator + ReAct workers + Gate 1.
@@ -6,15 +6,15 @@
 
 | system | runs | verdict_accuracy | date_errors | invented | valid_answer_rate | pass_k | avg_llm_calls | avg_seconds |
 |---|---|---|---|---|---|---|---|---|
-| A | 39 | 0.782 | 0 | 0 | 0.231 | 1/13 | 0.0 | 0.005 |
+| A | 75 | 0.807 | 0 | 0 | 0.12 | 1/25 | 0.0 | 0.005 |
 | B | not run offline (needs --live) |  |  |  |  |  |  |  |
-| D | 39 | 1.0 | 0 | 0 | 1.0 | 13/13 | 4.31 | 0.025 |
+| D | 75 | 1.0 | 0 | 0 | 1.0 | 25/25 | 4.64 | 0.026 |
 
 ## Agent behaviour (D)
 
 | valid_tool_call_rate | avg_steps | loops_detected | fallback_rate | gate1_first_rejections |
 |---|---|---|---|---|
-| 1.0 | 3.15 | 0 | 0.0 | 0 |
+| 1.0 | 3.32 | 0 | 0.0 | 0 |
 
 ## Procedure identification (D)
 
@@ -24,6 +24,16 @@
 | G02-no-procedure | None | None | answered | True |
 | G03-other-wording | ikamet_first | ikamet_first | answered | True |
 | G04-extension | ikamet_extension | ikamet_extension | answered | True |
+| G05-first-id-card | tc_kimlik_first | tc_kimlik_first | answered | True |
+| G06b-lost-turkish-id-card | tc_kimlik_renewal | tc_kimlik_renewal | answered | True |
+| G06-lost-id-card | tc_kimlik_renewal | tc_kimlik_renewal | answered | True |
+| G07-renew-kimlik | tc_kimlik_renewal | tc_kimlik_renewal | answered | True |
+| G08-first-or-renewal-is-ambiguous | None | None | needs_user_input | True |
+| G09-replace-paper-id | tc_kimlik_first | tc_kimlik_first | answered | True |
+
+## Memory across sessions (Twin closed and reopened; offline policy)
+
+- 10/10 checks passed
 
 ## Scenarios where D failed
 

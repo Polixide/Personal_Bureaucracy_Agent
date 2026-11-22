@@ -1,0 +1,204 @@
+SOURCE: Randevu Sıkça Sorulan Sorular (Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ))
+URL: https://www.nvi.gov.tr/randevu-sikca-sorulan-sorular
+RETRIEVED: 2026-11-19
+SHA256: c0fa5aa850315af4c982678e2ddc60fdca89fecc6c6fc8b3f5d6c84c3b49693f
+
+Randevu Sıkça Sorulan Sorular
+
+Başvuru İşlemleri İçin Randevu Nasıl Alınır?
+
+https://randevu.nvi.gov.tr internet adresi, e-Devlet kapısı, NVİ Mobil, Nüfusmatik ya da Çağrı Merkezi (Alo 199) üzerinden alınabilmektedir.
+
+Randevusuz İşlem Yaptırılabilir mi?
+
+Doğum Bildirimi işlemi dışında randevusuz işlem yapılmamaktadır.
+
+Randevu Aldım Ancak Gidemeyeceğim. Ne Yapmalıyım?
+
+Randevunuza gelemeyeceğiniz durumlarda, randevu saatinizden önce randevunuzu iptal etmeniz gerekmektedir. İptal edilmeyen randevunun ardından, aynı belge türü için 15 gün süreyle yeni randevu alınamamaktadır. Herhangi bir mağduriyet yaşamamanız ve işlemlerinizin olumsuz etkilenmemesi için randevu tarihinizi takip etmeniz, değişiklik olması durumunda ise randevunuzu zamanında iptal etmeniz önemlidir.
+
+Randevumu Nasıl İptal Ederim?
+
+https://randevu.nvi.gov.tr internet adresi, e-Devlet kapısı, NVİ Mobil, Nüfusmatik, Çağrı Merkezi (Alo 199) ve Dijital Sıramatik (Randevu alınırken beyan edilen telefon numarasına gönderilen sms linkinde bulunan adresten)
+
+Kaç Defa Randevu İptali Yapabilirim?
+
+Randevu iptalinde herhangi bir sayı kısıtlaması bulunmamaktadır.
+
+Başvuru Bedellerini Ne Zaman, Nereye Ödemeliyim?
+
+T.C. Kimlik kartı, pasaport ve sürücü belgesi başvuru bedellerinin, başvurudan önce vergi dairesi müdürlüklerine, dijital.gib.gov.tr internet adresi üzerinden sanal pos uygulamasıyla kredi kartı veya banka kartı aracılığıyla ya da anlaşmalı bankalara yatırılması gerekmektedir. Ödemeye dair belge (makbuz veya dekont) gerektiğinde gösterilmek üzere muhafaza edilmelidir.
+
+Doğum Nedeniyle T.C. Kimlik Kartı Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• Doğum bildirimi ile birlikte kimlik kartı başvurusu alınır.
+
+• Kanuni süresi içinde (Yurt içinde 30 gün, yurt dışında 60 gün) veya 24/5/1983 tarihli ve 2828 sayılı Sosyal Hizmetler Kanunu uyarınca Sosyal Hizmetler ve Çocuk Esirgeme Kurumu yetkililerince yapılan doğum bildirimleri sonucu düzenlenen kimlik kartlarından değerli kâğıt bedeli alınmaz. Aksi halde, değerli kâğıt bedelinin yatırılması gerekmektedir.
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Değiştirme T.C. Kimlik Kartı Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+Nüfus cüzdanı veya kimlik kartı
+
+Son altı ay içerisinde çekilmiş 1 adet biyometrik fotoğraf
+
+Değerli kâğıt bedelinin yatırılması
+
+On beş yaşını tamamlamamış çocukların; veli, vasi veya vekâletname ibraz edenler ile Kanunun 17 nci maddesindeki beyanla yükümlü kişilerin kimlik kartı başvurusu alınır, nüfus müdürlüğüne gelme zorunluluğu bulunmamaktadır.
+
+On beş yaşını tamamlayanların fotoğraflı bir kimlik belgesi sunamaması halinde anne, baba, eş, varsa ergin kardeş veya ergin çocuklarının veya vasinin beyanı alınır.
+
+Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Kayıp Nedeniyle T.C. Kimlik Kartı Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+Sistemde kayıtlı biyometrik verinin bulunması halinde doğrulama yapılarak alınacak başvurularda son altı ay içinde çekilmiş bir adet biyometrik fotoğraf istenir ve kayıp bedelinin ödenmiş olması gerekmektedir
+
+Biyometrik veri doğrulaması yapılamaması halinde ise kimlik belgesi, (Nüfus cüzdanı, kimlik kartı, uluslararası aile cüzdanı, sürücü belgesi, pasaport, geçici kimlik belgesi ve güncel ve doğrulanabilir olması kaydıyla kurumların kendi mevzuatlarında kimlik yerine geçen belge) , son altı ay içinde çekilmiş bir adet biyometrik fotoğraf istenir ve kayıp bedelinin ödenmiş olması gerekmektedir.
+
+Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Türk Vatandaşlığının Kazanılması Nedeniyle T.C. Kimlik Kartı Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+Türk vatandaşlığının kazanıldığına dair duyuru belgesi
+
+Duyuru belgesinin yanında pasaport veya ikamet izin belgesinin de bulundurulması faydalı olacaktır.
+
+MERNİS sisteminde Başvurudan önce mutlaka yerleşim yeri adres kaydı yapılmış olmalıdır.
+
+Son altı ay içerisinde çekilmiş 1 adet biyometrik fotoğraf
+
+Değerli kâğıt bedelinin yatırılması
+
+Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+İlk Kayıt Nedeniyle Sürücü Belgesi Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• Nüfus cüzdanı veya kimlik kartı
+
+• Sürücü sağlık raporu
+
+• Son altı ay içerisinde çekilmiş 1 adet biyometrik fotoğraf
+
+• Kan grubu kartı (Sağlık Raporunda yer almıyorsa)
+
+• Sürücü belgesi değerli kağıt ve harç bedeli ile vakıf payının yatırılması
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Yenileme/ Sınıf Ekleme Nedeniyle Sürücü Belgesi Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• Nüfus cüzdanı veya kimlik kartı
+
+• Eski sürücü belgesi
+
+• Sürücü sağlık raporu
+
+• Son altı ay içerisinde çekilmiş 1 adet biyometrik fotoğraf
+
+• Kan grubu kartı (sağlık raporunda yer almıyorsa)
+
+• Değerli kağıt bedeli ve vakıf payının yatırılması
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Kayıp Nedeniyle Sürücü Belgesi Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• Nüfus cüzdanı veya kimlik kartı
+
+• Sürücü sağlık raporu
+
+• Son altı ay içerisinde çekilmiş 1 adet biyometrik fotoğraf
+
+• Kan grubu kartı (sağlık raporunda yer almıyorsa)
+
+• Eski tip sürücü belgesi kaybı ya da yeni tip sürücü belgesi kaybı durumuna göre değerli kağıt bedeli ve vakıf payının yatırılması
+
+• Ücretler ile ilgili ayrıntılı bilgi “randevu.nvi.gov.tr” adresinden öğrenilebilmektedir.
+
+• Kayıp sürücü belgesi başvurusunda başvuru yapılan ilçe nüfus müdürlüğü, sürücü belgesinin ilk alındığı yer ilçe nüfus müdürlüğüne görüş sorar. Gelen cevaba istinaden başvuru alınır. Cevaplama süreci ise ilçe nüfus müdürlüğünün yoğunluk durumuna göre değişmektedir.
+
+Dış Ülkelerden Alınan Sürücü Belgesini Değiştirme (Tebdil) Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• Yabancı sürücü belgesinin aslı ve renkli fotokopisi
+
+• Yabancı sürücü belgesinin noter ve konsolosluk onaylı Türkçe tercümesi
+
+• Sürücü sağlık raporu
+
+• Son altı ay içerisinde çekilmiş 1 adet biyometrik fotoğraf
+
+• Kan grubu kartı (sağlık raporunda yer almıyorsa)
+
+• Öğrenim belgesi, yurtdışından alınmış ise noter tasdikli tercümesi
+
+• Hangi tip sürücü belgesi alacak ise ilk defa sürücü belgesi almış gibi ücret ödenmektedir.
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Umuma Mahsus Pasaport Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• T.C. kimlik kartı, nüfus cüzdanı veya geçici kimlik belgesi
+
+• Son altı ay içerisinde çekilmiş bir adet biyometrik fotoğraf
+
+• Yasal temsilcilerin başvuru merkezinde hazır bulunmamaları halinde; kısıtlı veya ergin olmayan kişiler için muvafakatname
+
+• Öğrencilerin harçsız pasaport başvurularında; "Öğrenci Belgesi" (Başvuru esnasında sistemde öğrencilik durumunun doğrulanması halinde belge talep edilmeyecektir.)
+
+• Başvuru öncesinde pasaport defter ve harç bedelinin ödenmesi (Ödeme bilgileri sistem üzerinden görüntülendiğinden başvuru esnasında ayrıca makbuz/dekont talep edilmemektedir.)
+
+• Eski pasaport (Daha önceden alınmış ve iptali yapılmamış pasaportların başvuruda getirilmesi gerekmektedir.)
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Hususi Damgalı Pasaport Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• T.C. kimlik kartı, nüfus cüzdanı veya geçici kimlik belgesi
+
+• Son altı ay içerisinde çekilmiş bir adet biyometrik fotoğraf
+
+• Çalışan kamu görevlileri ve ihracatçılar için hususi damgalı pasaport talep formu
+
+• Emeklilik veya çekilme nedenleri ile görevinden ayrılanlar için bir defaya mahsus kadro durumunu gösterir elektronik veya ıslak imzalı resmi yazı (Bu belgeyi kişiler son görev yaptıkları kurumlarından almaları gerekmektedir.)
+
+• Birinci derece kadro ile emekliliğe hak kazanmış olan belediye başkanları için; Sosyal Güvenlik Kurumu Başkanlığı Emeklilik Hizmetleri Genel Müdürlüğü Kamu Görevlileri Emeklilik Daire Başkanlığından alınan durumlarını gösterir resmi yazı
+
+• Yasal temsilcilerin başvuru merkezinde hazır bulunmamaları halinde; kısıtlı veya ergin olmayan kişiler için muvafakatname
+
+• Ebeveynlerinin hakkından dolayı hususi damgalı pasaport alacak çocuklar için; "Öğrenci Belgesi" (Sistemde öğrencilik durumunun doğrulanması halinde belge talep edilmeyecektir. Ayrıca ergin olmayan çocukların öğrenci olmamaları halinde 18 yaşına kadar hususi damgalı pasaport verilir.)
+
+• Ebeveynlerinin hakkından dolayı hususi damgalı pasaport alacak engelli ergin çocuklar için "Sağlık Kurulu Raporu"
+
+• Eski pasaport (Daha önceden alınmış ve iptali yapılmamış pasaportların başvuruda getirilmesi gerekmektedir.)
+
+• Başvuru öncesinde pasaport defter bedelinin ödenmesi (Ödeme bilgileri sistem üzerinden görüntülendiğinden başvuru esnasında ayrıca makbuz/dekont talep edilmemektedir. Hususi damgalı pasaportlar harçtan muaftır.)
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Hizmet Damgalı Pasaport Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+• T.C. kimlik kartı, nüfus cüzdanı veya geçici kimlik belgesi
+
+• Son altı ay içerisinde çekilmiş bir adet biyometrik fotoğraf
+
+• Hizmet damgalı pasaport talep formu
+
+• Kamu görevlisi olmayanlar için talep formu ile birlikte görev onayı
+
+• Ebeveynlerinin hakkından dolayı hizmet damgalı pasaport alacak çocuklar için; "Öğrenci Belgesi" (Sistemde öğrencilik durumunun doğrulanması halinde belge talep edilmeyecektir. Ayrıca ergin olmayan çocukların öğrenci olmamaları halinde 18 yaşına kadar hak sahibinin pasaport süresi dikkate alınarak hizmet damgalı pasaport verilir.)
+
+• Ebeveynlerinin hakkından dolayı hizmet damgalı pasaport alacak engelli ergin çocuklar için "Sağlık Kurulu Raporu"
+
+• Yasal temsilcilerin başvuru merkezinde hazır bulunmamaları halinde; kısıtlı veya ergin olmayan kişiler için muvafakatname
+
+• Eski pasaport (Daha önceden alınmış ve iptali yapılmamış pasaportların başvuruda getirilmesi gerekmektedir.)
+
+• Başvuru öncesinde pasaport defter bedelinin ödenmesi (Ödeme bilgileri sistem üzerinden görüntülendiğinden başvuru esnasında ayrıca makbuz/dekont talep edilmemektedir. Hizmet damgalı pasaportlar harçtan muaftır.)
+
+• Ücretler ile ilgili ayrıntılı bilgi “ randevu.nvi.gov.tr ” adresinden öğrenilebilmektedir.
+
+Adres Kayıt Başvurusu İçin Gerekli Evraklar Nelerdir?
+
+Elektrik, su, doğalgaz abonelik sözleşmesi veya faturası, sabit telefon, internet (adrese tesis edilen) vb. belge getirilmesi gerekmektedir.

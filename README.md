@@ -39,8 +39,21 @@ Python. Unknown facts stay unknown.
   - ask: `ask_user`;
   - sandbox: `simulate_submission`;
   - artifact (proposal only): `draft_email`, `create_ics`, `fill_pdf`, `build_checklist`.
-- **RAG** (`src/rag/`): it cites the official sources and never decides a rule. **Episodic memory**
-  (`src/memory/episodes.py`): lessons from repairs that Gate 1 accepted.
+- **The assistant in the chat** (`src/agent/chat.py`, `src/agent/briefing.py`): the same ReAct graph without
+  workers, started from the plan that code computes from the Twin (where you are, what to do next, step by step).
+  It answers questions, records what the user says (unconfirmed until confirmed), prepares proposals, and every
+  reply passes Gate 1; without the model, the reply is the plan written by code.
+- **Documents** (`src/document_processing/`, `src/tools/extract_document.py`): one upload may hold several
+  documents (split where a title or a machine-readable zone opens one); every page is read; MRZ values are checked
+  by their digits; photos and scans go through OCR, and pictures nothing else can name (a border stamp) through a
+  small vision model whose values code compares with the OCR text. What code cannot check waits for the user.
+- **Knowledge base and RAG** (`src/rag/`): the official pages and documents of each pack are downloaded as
+  citable text (`python -m src.rag fetch`), searched by the agent (`search_sources`), checked for changes
+  (`check`, which names the rules to review) and used to propose rule drafts with verified quotes
+  (`draft-rules`). It cites; it never decides a rule. **Web scraping** (`python -m src.rag crawl`) collects
+  official pages for procedures without a pack (robots.txt obeyed); the chat answers from them with citations and
+  says that nothing was checked. **Memory**: the Twin keeps every run with its rule
+  verdicts, and `src/memory/episodes.py` keeps lessons from repairs that Gate 1 accepted.
 
 Each module has a one-page explanation in `docs/modules/`. The migration from the milestone-1 prototype is
 recorded in `docs/migration_plan.md`.
@@ -50,10 +63,13 @@ recorded in `docs/migration_plan.md`.
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
-ollama pull qwen3:4b        # default in config.py (4 GB GPU); qwen3:8b or gemma4:e4b on bigger machines
-ollama pull bge-m3          # embeddings; qwen3-embedding:0.6b if slow
+ollama pull qwen3:4b              # agent team and documents (4 GB GPU); qwen3:8b or gemma4:e4b on bigger machines
+ollama pull qwen2.5:3b            # the chat assistant: 16 s per reply here against 42 s for qwen3:4b (docs/eval_chat.md)
+ollama pull qwen3-vl:2b-instruct  # vision model for photos and scans (docs/eval_documents.md)
+ollama pull bge-m3                # embeddings, chosen by measurement (docs/eval_rag.md)
 ```
-All settings live in `config.py`. The model can also be chosen with the environment variable `OLLAMA_MODEL`.
+All settings live in `config.py`. Models can also be chosen with `OLLAMA_MODEL`, `OLLAMA_CHAT_MODEL` and
+`OLLAMA_VISION_MODEL`; `VISION_ENABLED=0` switches the vision model off.
 
 ## Use
 ```powershell
@@ -62,19 +78,35 @@ python -m pytest -q                      # tests (the LLM is always mocked; real
 python -m eval.run_eval                  # offline evaluation -> docs/eval_results.md
 python -m eval.run_eval --live           # with the local model
 python -m src.pack validate ikamet_first # check a Procedure Pack
+python -m src.rag check tc_kimlik_first  # did an official page change? which rules to review?
+python -m src.rag fetch tc_kimlik_first  # save the current official texts
+python -m src.rag draft-rules tc_kimlik_first   # rule drafts with checked quotes -> rule_drafts.json
+python -m eval.rag_eval --models qwen3-embedding:0.6b bge-m3   # compare embedding models
+python -m src.rag crawl                  # web scraping for procedures without a pack (knowledge/seeds.json)
+python -m src.rag search-web "How do I get a tax number?"
+python -m eval.document_eval             # how well uploads are read (live) -> docs/eval_documents.md with --out
+python -m eval.chat_eval                 # the chat assistant on 8 typical messages (live) -> docs/eval_chat.md
 ```
 
 ### The app
-The page answers the three questions of the Digital Twin from our presentation:
-- **Goal box.** Type your goal and press *Ask the agent* (2-4 minutes with `qwen3:4b` on a laptop). If the agent
-  asks a question, answer it in the box that appears.
-- **Where am I?** Requirements met per section, your documents, and everything the Twin knows.
-- **What is missing?** Add a document, confirm uncertain values, see the problems, and answer the open questions.
-- **What next?** Actions waiting for your approval, the sandbox (a mock portal; nothing is submitted), and
-  *Something happened?* to report an outcome.
+The layout comes from Neda's interface; the agent, the Twin and the rules behind it are ours.
+- **Sidebar.** Your profile name (the same name continues where you left off), the procedure, today's date, and
+  *Reset* (clear the conversation, or delete the profile).
+- **Status bar.** Documents ready, checks passed, and the agent's last status: *where am I?* at a glance.
+- **Waiting for your decision.** Actions to approve or deny (nothing is sent: approving writes a file you
+  download), before anything else.
+- **Assistant.** A conversation that opens with your plan, step by step. Ask anything, tell it something new
+  (it asks you to confirm), ask it to prepare a checklist or an e-mail, or attach documents to a message (a PDF
+  with several documents is fine). Beside it: your documents, *Run a full check* (the orchestrator and its workers,
+  a few minutes), *Prepare my checklist*, *Try this step* in the sandbox, and *Something happened?*.
+- **Documents** (pages and how each one was recognised, *Read it again as …*), **Your details** (open questions,
+  values to confirm with their quote), **Checks** (every requirement, its status and the official sources) and
+  **Technical** (agent steps, Gate 1, run log, lessons, knowledge base, web corpus).
 
+One agent run or document reading per profile runs at a time; other tabs wait and refresh by themselves.
 To try it without personal documents, upload the files in `data/synthetic_samples/` (for example
-`health_insurance.txt`). To keep a demo apart from your own Twin, set `TWIN_DATABASE` to another file:
+`health_insurance.txt`) or the public specimens in `data/reference_samples/` (see `SOURCES.md` there). To keep a
+demo apart from your own Twin, set `TWIN_DATABASE` to another file:
 `$env:TWIN_DATABASE = "data/demo_twin.sqlite"; streamlit run app.py`.
 
 ## Procedures
@@ -82,8 +114,13 @@ To try it without personal documents, upload the files in `data/synthetic_sample
   rules, converted from the milestone-1 `knowledge/` data (that folder was removed once the pack replaced it).
 - `ikamet_extension`: short-term residence permit extension. Its rules are **unverified** until a person checks
   them against the official text.
+- `tc_kimlik_first` and `tc_kimlik_renewal`: the Turkish identity card (T.C. Kimlik Kartı) for citizens, first
+  card (birth, new citizenship, old nüfus cüzdanı) and renewal (expired, lost, damaged). Their rules quote the
+  NVİ pages they come from and are **unverified** until a person checks them (review lists in their README).
 
 ## Data and privacy
 Synthetic data only. `data/uploads/`, `data/outbox/` and the Twin database are git-ignored and never committed.
-`sources_text/` files are compiled summaries, not copies of the official pages; replace them with the saved
-page text.
+`sources_text/` holds the text of public official pages (downloaded with `python -m src.rag fetch`, a generic
+client name and no personal data). `knowledge/corpus/` holds public pages collected by `python -m src.rag crawl`.
+`data/reference_samples/` holds public specimen documents (licences in its `SOURCES.md`). The document evaluation
+writes its synthetic files to a temporary folder.

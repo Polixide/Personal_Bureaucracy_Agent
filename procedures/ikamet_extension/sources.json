@@ -3,36 +3,40 @@
     "source_id": "SAB_EXCHANGE_CURRENT",
     "title": "Exchange Students Short-Term Residence Permit - First and Extension Application Guidelines",
     "url": "https://iro.sabanciuniv.edu/en/exchange-students-short-term-residence-permit-first-and-extension-application-guidelines",
-    "retrieved_at": "2026-11-05",
+    "retrieved_at": "2026-11-19",
     "authority": "sabanci_operational",
     "organization": "Sabancı University IRO",
-    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json). Its extension part has not been checked rule by rule."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json). Its extension part has not been checked rule by rule.",
+    "content_sha256": "b3fa32769765895a5e30526e5d5acc3c4f958d29f7f97260ab9f98e08b0363e3"
   },
   {
     "source_id": "GOV_FAQ",
     "title": "Frequently Asked Questions about Foreigners",
     "url": "https://en.goc.gov.tr/frequently-asked-questions-about-foreigners",
-    "retrieved_at": "2026-11-05",
+    "retrieved_at": "2026-11-19",
     "authority": "government_primary",
     "organization": "Presidency of Migration Management",
-    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json)."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json).",
+    "content_sha256": "d1f2a1a01294c3dffcd38b541c545a3df63e8f7e3738cd5a39fe5e219d43c082"
   },
   {
     "source_id": "GOV_RESIDENCE_TYPES",
     "title": "Residence Permit Types",
     "url": "https://en.goc.gov.tr/residence-permit-types",
-    "retrieved_at": "2026-11-05",
+    "retrieved_at": "2026-11-19",
     "authority": "government_primary",
     "organization": "Presidency of Migration Management",
-    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json)."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json).",
+    "content_sha256": "01b631cec043141d56649d82577e00026649fdeb69248a2c58f7b45975cbaaa5"
   },
   {
     "source_id": "GOV_GENERAL_INFO",
     "title": "Residence Permit General Information",
     "url": "https://www.goc.gov.tr/ikamet-genel-bilgiler/",
-    "retrieved_at": "2026-11-05",
+    "retrieved_at": "2026-11-19",
     "authority": "government_primary",
     "organization": "Presidency of Migration Management",
-    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json)."
+    "notes": "Entry copied from the ikamet_first pack (milestone-1 knowledge/sources.json).",
+    "content_sha256": "463e0fbf377d896fcc585eef447ed481db013dbd7a2cb5f75a08d2ddff3d2354"
   }
 ]

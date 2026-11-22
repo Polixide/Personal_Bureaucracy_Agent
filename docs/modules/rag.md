@@ -1,40 +1,92 @@
-# `src/rag/index.py` + `search_sources` — citing the official sources
+# `src/rag/` — the knowledge base: official sources, retrieval, rule drafts, web corpus
 
 ## What it does
-It splits each pack's `sources_text/<SOURCE_ID>.txt` into chunks and embeds them with `EMBED_MODEL` through
-`src/llm.py`. It then finds the chunks closest to a question by cosine similarity, computed with numpy.
-It **cites and explains**; it never decides a rule result.
+It keeps each pack's official web pages and documents as citable text, finds the passages closest to a question
+(for the agent's `search_sources` tool), tells when an official page changed, and proposes rule drafts from the
+texts for a person to review. It **cites and explains**; it never decides a rule result and never edits rules.
 
 ## Where it sits in the flow
-The `search_sources` tool is available to the orchestrator and to workers. A typical use is a worker
-explaining why a rule fails, citing the passage and its `source_id`.
+| Module | Job | Called by |
+|---|---|---|
+| `ingest.py` | page/PDF/TXT → readable text (menus, scripts, footers dropped); header + SHA-256 | `knowledge.py` |
+| `knowledge.py` | `fetch_sources`, `fetch_from_file`, `add_source`, `check_sources` on `sources.json` | CLI |
+| `index.py` | chunks (800 chars), embeddings in batches of 16, cosine search with numpy | `search_sources`, `drafts.py` |
+| `drafts.py` | retrieve → model proposes `{description, quote, source_id, fields}` → code checks | CLI |
+| `crawl.py` | web scraping for procedures **without** a pack: seeds → same-site content links → `knowledge/corpus/` | CLI |
+| `__main__.py` | `python -m src.rag fetch / add / check / index / search / draft-rules <procedure_id>`, `crawl`, `search-web` | a person |
 
 ## Inputs and outputs
-```python
-search(store, pack, backend, "How long must my passport be valid?", k=3)
-# [Hit(source_id="GOV_FAQ", title="Frequently Asked Questions about Foreigners", chunk_id="GOV_FAQ#2",
-#      text="- R006 (passport_validity_buffer): Passport validity must extend at least 60 days ...", score=0.41), ...]
+```text
+python -m src.rag fetch tc_kimlik_first
+OK   NVI_TCKK_FAQ: 11824 characters (changed)      -> sources_text/NVI_TCKK_FAQ.txt, sources.json hash + date
+python -m src.rag check tc_kimlik_renewal
+CHANGED      NVI_TCKK_FAQ                            (exit code 1)
+             review rules: TCR002, TCR003, ...
+             -Son altı ay ...  / +Son üç ay ...
 ```
-Vectors are cached in the Twin database (table `rag_vectors`). Each is keyed by pack, chunk and embedding model,
-and recomputed only when the chunk's text hash changes.
+A draft in `rule_drafts.json` (model output checked by code):
+```json
+{"draft_id": "D001", "description": "A recent biometric photo is needed.", "source_id": "NVI_TCKK_PROCEDURES",
+ "quote": "Son altı ay içinde çekilmiş biyometrik fotoğraf", "fields": ["photo_date"], "quote_found": true,
+ "problems": [], "similar_rules": ["TCF008"], "status": "unverified"}
+```
 
 ## Why it is built this way
-- **Plain numpy cosine** over a few dozen chunks is enough and has no extra dependencies. The cache makes
-  repeated searches cost a single query embedding.
-- **One file per `source_id`.** Every hit carries a citable source that exists in `sources.json`;
-  `src.pack validate` reports any text file that matches no source.
+- **The code checks the model.** A draft's quote must really be in the saved text (case, Turkish ı/İ and spacing
+  ignored, at least 12 characters), its source must be among the retrieved passages, and its fields must exist.
+  Anything else is listed under `problems`. `rules.json` is only changed by a person (`add-rule` skill).
+- **Change detection by hash.** Rules cite pages that change every year (fees, forms). `check` compares the new
+  text with the saved one and names the rules to review; nothing is overwritten until `fetch`.
+- **Standard library only.** `html.parser` + httpx (already used by ollama) + PyMuPDF; no new dependency. A
+  generic client name is sent, never user or project details. Sites that refuse downloads use `--file`.
+- **Embedding model `bge-m3`**, chosen by measurement (`python -m eval.rag_eval`, `docs/eval_rag.md`): 66 queries
+  on 567 real passages, hit@3 0.758 against 0.667 for `qwen3-embedding:0.6b`, and 0.60-0.64 against 0.33-0.36 on
+  the Turkish NVİ pages, where users ask in English. It indexes slower (392 s against 175 s, once, then cached)
+  but needs less VRAM while running (689 MB against 1.2 GB). Models that expect a query instruction get it
+  (`EMBED_QUERY_INSTRUCTIONS`); passages never do. Vectors are cached per model in the Twin's `rag_vectors` table.
+
+## Where RAG is useful, and where it is not (decided 2026-11-20)
+- **Not for deciding.** Rules stay in `rules.json`, written and checked by people, evaluated by code. Retrieval misses
+  the right passage about 1 time in 4 (hit@3 0.76), so it can never be the place a requirement comes from.
+- **Not for explaining a rule.** Each rule already carries its quote and `source_ids`; the chat gets them directly in
+  the briefing, which is exact. Retrieval would only add noise there.
+- **Yes for questions the rules do not cover** ("how long does it take?", "do I need an appointment?"): the chat
+  retrieves 3 passages of the procedure's sources for every message and cites them.
+- **Yes for procedures without a pack**: the web corpus below.
+- **Yes for writing new rules** (`draft-rules`), and for noticing that an official page changed (`check`).
+
+## Web scraping for other procedures (`crawl.py`)
+```text
+python -m src.rag crawl           # follows knowledge/seeds.json, saves knowledge/corpus/*.txt + corpus.json, embeds them
+python -m src.rag search-web "How do I get a tax number as a foreigner?"
+[0.743] WEB_IRO_EN_HOW_OBTAIN_TAX_ID: The tax ID number is necessary for important payments ...
+```
+- **Polite and limited**: same site and path prefix as the seed, links found in the page's content only (menus,
+  headers, footers and sidebars are skipped, otherwise the site menu fills the page budget — seen on the first run),
+  `max_depth` / `max_pages` per seed, robots.txt obeyed (NVİ and Göç disallow `/kurumlar`, where their PDFs are, so the
+  crawler skips them), one second between requests, a generic client name. BTK refuses automatic clients: not used.
+- **First corpus (2026-11-20)**: 25 pages of Sabancı University's International Relations Office guides for exchange
+  and full-time students — tax ID, bank account, SIM card, IMEI registration, health insurance, address registration,
+  e-Devlet, residence permit and extension, official documents, transport card. These are the procedures an incoming
+  student meets after İkamet, and the pages are written for exactly these users.
+- **How it is used**: the chat adds up to 2 web passages to a turn when their similarity is at least 0.45. Without an
+  active procedure, a reply that cites them gets a note, added by code, that nothing was checked against the user's
+  documents. A web page never becomes a rule by itself; a frequent procedure can become a pack (`add-procedure` skill,
+  then `draft-rules`).
 
 ## How to test it
 ```
-python -m pytest -q tests/test_rag.py
+python -m pytest -q tests/test_rag.py tests/test_knowledge_base.py tests/test_vision_and_crawl.py
+python -m eval.rag_eval --models qwen3-embedding:0.6b bge-m3      # live retrieval comparison (Ollama)
 ```
-- **10 queries.** Each expects a source that actually states the requirement (from the rule's `source_ids`).
-- **Offline embedder.** The tests use the deterministic bag-of-words embedder in `tests/fakes.py`, so they run
-  without Ollama.
+The tests use a fake fetcher, `ScriptedBackend` and a bag-of-words embedder; `test_rag.py` runs on texts pinned in
+`tests/data/placeholder_sources/` so a government website cannot change its results.
 
 ## Known limits
-- **The text files are placeholders.** `sources_text/` holds summaries compiled from the pack's `rules.json`,
-  not copies of the official pages; each file says so. Retrieval only becomes truly useful after someone saves
-  the real page texts there.
-- **No live retrieval measurement yet.** Quality with `bge-m3` (or `qwen3-embedding:0.6b`) still needs a run
-  with `python -m eval.run_eval --live`.
+- **Main-content guess.** The HTML filter keeps the largest "content" container. A page built by JavaScript only
+  gives no text (`no readable text found`); save the page and use `fetch ... --file`.
+- **Noisy hashes.** A page that prints a date or a counter shows as `changed` on every check; the diff preview tells.
+- **Drafts are leads, not rules.** Live with `qwen3:4b` on `tc_kimlik_renewal` (3 topics): 10 drafts, every quote
+  found in the saved text, 3 linked to existing rules, one requirement the pack lacks (re-applying for a lost card
+  through e-Devlet), and one wrong field (a photo rule tied to `renewal_reason`). The first prompt copied the topic
+  as the description and listed six fields; both are now flagged as problems. No conditions are proposed.

@@ -1,15 +1,122 @@
 SOURCE: Exchange Students Short-Term Residence Permit - First and Extension Application Guidelines (Sabancı University IRO)
 URL: https://iro.sabanciuniv.edu/en/exchange-students-short-term-residence-permit-first-and-extension-application-guidelines
-RETRIEVED: 2026-11-05
+RETRIEVED: 2026-11-19
+SHA256: b3fa32769765895a5e30526e5d5acc3c4f958d29f7f97260ab9f98e08b0363e3
 
-NOTE: This file is NOT a copy of the official page. It lists the DRAFT (unverified) extension rules
-of procedures/ikamet_extension/rules.json that cite this source. Replace it with the saved page text,
-then verify each rule against it (draft-rules-from-source skill).
+Exchange Students Short-Term Residence Permit - First and Extension Application Guidelines
 
-Draft requirements that cite this source:
-- EXT001 (apply_before_current_permit_expires): The extension application is made while the current residence permit is still valid.
-- EXT002 (current_permit_card_available): A copy of the current residence permit card is available for the extension file.
-- EXT003 (still_exchange_student): The applicant is still an exchange student at the host institution for the extension period.
-- EXT005 (insurance_covers_extension): Health insurance covers the whole requested extension period.
-- EXT006 (official_eikamet_channel): The extension application is made through the official e-İkamet channel.
-- EXT007 (extension_form_signed): The generated extension application form is signed.
+FILE SUBMISSION INFORMATION !
+
+The file submission deadlines for the months of September, October, November, and December are indicated on the calendar.
+
+CLICK FOR THE CALENDAR HERE
+
+The dates highlighted in yellow are our primary deadlines. Please complete your online appointment applications and submit your documents by these dates. The dates highlighted in blue are our secondary deadlines. If you miss the primary deadlines (yellow dates), you can still apply online and submit your documents during the secondary deadlines (blue dates). Therefore, you are free to choose one timeframe.
+
+September Document Submission Timeframes:
+
+2-13 September Yellow - Primary Deadline for the online application and document submission to IRO
+
+17-27 September Blue - Secondary Deadline for the online application and document submission to IRO
+
+IRO will deliver files to the Immigration Administration on the days marked in red on the calendar . If you bring a file outside of these date options, have missing documents, have not filled out the application form between the specified days, or have submitted an application form filled out in previous months, your file will not be accepted.
+
+Applications with missing documents are not accepted by the IRO. Please ensure that all your documents are complete.
+
+STEP 1: COLLECT THE REQUIRED DOCUMENTS
+
+Declaration control document, filled and signed by you CLICK HERE
+
+REQUIRED DOCUMENTS LIST PDF
+
+Address document may vary depending on where you stay.
+
+Dorm certificate taken from the Dormitory Management (In Turkish, with QR code)
+
+Rental agreement under your name (You can check How to Obtain Official Documents)
+
+Letter of commitment (Taahhütname taken at a notary) for the students who do not have a rental agreement (You can check How to Obtain Official Documents)
+
+Note: Airbnb platform is not accepted as an address document. Even if you stay at an Airbnb, you must make a rental agreement or taahhütname with the house owner.
+
+🚨 For IRO document verification: After collecting the documents, you need to scan them, convert them into PDF format, and send them to us via email either as a zip file or as they are. Once we check the documents and ensure there are no missing ones, you can request an office appointment with us. You need to use the link below to schedule an in-person appointment. You can also use the same link to request online meetings.
+
+Calendly link: https://calendly.com/irolegalsabanci/legal-procedures
+
+❗ Document verification is done only via email/online. Physical submission of documents to the office is accepted only in person at the office. You have to receive an email confirming that your documents have been checked via email. If you come to the office without notifying us, your documents will be returned back to you. Please pay attention to this.
+
+STEP 2: ONLINE APPLICATION AND PAYMENT
+
+It is necessary to upload your biometric photo in ICAO standards taken within the last six months to the form. Please have your biometric head-shot photograph in the JPEG version available on your computer.
+
+Before applying online, check the online application guide in our website and follow the steps carefully. If you face any problems, you may contact irolegal@sabanciuniv.edu for technical support.
+
+Application website: https://e-ikamet.goc.gov.tr/
+
+First time application:
+
+🔗 Link: https://e-ikamet.goc.gov.tr/Ikamet/OnKayit
+
+📋 Guide: CLICK HERE - FIRST APPLICATION GUIDE
+
+Extension application link if you need:
+
+🔗 Link: https://e-ikamet.goc.gov.tr/Ikamet/UzatmaGecisGiris/UzatmaBasvuru
+
+The website we have specified is the only officially authorized website where you should submit your application. Please avoid similar-sounding websites you may come across on the internet. Many of them may be fraudulent.
+
+Once your online application is complete, you should print it out, sign the signature line on the first page at the bottom, and add it into your file along with your other documents. You must prepare all required documents by yourself and please make sure that you do not have any missing documents.
+
+If you encounter a problem during your online application, please send the screenshot of the problem/application step to the irolegal@sabanciuniv.edu
+
+PAYMENT:
+
+Physical payment:
+
+You must first obtain a tax ID number and then pay it via either Tax Office, Ziraat Bank, Halk Bank, or Vakıf Bank with the 9207-reference code. If you already have a residence permit card before, you can use the old residence card number as a tax number. If you are below 18, you are not authorized to pay the card fee for yourself. Therefore, you may ask for a relative or a friend of yours to pay your card fee in your name with your tax ID number. Please note that the payment of the card fee must be in your name with your tax ID number.
+
+See below the addresses of the Tax offices:
+
+Yakacık D-100 Kuzey Yanyol Caddesi No: 47/A-B Kartal ISTANBUL
+
+Kadıköy Tax Office: Osmanağa, Halitağa Caddesi No:19, Kadıköy ISTANBUL
+
+Note: The application fee is subject to change annually.
+
+Make sure to have more than 565₺ cash with you when you go to pay. However, you must pay this amount in total since you are a student in Turkey. The personnel might not be able to speak English. Therefore, you can bring this message to anyone, and they will help you:
+
+“Merhaba! Ben SABANCI Universitesinden geliyorum. Yabanci Uyrukluyum. İkamet kart ücreti ödemeye geldim. Yardiminiz icin tesekkurler.” (Hello! I study at SABANCI University and am a foreigner. I came here to pay my residence card fee. Thank you for your help in advance.)
+
+If you pay your residence card fee via bank or tax office, please make sure you have a stamp on the receipt. If not, please ask for a stamp (in TR.: Makbuza mühür basar mısınız?)
+
+Never throw away the original payment document as you have to deliver it to the Immigration Office along with other documents, keep the original document. Otherwise, you will have to pay again.
+
+STEP 3: GET THE FINGERPRINT NUMBER
+
+After completing your online application form, you must go to Pendik Immigration Office or any Immigration Office closest to your location to check your fingerprints and get the criminal record number starting with GI on your application form. You can complete this step by going to the fingerprint section without an appointment with your original passport, student ID card and online application form. You must also have your current residence permit card with you, if you have one.
+
+Note: Even if you have previously provided fingerprints, you need to go to the immigration office to get the GI number. Applications submitted without a GI number will be rejected.
+
+If you have a language problem at the immigration administration, simply show the following Turkish text to the authorities:
+
+“Merhaba. Sabancı Üniversitesi öğrencisiyim. Öğrenci ikameti başvurusu yaptım. Parmak izimi vermek istiyorum.”
+
+(Hello. I am a Sabancı University student. I applied for a student residence permit. I want to give my fingerprint.)
+
+Pendik Immigration Office: Doğu, Nevbahar Sk No:2, 34890 Pendik/İstanbul
+
+Working hours: 9 am to 5 pm between Monday to Friday
+
+STEP 4: SUBMIT YOUR DOCUMENTS TO IRO
+
+After applying online and checking your fingerprints, you are expected to bring your documents to the IRO by the given date. Your file must contain the necessary documents for your application.
+
+📢❗🚨 Before submitting your file to us, you must obtain approval from the IRO because we cannot accept your file if there are missing documents. To ensure that your file contains no missing documents, you need to send all your scanned documents to irolegal@sabanciuniv.edu After we confirm that your documents are complete, you can make an appointment to bring the documents to the office.
+
+To get an appointment from us: https://calendly.com/irolegalsabanci/legal-procedures
+
+After you submit your documents to IRO, we will deliver your file to the Istanbul Provincial Immigration Administration. The evaluation result will be delivered to the student within 30-90 days via email/SMS and Immigration Office website https://e-ikamet.goc.gov.tr/Ikamet/DevamEdenBasvuruGiris
+
+The authority to evaluate and announce results lies with the Directorate General of Migration Management. The IRO does not receive application results. Therefore, we recommend regularly checking the website for updates.
+
+It may take up to 90 days for your application to be approved and for your cards to be prepared. Your cards will be sent to the addresses listed on the address document you provided in your application. Tracking the cards is the student's personal responsibility.

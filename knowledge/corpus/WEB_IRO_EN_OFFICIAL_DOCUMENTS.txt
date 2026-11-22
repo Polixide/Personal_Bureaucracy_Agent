@@ -1,0 +1,176 @@
+SOURCE: How to Obtain Official Documents and Approvals (iro.sabanciuniv.edu)
+URL: https://iro.sabanciuniv.edu/en/official-documents
+RETRIEVED: 2026-11-20
+SHA256: c3601fabd1155a4267690dc94544ebaccb4a76657c3dcb399f04cf2b5c82c7fd
+
+How to Obtain Official Documents and Approvals
+
+Guide for Full Time Students
+
+Guide for Exchange Students
+
+Guide for Family Members
+
+Student Certificate and Transcript
+
+A student certificate is an official document prepared by the Student Resources unit after you have registered at the university. It includes your Higher Education Council (YÖK) number or, if applicable, your Residence Permit ID number or Turkish Citizenship number, and it shows your student information and education level. This document can be used for student residence permit applications, military declarations for students with compulsory military service, opening a bank account, and obtaining a student card for public transportation.
+
+A transcript is an official document that shows the courses a student has taken, their grades, and their overall academic performance during their university education.
+
+How to get it?
+
+You can submit your document requests using the following methods:
+
+Through E-Government (e-Devlet):
+
+Click here to view your transcript via e-Government (e-Devlet)
+
+Click here to view your student certificate via e-Government (e-Devlet)
+
+Click here to view your graduation certificate via e-Government ( e-Devlet)
+
+Through SU Ticket:
+
+Click here to create an Su Ticket request.
+
+Requests made through SU Ticket will be processed within 2 business days.
+
+Separate requests should be made for different types of documents.
+
+E-signed documents will be sent to your @sabanciuniv.edu email address.
+
+If you wish to receive the document by mail, please provide the recipient's address and phone number in the description field.
+
+SU Ticket Document Request Steps
+
+Open the SU Ticket page.
+
+Select "SR - Student Documents" as the department.
+
+In the "Help Topics" section, choose the document type you are requesting from the list below (you need to create a separate request for each document type).
+
+In the summary field, provide your student ID.
+
+For requests for a wet-signed transcript, if payment is required, make the payment according to the table below and attach the receipt to your request.
+
+Wet-signed documents can be collected from the Student Resources Front Desk.
+
+Dormitory Certificate
+
+This document is provided by the dormitory management of our university and serves as proof of your residence in the dormitory. For it to be usable in Turkey, the document must contain a QR code and be in Turkish. You can request this document from the dormitories through our university's suticket system or you can visit the Dorm Administration at D2 Building located on campus.
+
+Important Notes About Documents:
+
+• If the documents will be used in Turkey, they must be in Turkish. Please ensure the language of your documents.
+
+• Make sure that the documents are the most up-to-date versions.
+
+Dormitory Certificate Request Form Link
+
+https://suticket.sabanciuniv.edu/home
+
+Apostille (🇹🇷Apostil)
+
+Apostille is a certification system used to ensure the validity of international documents. It was established under the Hague Convention of October 5, 1961, and is valid among the countries that are parties to this system. The apostille process certifies that a document is original and has all the necessary official approvals. It verifies that the document is original and that the person who signed it is authorized by a competent authority. It may be required for official documents such as birth certificates, marriage certificates, diplomas, and transcripts that will be used abroad. The apostille is issued by the competent authorities of the country where the document was created, making the document valid in other countries as well.
+
+In Turkey, the institutions where you can obtain an apostille are the district governorates. The nearest district governorate to our university is the Tuzla District Governorate (Tuzla Kaymakamlığı) . If you go there and state that you want to obtain an apostille certification, you can get an apostille for your document. If you need to obtain an apostille from your own country, you should contact the competent authorities that issue apostilles in your country.
+
+Apostille convention countries
+
+https://www.hcch.net/en/instruments/conventions/status-table/?cid=41
+
+Notary Approval (🇹🇷 Noter Onayı )
+
+A notary is an individual authorized by the state to authenticate legal transactions, verify official correspondences and documents, and provide legal assurance. Notaries document many legal and official transactions, protecting the rights of the parties involved and helping to prevent disputes. The duties of notaries include:
+
+Document Authentication: Verify the accuracy of signatures, seals, and dates.
+
+Certification Processes: Certify official documents and signatures.
+
+Contract Preparation and Approval: Prepare and approve contracts between parties.
+
+Sworn Declarations and Translations: Authenticate sworn declarations and translations.
+
+Property Transactions: Certify signatures in real estate transactions.
+
+The work of notaries increases the reliability of legal transactions and ensures the official validity of documents. In this way, notaries safeguard the legal processes of both individuals and institutions.
+
+In Turkey, many documents and agreements you will use for your legal processes are required to be notarized. If these documents are in a language other than Turkish, they must be translated and stamped by a sworn translator with a notary's approval, in addition to being notarized. These documents can include birth certificates, high school/university diplomas and transcripts, health reports, passports, family consent documents, and commitment documents from your own country, as well as notarized rental agreements and commitment documents that you need to prepare in Turkey.
+
+We recommend Üsküdar 29th Notary (Üsküdar 29. Noterliği) due to their quick turnaround time and ability to notarize documents in multiple languages. Alternatively, we suggest looking at the list of notaries in Istanbul if you wish to use different notaries close to your location.
+
+Üsküdar Notary Address
+
+Merkez, Erenler Cd No:33, 34782 Çekmeköy/İstanbul
+
+Google Maps Link
+
+https://maps.app.goo.gl/8juPCAYfrENifB8w5
+
+All Notaries Link
+
+https://portal.tnb.org.tr/istanbulNoterOdasi/Sayfalar/BagliNoterlikler.aspx
+
+Parental Consent (🇹🇷 Aile İzni / Aileden Alınan Muvafakatname)
+
+If you are under 18, one of the documents you need to provide during university registration is parental consent. This document is required separately from both parents with their personal signatures (if one of the parents is deceased, it should be indicated in the relevant document) and must be notarized.
+
+If the document is prepared abroad, it must be apostilled in your home country. Additionally, it must have a notarized translation from a notary in Turkey with its notary approvals.
+
+If the document is to be prepared in Turkey, it can be directly prepared in Turkish at a notary and notarized; however, please note that it will still need to be signed by both parents.
+
+The required contents of this document are below:
+
+🇬🇧 I hereby give permission for my child to register and study at Sabancı University, fulfill their educational obligations, reside, and obtain a residence permit in Turkey. I undertake to financially support my child throughout the duration of their education.
+
+🇹🇷 Çocuğumun Sabancı Üniversitesi'ne kayıt yaptırmasına, Sabancı Üniversitesi’nde eğitim görmesine ve eğitim yükümlülüklerini yerine getirerek eğitimini tamamlamasına, Türkiye'de yaşamasına, ikamet etmesine ve ikamet izni almasına izin veriyorum. Çocuğumu eğitim süresi boyunca finansal olarak destekleyeceğimi taahhüt ederim.
+
+Notarized Rental Agreement (🇹🇷 Noter Onaylı Kira Sözleşmesi)
+
+If you live off-campus and need to sign a rental agreement, this document must be a notarized rental agreement. Your rental agreement may be required as proof of address, so it needs to be properly prepared. You should inform your landlord about this requirement and ensure that you must get a notarized rental agreement . You will use this document later during the address registration process after you receive your residence permit card.
+
+It is really important that the notarized rental agreement includes the ID copies of both you and your landlord and that your notarized agreement should contain the information below, otherwise it will not be sufficient to register your address.
+
+Your address, full name, signature and foreigner ID number or passport number must be written on the rental agreement prepared at the notary.
+
+The notarized rental agreement must be written in Turkish.
+
+The following statement must be written on the rental contract prepared by the notary: “…noterlikte huzurumda alındığını onaylarım” (I approve that it was received in my presence at the notary office)
+
+Both the landlord’s and your ID cards are copied and attached to it (If you do not have a residence permit yet, you can use your passport)
+
+You can get help from any notary you wish for this process.
+
+Some students prefer to live with friends or acquaintances instead of renting. For this, a letter of commitment is required. You can find more information about this below.
+
+Letter of Commitment
+
+( 🇹🇷 Taahhütname )
+
+A notarized letter of commitment (Taahhütname) is a document in which an individual officially declares that they will fulfill a certain obligation or commitment, and it is approved by a notary. This document indicates that the stated commitment is legally valid and can be presented to official authorities if necessary. A notarized letter of commitment certifies the authenticity of the signatory's signature and the legal compliance of the document's content.
+
+For example, if a student wants to live with friends or acquaintances, the landlord or the person they will be living with can prepare a notarized letter of commitment. This letter states that the student will reside at a specific address and adhere to certain conditions. The notary verifies the accuracy of the signatures and the content of the document, making it official. This document allows the party making the commitment to officially declare their obligations and provides legal assurance. It may be easier to prepare and use this document (Taahhütname) in cases where you cannot make a rental agreement.
+
+You should visit a notary public with the person who is the tenant or owner of the flat to have a “taahhütname” issued. This official document states that you are residing with the person responsible for the flat, and they accept responsibility for your stay.
+
+The responsible person (guarantor) should bring their notary-made rental contract or certificate of ownership (tapu) to the notary. The taahhütname must contain a copy of their ID card. If the guarantor is married, their spouse must also be included in the taahhütname along with their ID.
+
+For a taahhütname to be accepted in official transactions (residence permit application, address registration), the guarantor must provide a list of documents.
+
+If the Guarantor is Turkish, they must provide:
+
+1. Address Registration Certificate from e-Devlet – 🇹🇷 Yerleşim Yeri Belgesi
+
+2. A Bill in the Person’s Name (Electricity, Water, or Gas) – 🇹🇷 Kişinin Adına Düzenlenmiş Bir Hizmet Faturası (Elektrik, Su veya Doğalgaz)
+
+3. An Identity Certificate with Residence Information from e-Devlet – 🇹🇷 Vukuatlı Nüfus Kayıt Örneği
+
+If the Guarantor is International, they must provide:
+
+1. A Valid Residence or Work Permit Card Photocopy – 🇹🇷 Aktif İkamet İzin Kartı Fotojopisi
+
+2. Address Registration Certificate from e-Devlet – 🇹🇷 Yerleşim Yeri Belgesi
+
+3. A Bill in the Person’s Name (Electricity, Water, or Gas) – 🇹🇷 Kişinin Adına Düzenlenmiş Bir Hizmet Faturası (Elektrik, Su veya Doğalgaz)
+
+Please note that copies of the requested additional documents will be used in residence permit applications too.

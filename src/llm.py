@@ -23,7 +23,8 @@ import httpx
 from ollama import Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
-from config import EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT
+from config import (EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT, VISION_MODEL,
+                    VISION_NUM_CTX, VISION_TIMEOUT)
 
 TRANSPORT_ERRORS = (ResponseError, ConnectionError, httpx.HTTPError, TimeoutError)
 
@@ -72,11 +73,12 @@ class OllamaBackend:
     """The local Ollama server (models and host from config.py)."""
 
     def __init__(self, model: str = LLM_MODEL, host: str = OLLAMA_HOST,
-                 timeout: float = OLLAMA_TIMEOUT, embed_model: str = EMBED_MODEL):
+                 timeout: float = OLLAMA_TIMEOUT, embed_model: str = EMBED_MODEL, vision_model: str = VISION_MODEL):
         self.model = model
         self.host = host
         self.timeout = timeout
         self.embed_model = embed_model
+        self.vision_model = vision_model
 
     def chat(self, messages: list[dict], schema: dict, component: str) -> str:
         """One schema-constrained chat call; returns the raw reply text."""
@@ -87,6 +89,18 @@ class OllamaBackend:
                                    think=False, stream=False)
         except TRANSPORT_ERRORS as error:
             raise LLMError(f"Ollama unavailable: {error}") from error
+        return response.message.content or ""
+
+    def see(self, prompt: str, images: list[bytes], schema: dict, component: str) -> str:
+        """One schema-constrained call to the vision model with page images (PNG bytes)."""
+        client = Client(host=self.host, timeout=VISION_TIMEOUT)
+        try:
+            response = logged_chat(client, component=component, model=self.vision_model,
+                                   messages=[{"role": "user", "content": prompt, "images": images}], format=schema,
+                                   options={"temperature": LLM_TEMPERATURE, "num_ctx": VISION_NUM_CTX},
+                                   think=False, stream=False)
+        except TRANSPORT_ERRORS as error:
+            raise LLMError(f"Ollama vision model unavailable: {error}") from error
         return response.message.content or ""
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -160,6 +174,29 @@ def ask_structured(backend: Backend, messages: list[dict], output_model: type[Ba
         if value is not None:
             return StructuredResult(ok=True, value=value, attempts=attempt, raw=raw)
         conversation = conversation + [{"role": "assistant", "content": raw}, retry_message(error)]
+    return StructuredResult(ok=False, error=error, attempts=2, raw=raw)
+
+
+def ask_vision(backend: Any, prompt: str, images: list[bytes], output_model: type[BaseModel], component: str,
+               schema: dict | None = None) -> StructuredResult:
+    """Like ask_structured, for the vision model: validation, one retry, never raises.
+
+    A backend without a `see` method (a test double, or vision switched off) gives ok=False.
+    """
+    see = getattr(backend, "see", None)
+    if see is None:
+        return StructuredResult(ok=False, error="no vision model")
+    schema = schema or output_model.model_json_schema()
+    error, raw = "", ""
+    for attempt in (1, 2):
+        text = prompt if attempt == 1 else f"{prompt}\n\nYour last reply was invalid: {error}. Reply with ONLY the JSON."
+        try:
+            raw = see(text, images, schema, component)
+        except LLMError as transport:
+            return StructuredResult(ok=False, error=str(transport), attempts=attempt)
+        value, error = parse_reply(raw, output_model)
+        if value is not None:
+            return StructuredResult(ok=True, value=value, attempts=attempt, raw=raw)
     return StructuredResult(ok=False, error=error, attempts=2, raw=raw)
 
 

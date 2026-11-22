@@ -1,0 +1,19 @@
+SOURCE: Declaration for Short Term Residence Permit Registration Form (Presidency of Migration Management)
+URL: https://e-ikamet.goc.gov.tr/Ikamet/BasvuruFormuOrnegi/BasvuruFormuBos?tur=0
+RETRIEVED: 2026-11-05
+
+NOTE: This file is NOT a copy of the official page. It was compiled from the pack's rules.json
+(the rule descriptions and notes that cite this source). Replace it with the saved page text.
+
+Requirements recorded from this source:
+- R007 (application_form_signed): The generated residence-permit application form must be signed before it counts as ready.
+- R008 (passport_copy_pages_complete): Required passport copy pages must be present; Sabancı also requires the Türkiye entry page and visa page if applicable.
+- R009 (biometric_photo_current): The biometric photo must be within 6 months and ICAO-compliant. Lower bound 0 reproduces the milestone-1 engine (a photo age cannot be negative).
+- R010 (residence_fee_evidence): Required residence-permit/document-fee payment evidence must be present. Exact amounts are dynamic. Do not hard-code TL amounts.
+- R011 (single_entry_visa_fee_conditional): Single-entry visa fee evidence is required only when current official rules make it applicable.
+- R012 (financial_capacity_declaration): The short-term permit form requires declaration/evidence of sufficient regular financial means.
+- R013 (exchange_purpose_evidence): Official evidence of exchange/education purpose and duration must be available.
+- R015 (insurance_covers_period): Health-insurance coverage must cover the requested permit period unless a valid official exemption/alternative applies. The milestone-1 app also used a code-only 'scoped' variant; it was dropped on 2026-11-18 (docs/migration_plan.md).
+- R016 (insurance_evidence_type): Accepted evidence is bilateral coverage, SGK provision/application evidence, or valid private health insurance.
+- R018 (address_contact_complete): Türkiye address and contact information must be complete and accurate.
+- R027 (additional_documents_possible): Migration authorities may request additional information/documents; complete initial file does not guarantee approval.

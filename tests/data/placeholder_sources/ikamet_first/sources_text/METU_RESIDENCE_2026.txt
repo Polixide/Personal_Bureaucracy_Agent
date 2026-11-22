@@ -1,0 +1,11 @@
+SOURCE: Residence Permit (METU ISO)
+URL: https://iso.metu.edu.tr/en/residence-permit
+RETRIEVED: 2026-11-05
+
+NOTE: This file is NOT a copy of the official page. It was compiled from the pack's rules.json
+(the rule descriptions and notes that cite this source). Replace it with the saved page text.
+
+Requirements recorded from this source:
+- R004 (apply_before_legal_stay_expiry): The online first application must be completed before visa/visa-exemption/current legal stay expires.
+- R015 (insurance_covers_period): Health-insurance coverage must cover the requested permit period unless a valid official exemption/alternative applies. The milestone-1 app also used a code-only 'scoped' variant; it was dropped on 2026-11-18 (docs/migration_plan.md).
+- R028 (migration_is_final_authority): Final evaluation/approval belongs to Migration Management, not Sabancı IRO.

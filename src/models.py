@@ -56,6 +56,14 @@ class DocumentSpec(StrictModel):
     doc_type: str
     description: str
     extracts: list[ExtractSpec]
+    # Phrases printed on this document (any language, compared without accents or case), read by code to tell
+    # which pages of an upload are which document (src/document_processing/segment.py).
+    # `titles`: printed at the top of its first page; a page with one of them on top starts this document.
+    # `keywords`: found anywhere in it; they name a document that has no title.
+    titles: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    # "passport" or "id_card" when the document has a machine-readable zone (read and checked by code).
+    mrz: Literal["passport", "id_card"] | None = None
 
     @field_validator("extracts", mode="before")
     @classmethod
@@ -184,6 +192,8 @@ class Source(StrictModel):
     authority: str
     organization: str = ""
     notes: str = ""
+    # Hash of the saved text in sources_text/ (written by `python -m src.rag fetch`); "" = never fetched.
+    content_sha256: str = ""
 
 
 class Procedure(StrictModel):

@@ -8,7 +8,11 @@ can use its deterministic fallback.
 ## Where it sits in the flow
 - **`ask_structured(backend, messages, OutputModel, component)`** is used by the agent's orchestrator and
   workers (one `Decision` per step) and by generic document extraction.
-- **`OllamaBackend`** is the real backend: `chat()` and `embed()` with the models and host from `config.py`.
+- **`OllamaBackend`** is the real backend: `chat()` and `embed()` with the models and host from `config.py`, and
+  `see()` for the vision model (page images as PNG bytes; `VISION_MODEL`, `think=False`). The chat assistant uses
+  its own instance with `model=CHAT_MODEL`.
+- **`ask_vision(backend, prompt, images, OutputModel, component)`** is `ask_structured` for the vision model: schema,
+  validation, one retry, never raises; a backend without `see()` (test doubles) gives `ok=False`.
 - **`logged_chat(client, component=..., **kwargs)`** is used directly by the milestone-1 document processor.
 
 ## Inputs and outputs

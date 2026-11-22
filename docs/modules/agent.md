@@ -8,9 +8,13 @@ The **orchestrator** (an LLM in a ReAct loop of at most `MAX_STEPS` decisions) d
 - **synthesizes** one `FinalAnswer`,
 - runs the answer through **Gate 1**, a deterministic verifier, before it is shown.
 
+The **chat assistant** (`chat.py`, see `docs/modules/chat.md`) is a subclass of the orchestrator: the same graph,
+Gate 1 and fallback, without workers, started from the plan that `briefing.py` computes from the Twin.
+
 ## Where it sits in the flow
-`run_agent(goal, store, packs, user_id, today, backend)` is called by the app and by evaluation. It returns an
-`AgentResult` and logs the run in the Twin. The LangGraph graph in `orchestrator.py` is:
+`run_agent(goal, store, packs, user_id, today, backend)` is called by the app ("Run a full check" beside the chat)
+and by evaluation. It returns an `AgentResult` and logs the run in the Twin. The LangGraph graph in
+`orchestrator.py` is:
 
 ```
 START → decide → act → decide …                          (ReAct)

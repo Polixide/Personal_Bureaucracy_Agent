@@ -138,6 +138,28 @@ CREATE TABLE run_issues (
     item     TEXT,
     PRIMARY KEY (trace_id, position)
 );
+-- The rule verdicts at the end of each run (Neda's run_requirements): progress across sessions. Added in v3.
+CREATE TABLE run_results (
+    trace_id       TEXT NOT NULL REFERENCES runs(trace_id) ON DELETE CASCADE,
+    rule_id        TEXT NOT NULL,
+    status         TEXT NOT NULL CHECK (status IN ('pass', 'fail', 'unknown')),
+    severity       TEXT NOT NULL,
+    missing_fields TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(missing_fields)),
+    PRIMARY KEY (trace_id, rule_id)
+);
+
+-- The conversation with the assistant (chat view), per user. `details` is JSON: sources cited, facts
+-- recorded, the agent run's status. Added in v4.
+CREATE TABLE chat_messages (
+    message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    procedure_id TEXT,
+    role         TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content      TEXT NOT NULL,
+    trace_id     TEXT,
+    details      TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(details)),
+    created_at   TEXT NOT NULL CHECK (julianday(created_at) IS NOT NULL)
+);
 
 -- RAG cache: one vector per (pack, chunk, embedding model); text_hash detects edited sources.
 CREATE TABLE rag_vectors (
