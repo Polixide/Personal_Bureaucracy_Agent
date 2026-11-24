@@ -101,7 +101,7 @@ def write_lines(page, lines: list[str]) -> None:
 def font_file() -> str:
     """A Windows / Linux / macOS TrueType font with Turkish letters."""
     for candidate in (r"C:\Windows\Fonts\arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                      "/Library/Fonts/Arial.ttf"):
+                      "/Library/Fonts/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"):  # last: macOS 11+
         if Path(candidate).is_file():
             return candidate
     raise FileNotFoundError("No TrueType font with Turkish letters found")

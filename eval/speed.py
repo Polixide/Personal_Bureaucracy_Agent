@@ -117,10 +117,11 @@ def live_timings(repeat: int) -> list[Timing]:
     schema = {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}
     message = [{"role": "user", "content": "Reply with JSON: the answer is 'ok'."}]
     chat = lambda _: backend.chat(message, schema, "speed_probe")   # noqa: E731
-    timings = [summarize("first chat call (loads the model)", time_each([None], chat), LLM_MODEL),
+    unload(LLM_MODEL)
+    timings = [summarize("first chat call (loads the model)", time_each([None], chat), f"{LLM_MODEL}, unloaded first"),
                summarize("chat call, warm", time_each([None], chat, repeat), f"{LLM_MODEL}, tiny JSON reply")]
     timings += embedding_timings(backend, packs, repeat)
-    timings += document_timings(packs)
+    timings += document_timings(packs, backend)
     scenarios = kimlik_scenarios(packs)
     timings.append(summarize("whole Kimlik agent run, live", time_each(scenarios[:2], lambda ps: run_agent_once(packs, *ps, backend)),
                              f"{LLM_MODEL}; scenarios {', '.join(s['scenario_id'] for _, s in scenarios[:2])}"))
@@ -138,8 +139,10 @@ def embedding_timings(backend, packs: dict[str, Pack], repeat: int) -> list[Timi
             summarize("embedding search, one question", search, EMBED_MODEL)]
 
 
-def document_timings(packs: dict[str, Pack]) -> list[Timing]:
-    """Read the synthetic Kimlik documents of eval/document_samples.py (text, photo, two-in-one PDFs)."""
+def document_timings(packs: dict[str, Pack], backend) -> list[Timing]:
+    """Read the synthetic Kimlik documents of eval/document_samples.py with the app's backend (the model and,
+    for pictures, the vision model), and say what was read: a fast row with nothing read is a failure,
+    not a fast read. Documents with a machine-readable zone are read by code, without a model."""
     from eval.document_samples import synthetic_samples
     from src.tools.extract_document import extract_file
     timings = []
@@ -147,9 +150,24 @@ def document_timings(packs: dict[str, Pack]) -> list[Timing]:
         for sample in synthetic_samples(Path(folder)):
             if "kimlik" not in sample.sample_id and "nufus" not in sample.sample_id:
                 continue
-            ms = time_each([None], lambda _: extract_file(sample.file, packs[sample.procedure_id]))
-            timings.append(summarize(f"read document {sample.sample_id}", ms, f"{LLM_MODEL} + {VISION_MODEL}"))
+            results = []
+            ms = time_each([None], lambda _: results.append(extract_file(sample.file, packs[sample.procedure_id],
+                                                                          backend=backend)))
+            timings.append(summarize(f"read document {sample.sample_id}", ms, read_summary(results[0], sample)))
     return timings
+
+
+def read_summary(result, sample) -> str:
+    """'2/2 documents, 6 values' style note from an ExtractionResult."""
+    observations = getattr(result, "observations", [])
+    values = sum(len(o.grounded) + len(o.facts) for o in observations)
+    how = ", ".join(sorted({o.found_by for o in observations if o.found_by})) or "-"
+    return f"{len(observations)}/{len(sample.expected)} documents found (by {how}), {values} values read"
+
+
+def unload(model: str) -> None:
+    """Ask Ollama to drop the model from memory, so the next call measures a real cold start."""
+    subprocess.run(["ollama", "stop", model], capture_output=True, timeout=60)
 
 
 def hardware() -> str:
