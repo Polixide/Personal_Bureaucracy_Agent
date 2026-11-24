@@ -488,3 +488,29 @@ No expected value is changed anywhere. A test is retired only with a row above.
    `src/agent/`.
 5. Mark the 9 stub-coupled tests as retired (`pytest.ini` deselect with a comment pointing here) so the suite is green.
 6. Put pytest in the venv from `requirements-dev.txt`. Run `python -m pytest -q`. Commit "Phase 0".
+
+## 9. Milestone integration (branch `integration/milestone`, 2026-11-24)
+
+Order: the branch starts from `main` (PR #2), then merges this branch (`feature/dani-version-two`, `b6885ff`)
+unchanged, then adds our changes as separate commits. Daniele's branch was chosen over
+`feature/marco-milestone1` because it already has the Procedure Packs (including `tc_kimlik_first` and
+`tc_kimlik_renewal`), embedding RAG and the Orchestrator-Workers agent. Nothing reaches `main` until the team
+approves, and nothing is ever pushed to `feature/dani-version-two`.
+
+### 9.1 Merge of `feature/dani-version-two` into `main`
+The merge commit's tree is identical to `b6885ff`: every file PR #2 touched was already replaced or ported on
+Daniele's branch. Each conflict:
+
+| File from `main` | Decision | Why / where its guarantee lives now |
+|---|---|---|
+| `src/memory/{checkpointer,schema.sql,twin_store,twin_sync}.py` | delete | replaced by `src/twin/` (phase 3); store guarantees in `tests/test_twin_store.py` |
+| `src/evaluation/{harness,scenarios}.py`, `scripts/run_eval.py`, `tests/test_evaluation.py` | delete | replaced by `eval/` (phase 9) and `procedures/*/eval/` |
+| `streamlit_app.py`, `scripts/run_demo.py` | delete | replaced by `app.py` (phase 9) |
+| `tests/test_ui_guard.py` | delete | same three tests ported to `tests/test_app.py` (`profile_lock`) |
+| `tests/test_store.py`, `tests/test_knowledge.py` | delete | `tests/test_twin_store.py`, `tests/test_pack.py` |
+| `docs/memory_and_evaluation.md` | delete | describes the v1 design; v2 memory is in `docs/modules/` |
+| `.gitignore`, `config.py`, `tests/conftest.py`, `data/reference_samples/SOURCES.md` | Daniele's version | the `main`-only lines belong to the v1 pipeline (`TWIN_RECORD_PATH`, `DATABASE_PATH`, planner settings, v1 fixtures) |
+
+### 9.2 Marco's later work (`feature/marco-milestone1`, `b0ee6c1`)
+Not merged with git: that would bring back the milestone-1 pipeline deleted in phase 9. Features this branch
+lacks are ported by hand, one commit each, crediting Marco (see the progress below).
