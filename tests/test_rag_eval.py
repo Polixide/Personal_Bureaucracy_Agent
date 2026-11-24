@@ -27,3 +27,16 @@ def test_hit_rate_is_reported_per_procedure():
     first = [q for q in all_queries(PACKS) if q.procedure_id == "tc_kimlik_first"][:2]
     renewal = [q for q in all_queries(PACKS) if q.procedure_id == "tc_kimlik_renewal"][:1]
     assert by_procedure(first + renewal, [1, None, 3]) == {"tc_kimlik_first": 0.5, "tc_kimlik_renewal": 1.0}
+
+
+def test_score_model_runs_end_to_end_offline(monkeypatch):
+    """Regression: b6885ff changed chunk_vectors(store, scope, ...) and score_model still passed the Pack,
+    so `python -m eval.rag_eval` crashed before any query ran. The fake embedder keeps this offline."""
+    import eval.rag_eval as rag_eval
+    from tests.fakes import ScriptedBackend
+    monkeypatch.setattr(rag_eval, "OllamaBackend", lambda embed_model: ScriptedBackend())
+    queries = all_queries(PACKS)
+    score = rag_eval.score_model("fake-bag-of-words", PACKS, queries)
+    assert score.queries == len(queries) > 0
+    assert 0 <= score.hit_at_1 <= score.hit_at_3 <= 1
+    assert set(score.hit_at_3_by_procedure) == set(PACKS)

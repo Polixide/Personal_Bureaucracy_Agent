@@ -85,7 +85,7 @@ def score_model(model: str, packs: dict[str, Pack], queries: list[Query]) -> Mod
     with TwinStore(":memory:") as store:
         started = perf_counter()
         for pack in packs.values():
-            chunk_vectors(store, pack, backend, pack_chunks(pack))
+            chunk_vectors(store, pack.id, backend, pack_chunks(pack))   # scope = pack id (see search())
         index_seconds = perf_counter() - started
         ranks, started = [], perf_counter()
         for query in queries:
