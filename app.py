@@ -39,6 +39,7 @@ from src.rules import evaluate_rules
 from src.sandbox.approval import approve_action, deny_action
 from src.sandbox.mock_world import SimulationOutcome, run_simulation
 from src.tools.common import ToolContext
+from src.tools.open_links import open_links
 from src.tools.registry import build_registry, run_tool
 from src.twin import service
 from src.twin.facts import FactView
@@ -670,6 +671,9 @@ def done_list(store: TwinStore, user_id: str) -> None:
             if proposal.status == "executed" and path is not None and path.is_file():
                 download.download_button("Download", path.read_bytes(), file_name=path.name,
                                          key=f"dl_{proposal.action_id}")
+            if proposal.status == "executed":
+                for label, url in open_links(proposal):     # opens the user's own app; nothing is sent
+                    download.link_button(label, url)
 
 
 # -------------------------------------------------------- view: documents --

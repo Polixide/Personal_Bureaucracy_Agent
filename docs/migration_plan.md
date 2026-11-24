@@ -521,3 +521,17 @@ Progress (9.2):
   `search_procedures`, without its Twin writes) and `search_official_sources` (embedding RAG); one resource
   `procedure://<id>` per pack. Read-only: the only write is the shared embedding cache. Tests:
   `tests/test_mcp_server.py` (14, including a real stdio subprocess).
+- **Open-in-app links** ported to `src/tools/open_links.py` (Marco's Gmail / mailto / Google Calendar link
+  builders). Approved email drafts and calendar reminders get buttons next to Download in the app; each only
+  opens the user's own editor pre-filled, nothing is sent or booked. `create_ics` now also stores `title` and
+  `description` in its payload (additive). Tests: `tests/test_open_links.py` (5).
+- **Not ported, with reasons:**
+  - *Document benchmark* (`scripts/benchmark_documents.py`): `eval/document_eval.py` already scores 13
+    labelled files (including Kimlik documents and `data/reference_samples/`) with a "wrong values" count and
+    seconds per file; Marco's script reads private files from `data/local_samples/`, which a shared
+    evaluation should not depend on.
+  - *×3 repeat runs*: already in `eval/run_eval.py` (`pass_k`, k = 3).
+  - *5-step İkamet stage view*: stages here come from each pack's `procedure.json`, so the app follows any
+    procedure (Kimlik included); a hard-coded İkamet flow would contradict the pack design.
+  - *e-İkamet field-by-field sandbox*: `src/sandbox/mock_world.py` + `fill_pdf` + `simulate_submission`
+    cover the same idea generically.

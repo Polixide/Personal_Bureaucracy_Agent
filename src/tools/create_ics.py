@@ -62,7 +62,8 @@ def run(args: CreateIcsInput, ctx: ToolContext) -> ProposalOutput:
     check_text(ctx, f"{args.title}\n{args.description}")
     uid = f"{ctx.user_id}-{args.date_field}-{day:%Y%m%d}"
     text = ics_text(uid, args.title, day, args.description, datetime.now(timezone.utc))
-    payload = {"ics": text, "date": day.isoformat(), "date_field": args.date_field}
+    payload = {"ics": text, "date": day.isoformat(), "date_field": args.date_field,
+               "title": args.title, "description": args.description}   # title/description: calendar link
     return propose(ctx, pack, "create_ics", f"Calendar: {args.title} ({day.isoformat()})", payload,
                    args.rule_ids, None, f"{args.title} on {day.isoformat()}")
 
