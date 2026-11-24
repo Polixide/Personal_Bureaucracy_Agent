@@ -514,3 +514,10 @@ Daniele's branch. Each conflict:
 ### 9.2 Marco's later work (`feature/marco-milestone1`, `b0ee6c1`)
 Not merged with git: that would bring back the milestone-1 pipeline deleted in phase 9. Features this branch
 lacks are ported by hand, one commit each, crediting Marco (see the progress below).
+
+Progress (9.2):
+- **MCP server** ported to `src/integrations/mcp/server.py`. Same pinned protocol (2025-11-25) and stdio
+  JSON-RPC as Marco's, now over all packs: tools `find_procedure` (the deterministic ranking of
+  `search_procedures`, without its Twin writes) and `search_official_sources` (embedding RAG); one resource
+  `procedure://<id>` per pack. Read-only: the only write is the shared embedding cache. Tests:
+  `tests/test_mcp_server.py` (14, including a real stdio subprocess).
