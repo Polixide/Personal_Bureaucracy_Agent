@@ -1,0 +1,891 @@
+[
+  {
+    "rule_id": "R001",
+    "name": "exchange_stay_requires_ikamet",
+    "section": "eligibility",
+    "description": "Incoming Sabancı exchange students staying 3 months or longer enter the residence-permit workflow.",
+    "category": "eligibility",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "exchange_student"
+        },
+        {
+          "op": "gte",
+          "field": "planned_stay_months",
+          "value": 3
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "exchange_student == true AND planned_stay_months >= 3"
+  },
+  {
+    "rule_id": "R002",
+    "name": "permit_type_short_term",
+    "section": "eligibility",
+    "description": "For the scoped Sabancı incoming exchange-student case, the workflow uses a short-term residence permit.",
+    "category": "eligibility",
+    "severity": "blocking",
+    "condition": {
+      "op": "eq",
+      "field": "permit_type",
+      "value": "short_term"
+    },
+    "depends_on": [
+      "R001"
+    ],
+    "source_ids": [
+      "GOV_RESIDENCE_TYPES",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "permit_type == 'short_term'"
+  },
+  {
+    "rule_id": "R003",
+    "name": "application_after_entry",
+    "section": "eligibility",
+    "description": "A first application is started only after entry into Türkiye; Sabancı instructs entry with passport.",
+    "category": "eligibility",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "is_in_turkiye"
+        },
+        {
+          "op": "is_true",
+          "field": "entered_with_passport"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "is_in_turkiye == true AND entered_with_passport == true"
+  },
+  {
+    "rule_id": "R004",
+    "name": "apply_before_legal_stay_expiry",
+    "section": "eligibility",
+    "description": "The online first application must be completed before visa/visa-exemption/current legal stay expires.",
+    "category": "deadline",
+    "severity": "blocking",
+    "condition": {
+      "op": "lte",
+      "field": "application_date",
+      "other_field": "legal_stay_expiry_date"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_OVERVIEW",
+      "METU_RESIDENCE_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "medium",
+    "notes": "",
+    "legacy_condition": "application_date <= legal_stay_expiry_date"
+  },
+  {
+    "rule_id": "R005",
+    "name": "official_eikamet_channel",
+    "section": "application_fees",
+    "description": "Use the official e-İkamet channel for the online application.",
+    "category": "channel",
+    "severity": "blocking",
+    "condition": {
+      "op": "eq",
+      "field": "application_channel",
+      "value": "https://e-ikamet.goc.gov.tr/"
+    },
+    "depends_on": [
+      "R003",
+      "R004"
+    ],
+    "source_ids": [
+      "GOV_GENERAL_INFO",
+      "GOV_RESIDENCE_INFO",
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "application_channel == 'https://e-ikamet.goc.gov.tr/'"
+  },
+  {
+    "rule_id": "R006",
+    "name": "passport_validity_buffer",
+    "section": "passport_photo",
+    "description": "Passport validity must extend at least 60 days beyond the requested residence-permit end date.",
+    "category": "date_constraint",
+    "severity": "blocking",
+    "condition": {
+      "op": "gte",
+      "field": "passport_expiry_date",
+      "other_field": "requested_permit_end_date",
+      "offset_days": 60
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_OVERVIEW",
+      "GOV_FAQ"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "passport_expiry_date >= requested_permit_end_date + 60 days"
+  },
+  {
+    "rule_id": "R007",
+    "name": "application_form_signed",
+    "section": "application_fees",
+    "description": "The generated residence-permit application form must be signed before it counts as ready.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "application_form_generated"
+        },
+        {
+          "op": "is_true",
+          "field": "application_form_signed"
+        }
+      ]
+    },
+    "depends_on": [
+      "R005"
+    ],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "application_form_generated == true AND application_form_signed == true"
+  },
+  {
+    "rule_id": "R008",
+    "name": "passport_copy_pages_complete",
+    "section": "passport_photo",
+    "description": "Required passport copy pages must be present; Sabancı also requires the Türkiye entry page and visa page if applicable.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "passport_id_page_present"
+        },
+        {
+          "op": "is_true",
+          "field": "turkey_entry_page_present"
+        },
+        {
+          "op": "any",
+          "args": [
+            {
+              "op": "eq",
+              "field": "visa_required",
+              "value": false
+            },
+            {
+              "op": "is_true",
+              "field": "visa_page_present"
+            }
+          ]
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "passport_id_page_present == true AND turkey_entry_page_present == true AND (visa_required == false OR visa_page_present == true)"
+  },
+  {
+    "rule_id": "R009",
+    "name": "biometric_photo_current",
+    "section": "passport_photo",
+    "description": "The biometric photo must be within 6 months and ICAO-compliant.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "gte",
+          "field": "photo_age_months",
+          "value": 0
+        },
+        {
+          "op": "lte",
+          "field": "photo_age_months",
+          "value": 6
+        },
+        {
+          "op": "is_true",
+          "field": "biometric_photo"
+        },
+        {
+          "op": "is_true",
+          "field": "icao_compliant"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "Lower bound 0 reproduces the milestone-1 engine (a photo age cannot be negative).",
+    "legacy_condition": "photo_age_months <= 6 AND biometric_photo == true AND icao_compliant == true"
+  },
+  {
+    "rule_id": "R010",
+    "name": "residence_fee_evidence",
+    "section": "application_fees",
+    "description": "Required residence-permit/document-fee payment evidence must be present. Exact amounts are dynamic.",
+    "category": "payment",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "eq",
+          "field": "fee_payment_required",
+          "value": false
+        },
+        {
+          "op": "is_true",
+          "field": "fee_receipt_present"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "high",
+    "notes": "Do not hard-code TL amounts.",
+    "legacy_condition": "fee_payment_required == false OR fee_receipt_present == true"
+  },
+  {
+    "rule_id": "R011",
+    "name": "single_entry_visa_fee_conditional",
+    "section": "application_fees",
+    "description": "Single-entry visa fee evidence is required only when current official rules make it applicable.",
+    "category": "payment",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "eq",
+          "field": "single_entry_visa_fee_required",
+          "value": false
+        },
+        {
+          "op": "is_true",
+          "field": "single_entry_visa_fee_receipt_present"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "high",
+    "notes": "",
+    "legacy_condition": "single_entry_visa_fee_required == false OR single_entry_visa_fee_receipt_present == true"
+  },
+  {
+    "rule_id": "R012",
+    "name": "financial_capacity_declaration",
+    "section": "application_fees",
+    "description": "The short-term permit form requires declaration/evidence of sufficient regular financial means.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "is_true",
+      "field": "financial_capacity_declared"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "financial_capacity_declared == true"
+  },
+  {
+    "rule_id": "R013",
+    "name": "exchange_purpose_evidence",
+    "section": "student_insurance",
+    "description": "Official evidence of exchange/education purpose and duration must be available.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "is_true",
+      "field": "exchange_program_evidence_present"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_RESIDENCE_TYPES",
+      "GOV_SHORT_TERM_FORM_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "exchange_program_evidence_present == true"
+  },
+  {
+    "rule_id": "R014",
+    "name": "student_certificate_present",
+    "section": "student_insurance",
+    "description": "Sabancı requires a current student certificate in the file.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "is_true",
+      "field": "student_certificate_present"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "student_certificate_present == true"
+  },
+  {
+    "rule_id": "R015",
+    "name": "insurance_covers_period",
+    "section": "student_insurance",
+    "description": "Health-insurance coverage must cover the requested permit period unless a valid official exemption/alternative applies.",
+    "category": "insurance",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "insurance_exempt"
+        },
+        {
+          "op": "all",
+          "args": [
+            {
+              "op": "is_true",
+              "field": "insurance_valid_for_ikamet"
+            },
+            {
+              "op": "lte",
+              "field": "insurance_start_date",
+              "other_field": "requested_start_date"
+            },
+            {
+              "op": "gte",
+              "field": "insurance_end_date",
+              "other_field": "requested_end_date"
+            }
+          ]
+        }
+      ]
+    },
+    "depends_on": [
+      "R016"
+    ],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "GOV_RESIDENCE_TYPES",
+      "SAB_EXCHANGE_OVERVIEW",
+      "METU_RESIDENCE_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "The milestone-1 app also used a code-only 'scoped' variant; it was dropped on 2026-11-18 (docs/migration_plan.md).",
+    "legacy_condition": "insurance_exempt == true OR (insurance_valid_for_ikamet == true AND insurance_start_date <= requested_start_date AND insurance_end_date >= requested_end_date)"
+  },
+  {
+    "rule_id": "R016",
+    "name": "insurance_evidence_type",
+    "section": "student_insurance",
+    "description": "Accepted evidence is bilateral coverage, SGK provision/application evidence, or valid private health insurance.",
+    "category": "insurance",
+    "severity": "blocking",
+    "condition": {
+      "op": "in",
+      "field": "insurance_evidence_type",
+      "value": [
+        "bilateral_social_security",
+        "sgk_provision",
+        "sgk_application",
+        "private_health_insurance"
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "GOV_RESIDENCE_TYPES"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "insurance_evidence_type in ['bilateral_social_security','sgk_provision','sgk_application','private_health_insurance']"
+  },
+  {
+    "rule_id": "R017",
+    "name": "address_proof_sabanci",
+    "section": "address_declaration",
+    "description": "For Sabancı operational submission, accepted address proof is dorm certificate, rental agreement, or notarized undertaking; Airbnb alone is not accepted.",
+    "category": "address",
+    "severity": "blocking",
+    "condition": {
+      "op": "in",
+      "field": "address_proof_type",
+      "value": [
+        "dorm_certificate",
+        "rental_agreement",
+        "notarized_commitment"
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "Government also recognizes other cases; outside this scoped workflow they should trigger manual verification.",
+    "legacy_condition": "address_proof_type in ['dorm_certificate','rental_agreement','notarized_commitment']"
+  },
+  {
+    "rule_id": "R018",
+    "name": "address_contact_complete",
+    "section": "address_declaration",
+    "description": "Türkiye address and contact information must be complete and accurate.",
+    "category": "address",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "turkey_address_present"
+        },
+        {
+          "op": "is_true",
+          "field": "phone_present"
+        },
+        {
+          "op": "is_true",
+          "field": "email_present"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "turkey_address_present == true AND phone_present == true AND email_present == true"
+  },
+  {
+    "rule_id": "R019",
+    "name": "declaration_control_document",
+    "section": "address_declaration",
+    "description": "Sabancı declaration/control document must be present and signed.",
+    "category": "document",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "declaration_control_document_present"
+        },
+        {
+          "op": "is_true",
+          "field": "declaration_control_document_signed"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "declaration_control_document_present == true AND declaration_control_document_signed == true"
+  },
+  {
+    "rule_id": "R020",
+    "name": "core_file_complete",
+    "section": "iro_submission",
+    "description": "The core Sabancı submission file must be complete before physical IRO submission.",
+    "category": "prerequisite_set",
+    "severity": "blocking",
+    "condition": {
+      "op": "is_true",
+      "field": "all_core_documents_present"
+    },
+    "depends_on": [
+      "R006",
+      "R007",
+      "R008",
+      "R009",
+      "R010",
+      "R014",
+      "R015",
+      "R017",
+      "R019"
+    ],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "all_core_documents_present == true"
+  },
+  {
+    "rule_id": "R021",
+    "name": "iro_remote_preverification",
+    "section": "iro_submission",
+    "description": "Scanned documents must be sent to IRO and IRO confirmation received before physical submission.",
+    "category": "workflow",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "scans_sent_to_iro"
+        },
+        {
+          "op": "is_true",
+          "field": "iro_preverification_confirmed"
+        }
+      ]
+    },
+    "depends_on": [
+      "R020"
+    ],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "scans_sent_to_iro == true AND iro_preverification_confirmed == true"
+  },
+  {
+    "rule_id": "R022",
+    "name": "fingerprint_gi_required",
+    "section": "iro_submission",
+    "description": "After online application, fingerprint/GI processing and a GI number are required in the Sabancı workflow.",
+    "category": "workflow",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "online_application_completed"
+        },
+        {
+          "op": "is_true",
+          "field": "fingerprint_step_completed"
+        },
+        {
+          "op": "is_true",
+          "field": "gi_number_present"
+        }
+      ]
+    },
+    "depends_on": [
+      "R005",
+      "R007"
+    ],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "online_application_completed == true AND fingerprint_step_completed == true AND gi_number_present == true"
+  },
+  {
+    "rule_id": "R023",
+    "name": "iro_submission_dependencies",
+    "section": "iro_submission",
+    "description": "Physical IRO submission is allowed only after online application, complete/preverified file, and GI/fingerprint requirements.",
+    "category": "workflow",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "is_true",
+          "field": "online_application_completed"
+        },
+        {
+          "op": "is_true",
+          "field": "iro_preverification_confirmed"
+        },
+        {
+          "op": "is_true",
+          "field": "gi_number_present"
+        },
+        {
+          "op": "is_true",
+          "field": "all_core_documents_present"
+        }
+      ]
+    },
+    "depends_on": [
+      "R020",
+      "R021",
+      "R022",
+      "R024",
+      "R025",
+      "R026"
+    ],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "online_application_completed == true AND iro_preverification_confirmed == true AND gi_number_present == true AND all_core_documents_present == true"
+  },
+  {
+    "rule_id": "R024",
+    "name": "current_submission_window",
+    "section": "iro_submission",
+    "description": "Sabancı submission must occur inside a currently published IRO window; actual dates must be refreshed.",
+    "category": "deadline",
+    "severity": "blocking",
+    "condition": {
+      "op": "all",
+      "args": [
+        {
+          "op": "gte",
+          "field": "current_date",
+          "other_field": "iro_window_start"
+        },
+        {
+          "op": "lte",
+          "field": "current_date",
+          "other_field": "iro_window_end"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "very_high",
+    "notes": "current_date is the evaluation date (derived 'today'); the window is iro_window_start..iro_window_end.",
+    "legacy_condition": "current_date within current_iro_submission_window"
+  },
+  {
+    "rule_id": "R025",
+    "name": "application_form_current_window",
+    "section": "iro_submission",
+    "description": "Application forms from previous months/windows are not accepted for the current IRO submission window.",
+    "category": "deadline",
+    "severity": "blocking",
+    "condition": {
+      "op": "eq",
+      "field": "application_form_window_id",
+      "other_field": "current_iro_window_id"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "very_high",
+    "notes": "",
+    "legacy_condition": "application_form_window_id == current_iro_window_id"
+  },
+  {
+    "rule_id": "R026",
+    "name": "missing_documents_block_iro",
+    "section": "iro_submission",
+    "description": "Sabancı IRO does not accept files with missing required documents.",
+    "category": "workflow",
+    "severity": "blocking",
+    "condition": {
+      "op": "eq",
+      "field": "missing_required_documents_count",
+      "value": 0
+    },
+    "depends_on": [
+      "R020"
+    ],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "missing_required_documents_count == 0"
+  },
+  {
+    "rule_id": "R027",
+    "name": "additional_documents_possible",
+    "section": "guardrails",
+    "description": "Migration authorities may request additional information/documents; complete initial file does not guarantee approval.",
+    "category": "evaluation",
+    "severity": "guardrail",
+    "condition": {
+      "op": "not",
+      "arg": {
+        "op": "eq",
+        "field": "approval_status",
+        "value": "guaranteed"
+      }
+    },
+    "depends_on": [],
+    "source_ids": [
+      "GOV_SHORT_TERM_FORM_2026",
+      "GOV_FAQ",
+      "SAB_EXCHANGE_OVERVIEW"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "approval_status != 'guaranteed'"
+  },
+  {
+    "rule_id": "R028",
+    "name": "migration_is_final_authority",
+    "section": "guardrails",
+    "description": "Final evaluation/approval belongs to Migration Management, not Sabancı IRO.",
+    "category": "authority",
+    "severity": "guardrail",
+    "condition": {
+      "op": "eq",
+      "field": "decision_authority",
+      "value": "Migration Management"
+    },
+    "depends_on": [],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT",
+      "SAB_EXCHANGE_OVERVIEW",
+      "METU_RESIDENCE_2026"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "low",
+    "notes": "",
+    "legacy_condition": "decision_authority == 'Migration Management'"
+  },
+  {
+    "rule_id": "R029",
+    "name": "track_after_submission",
+    "section": "guardrails",
+    "description": "After IRO submission, application status should be tracked through official e-İkamet.",
+    "category": "post_submission",
+    "severity": "advisory",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "eq",
+          "field": "submitted_to_iro",
+          "value": false
+        },
+        {
+          "op": "eq",
+          "field": "tracking_channel",
+          "value": "e_ikamet"
+        }
+      ]
+    },
+    "depends_on": [
+      "R023",
+      "R027"
+    ],
+    "source_ids": [
+      "SAB_EXCHANGE_CURRENT",
+      "SAB_EXCHANGE_OVERVIEW",
+      "GOV_GENERAL_INFO"
+    ],
+    "version": "1.0",
+    "status": "verified",
+    "volatility": "medium",
+    "notes": "",
+    "legacy_condition": "submitted_to_iro == false OR tracking_channel == 'e_ikamet'"
+  }
+]

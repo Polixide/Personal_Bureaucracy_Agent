@@ -1,14 +1,22 @@
-from pathlib import Path
+"""Shared fixtures. Tests never call Ollama or OCR for real."""
+from datetime import datetime, timedelta, timezone
 import tempfile
-from config import PROJECT_ROOT
+
 import pytest
+
+from config import PROJECT_ROOT
+from src.twin.store import TwinStore
+
 
 @pytest.fixture(autouse=True)
 def prohibit_live_ollama(monkeypatch):
+    """Fail any test that reaches a real Ollama chat/embedding call or the OCR engine."""
     def denied(*args, **kwargs):
         raise AssertionError("Automated tests must mock Ollama")
     monkeypatch.setattr("ollama.Client.chat", denied)
     monkeypatch.setattr("ollama.chat", denied)
+    monkeypatch.setattr("ollama.Client.embed", denied)
+    monkeypatch.setattr("ollama.embed", denied)
     def denied_ocr(*args, **kwargs):
         raise AssertionError("Automated tests must mock OCR")
     from src.document_processing.extractor import get_ocr_engine
@@ -19,16 +27,12 @@ def prohibit_live_ollama(monkeypatch):
 
 
 def pytest_configure(config):
-    # Keep every test artifact local to the project, including migrated unittest fixtures.
+    """Keep every test artifact inside the project (Gate 0 rejects paths outside it)."""
     root = PROJECT_ROOT / ".test-temp"
     root.mkdir(exist_ok=True)
     tempfile.tempdir = str(root)
     if config.option.basetemp is None:
         config.option.basetemp = str(root / "pytest")
-
-
-# ------------------------------------------------- twin record fixtures --
-from datetime import datetime, timedelta, timezone
 
 
 class FakeClock:
@@ -44,11 +48,10 @@ class FakeClock:
 
 @pytest.fixture
 def db_path(tmp_path):
-    return tmp_path / "twin_record.db"
+    return tmp_path / "twin.sqlite"
 
 
 @pytest.fixture
 def store(db_path):
-    from src.memory.twin_store import TwinStore
     with TwinStore(db_path, clock=FakeClock()) as s:
         yield s

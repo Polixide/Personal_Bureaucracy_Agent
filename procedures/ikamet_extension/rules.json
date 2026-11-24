@@ -1,0 +1,66 @@
+[
+  {
+    "rule_id": "EXT001", "name": "apply_before_current_permit_expires", "section": "current_permit",
+    "description": "The extension application is made while the current residence permit is still valid.",
+    "category": "deadline", "severity": "blocking",
+    "condition": {"op": "lte", "field": "application_date", "other_field": "current_permit_expiry_date"},
+    "depends_on": [], "source_ids": ["SAB_EXCHANGE_CURRENT"], "version": "0.1", "status": "unverified",
+    "volatility": "low", "notes": "Draft: check the exact extension window against the extension part of SAB_EXCHANGE_CURRENT."
+  },
+  {
+    "rule_id": "EXT002", "name": "current_permit_card_available", "section": "current_permit",
+    "description": "A copy of the current residence permit card is available for the extension file.",
+    "category": "document", "severity": "blocking",
+    "condition": {"op": "is_true", "field": "residence_permit_card_present"},
+    "depends_on": [], "source_ids": ["SAB_EXCHANGE_CURRENT"], "version": "0.1", "status": "unverified",
+    "volatility": "low", "notes": "Draft: confirm that the card copy is requested for extensions."
+  },
+  {
+    "rule_id": "EXT003", "name": "still_exchange_student", "section": "eligibility",
+    "description": "The applicant is still an exchange student at the host institution for the extension period.",
+    "category": "eligibility", "severity": "blocking",
+    "condition": {"op": "is_true", "field": "exchange_student"},
+    "depends_on": [], "source_ids": ["SAB_EXCHANGE_CURRENT", "GOV_RESIDENCE_TYPES"], "version": "0.1",
+    "status": "unverified", "volatility": "low", "notes": "Draft."
+  },
+  {
+    "rule_id": "EXT004", "name": "passport_validity_buffer", "section": "passport_insurance",
+    "description": "Passport validity extends at least 60 days beyond the requested end of the extended permit.",
+    "category": "date_constraint", "severity": "blocking",
+    "condition": {"op": "gte", "field": "passport_expiry_date", "other_field": "requested_permit_end_date", "offset_days": 60},
+    "depends_on": [], "source_ids": ["GOV_FAQ"], "version": "0.1", "status": "unverified",
+    "volatility": "low", "notes": "Draft: the 60-day buffer is verified for first applications (ikamet_first R006); confirm it for extensions."
+  },
+  {
+    "rule_id": "EXT005", "name": "insurance_covers_extension", "section": "passport_insurance",
+    "description": "Health insurance covers the whole requested extension period.",
+    "category": "insurance", "severity": "blocking",
+    "condition": {"op": "gte", "field": "insurance_end_date", "other_field": "requested_permit_end_date"},
+    "depends_on": [], "source_ids": ["GOV_RESIDENCE_TYPES", "SAB_EXCHANGE_CURRENT"], "version": "0.1",
+    "status": "unverified", "volatility": "low", "notes": "Draft."
+  },
+  {
+    "rule_id": "EXT006", "name": "official_eikamet_channel", "section": "application",
+    "description": "The extension application is made through the official e-İkamet channel.",
+    "category": "channel", "severity": "blocking",
+    "condition": {"op": "eq", "field": "application_channel", "value": "https://e-ikamet.goc.gov.tr/"},
+    "depends_on": [], "source_ids": ["GOV_GENERAL_INFO", "SAB_EXCHANGE_CURRENT"], "version": "0.1",
+    "status": "unverified", "volatility": "low", "notes": "Draft."
+  },
+  {
+    "rule_id": "EXT007", "name": "extension_form_signed", "section": "application",
+    "description": "The generated extension application form is signed.",
+    "category": "document", "severity": "blocking",
+    "condition": {"op": "is_true", "field": "application_form_signed"},
+    "depends_on": ["EXT006"], "source_ids": ["SAB_EXCHANGE_CURRENT"], "version": "0.1", "status": "unverified",
+    "volatility": "low", "notes": "Draft."
+  },
+  {
+    "rule_id": "EXT008", "name": "approval_not_guaranteed", "section": "guardrails",
+    "description": "A complete extension file does not guarantee approval; Migration Management decides.",
+    "category": "evaluation", "severity": "guardrail",
+    "condition": {"op": "not", "arg": {"op": "eq", "field": "approval_status", "value": "guaranteed"}},
+    "depends_on": [], "source_ids": ["GOV_FAQ"], "version": "0.1", "status": "unverified",
+    "volatility": "low", "notes": "Draft (mirrors ikamet_first R027)."
+  }
+]

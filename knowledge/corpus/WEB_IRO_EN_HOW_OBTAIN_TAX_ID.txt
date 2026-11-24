@@ -1,0 +1,52 @@
+SOURCE: How to Obtain a Tax ID (iro.sabanciuniv.edu)
+URL: https://iro.sabanciuniv.edu/en/how-obtain-tax-id
+RETRIEVED: 2026-11-20
+SHA256: 4fae1e48aa6bb11ca53cbcd63c599d860641c2df385382115350fb75aeada314
+
+How to Obtain a Tax ID
+
+Guide for Full Time Students
+
+Guide for Exchange Students
+
+Guide for Family Members
+
+Obtaining a Tax Number in Turkey
+
+The tax ID number is necessary for important payments and processes, such as opening a bank account. Until you receive your student residence permit card, the tax ID number is the ID number you will be using for your official payments. Once you receive your residence permit card, you will have your foreign ID number that you can use your foreign ID number for all legal issues. Thus, you may need to obtain a tax number upon your arrival before you obtain your student residence permit.
+
+There are two ways to obtain a tax number:
+
+Online Application Steps:
+
+Click https://dijital.gib.gov.tr/foreigners/kimlikNoBasvuru
+
+The page has English Explanations. Fill the form according to your passport information (leave Yabancı Kimlik Numaranız / Identity Number section empty) *The gg.aa.yy section means dd.mm.yy (day/month/year)
+
+Click Başvur (Apply) button
+
+Download the PDF file
+
+Important Notes:
+
+Your Tax Identification Number must match the information recorded when entering Turkey at the Airport. Therefore, if you encounter an error, you may need to try several times with the information in your passport.
+
+There are two letters in the Turkish alphabet, one with a dot and one without. These are I and İ. If your name contains the letter I and is written with İ at the airport, it is normal that you will encounter an error on this page. So, we recommend trying with a Turkish keyboard.
+
+If the website does not accept your passport information in any way, to query your passport login information, please email us the photo containing the screenshot of the error.
+
+Email: irolegal@sabanciuniv.edu
+
+In-Person:
+
+You need to visit the nearest Tax office with your original passport and its copy. Enter the building and go to the “YABANCILAR İÇİN VERGİ NUMARASI” or “SİCİL İŞLEMLERİ” desk. The personnel might not be able to speak English. Therefore, you can bring this message to anyone, and they will help you:
+
+“Merhaba! Ben Sabancı Üniversitesinden geliyorum. Yabancı uyrukluyum. Vergi numarası almaya geldim. Yardımınız için teşekkürler.”
+
+(Hello! I study at Sabancı University and I am a foreigner. I came here to obtain a tax ID number. Thank you for your help in advance.)
+
+See below the two Tax Office options in the Anatolian side:
+
+⇒ Yakacık Tax Office: Hürriyet Mahallesi Yakacık D-100 Kuzey Yanyol Caddesi No: 47/A-B Kartal ISTANBUL
+
+⇒ Kadıköy Tax Office: Osmanağa, Halitağa Caddesi No:19, Kadıköy ISTANBUL

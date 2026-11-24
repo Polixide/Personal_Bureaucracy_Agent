@@ -1,6 +1,6 @@
 """Document-specific observations and deterministic quality checks, never legal decisions."""
 from datetime import date
-from typing import Annotated, ClassVar, Literal, Self
+from typing import ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -196,10 +196,6 @@ class UnknownDocument(DocumentInfo):
     document_type: Literal["unknown"] = "unknown"
 
 
-ExtractedDocument = Annotated[
-    StudentCertificate | HealthInsurance | IkametApplicationForm | PassportIdentity | EntryStamp | DeclarationControl | CardFeeReceipt | UnknownDocument,
-    Field(discriminator="document_type"),
-]
 DOCUMENT_SCHEMAS = {
     "student_enrollment_certificate": StudentCertificate,
     "health_insurance_certificate": HealthInsurance,

@@ -1,0 +1,84 @@
+{
+  "id": "tc_kimlik_renewal",
+  "title": "Renewal of a Turkish identity card (T.C. Kimlik Kartı): expired, lost or damaged",
+  "status": "unverified",
+  "version": "0.1",
+  "aliases": ["tc kimlik", "t c kimlik", "tc kimlik karti", "kimlik karti", "kimlik", "turkish identity card",
+             "turkish id card", "turkish id", "id card", "identity card", "chip id card", "carta d identita turca"],
+  "qualifiers": ["lost", "stolen", "expired", "expiring", "expires", "damaged", "broken", "renew", "renewal",
+                "replace", "chip fell", "fell off", "kayip", "kaybettim", "kaybolan", "calindi", "yenileme",
+                "yenilemek", "suresi doldu", "hasarli", "rinnovare", "rinnovo", "perso", "persa", "scaduta"],
+  "scope": "Turkish citizens in Türkiye who already hold a chip identity card (T.C. Kimlik Kartı) and need a new one because it expired, was lost or stolen, or is damaged.",
+  "excluded": ["applications abroad (consulates)", "a first card or replacing a paper nüfus cüzdanı (see tc_kimlik_first)",
+               "changed registered information such as a new surname (not modelled yet)",
+               "temporary identity document (geçici kimlik belgesi)",
+               "people under legal restriction and children under state protection"],
+  "scope_conditions": [
+    {"op": "is_true", "field": "is_turkish_citizen"},
+    {"op": "is_true", "field": "applying_in_turkiye"}
+  ],
+  "sections": [
+    {"id": "eligibility", "title": "Why you need a new card", "order": 1},
+    {"id": "identity_photo", "title": "Identity documents and photo", "order": 2},
+    {"id": "applicant", "title": "Who goes to the office", "order": 3},
+    {"id": "fee_appointment", "title": "Fee and appointment", "order": 4},
+    {"id": "guardrails", "title": "Authority", "order": 5, "delegate": false}
+  ],
+  "stages": [
+    {"id": "card_application", "title": "ID card renewal at the population directorate (nüfus müdürlüğü)",
+     "requires": ["TCR001", "TCR002", "TCR003", "TCR004", "TCR007", "TCR008", "TCR009", "TCR010", "TCR011"]}
+  ],
+  "fields": [
+    {"name": "is_turkish_citizen", "type": "bool", "question": "Is the card holder a Turkish citizen?"},
+    {"name": "applying_in_turkiye", "type": "bool", "question": "Will you apply at a population directorate (nüfus müdürlüğü) in Türkiye?"},
+    {"name": "renewal_reason", "type": "str",
+     "question": "Why do you need a new card: expired, lost (or stolen) or damaged?",
+     "aliases": {"expired": "expired", "expiry": "expired", "suresi doldu": "expired", "süresi doldu": "expired",
+                 "lost": "lost", "stolen": "lost", "kayip": "lost", "kayıp": "lost", "calindi": "lost",
+                 "çalındı": "lost", "damaged": "damaged", "broken": "damaged", "hasarli": "damaged",
+                 "hasarlı": "damaged", "chip fell out": "damaged"}},
+    {"name": "birth_date", "type": "date", "question": "What is the date of birth of the card holder?"},
+    {"name": "application_date", "type": "date", "question": "On which date will you apply (your appointment date)?"},
+    {"name": "applicant_age_months", "type": "int", "question": ""},
+    {"name": "card_expiry_date", "type": "date", "question": "Which expiry date is printed on your current card?"},
+    {"name": "loss_reported", "type": "bool", "question": "Have you reported the loss to Alo 199 or a population directorate?"},
+    {"name": "current_card_present", "type": "bool", "question": "Will you bring your current ID card?"},
+    {"name": "damaged_card_readable", "type": "bool", "question": "Are the name, number and photo on the damaged card still clearly readable?"},
+    {"name": "photo_id_present", "type": "bool", "question": "Will you bring another identity document with a photo (passport, driving licence...)?"},
+    {"name": "photo_date", "type": "date", "question": "When was the biometric photo taken?"},
+    {"name": "photo_age_months", "type": "int", "question": ""},
+    {"name": "travel_document_use", "type": "bool", "question": "Will the card be used as a travel document?"},
+    {"name": "applies_in_person", "type": "bool", "question": "Will the card holder go to the office in person?"},
+    {"name": "legal_representative_applies", "type": "bool", "question": "For a child under 15: will a parent, guardian or another allowed relative make the application?"},
+    {"name": "fee_payment_date", "type": "date", "question": "On which date did you pay the card fee (for a lost card: the loss fee)?"},
+    {"name": "fee_is_current_year_rate", "type": "bool", "question": "Is the amount you paid the fee published for the year of your application?"},
+    {"name": "appointment_booked", "type": "bool", "question": "Do you have an appointment (randevu.nvi.gov.tr, Alo 199, e-Devlet, NVİ Mobil or Nüfusmatik)?"},
+    {"name": "card_issuance_status", "type": "str", "question": ""},
+    {"name": "holder_name", "type": "str", "question": "What is the full name of the card holder?"},
+    {"name": "current_date", "type": "date", "question": ""}
+  ],
+  "documents": [
+    {"doc_type": "tc_kimlik_karti", "description": "Current T.C. identity card (front and back)",
+     "extracts": ["holder_name", "birth_date", {"field": "card_expiry_date", "from_field": "expiry_date"}],
+     "titles": ["turkiye cumhuriyeti kimlik karti", "republic of turkiye identity card", "republic of turkey identity card"],
+     "keywords": ["turkiye cumhuriyeti kimlik karti", "republic of turkiye identity card",
+                  "republic of turkey identity card", "kimlik karti", "identity card", "t.c. kimlik no",
+                  "tc kimlik no", "son gecerlilik", "valid until", "seri no", "document no"],
+     "mrz": "id_card"},
+    {"doc_type": "id_card_fee_receipt", "description": "Receipt of the ID card fee payment (makbuz or dekont)",
+     "extracts": [{"field": "fee_payment_date", "from_field": "payment_date"}],
+     "titles": ["kimlik karti bedeli", "kimlik karti ucreti", "degerli kagit bedeli", "identity card fee"],
+     "keywords": ["kimlik karti bedeli", "kimlik karti ucreti", "degerli kagit bedeli", "identity card fee",
+                  "makbuz", "dekont", "tahsilat", "payment receipt", "vergi dairesi"]}
+  ],
+  "derived": [
+    {"field": "current_date", "op": "today"},
+    {"field": "applicant_age_months", "op": "months_between", "args": ["birth_date", "application_date"]},
+    {"field": "photo_age_months", "op": "months_between", "args": ["photo_date", "application_date"]}
+  ],
+  "contacts": [
+    {"role": "NVİ call centre", "name": "Alo 199 (Nüfus ve Vatandaşlık İşleri)", "email": null},
+    {"role": "Population directorate", "name": "District population directorate (ilçe nüfus müdürlüğü)", "email": null}
+  ],
+  "forms": []
+}

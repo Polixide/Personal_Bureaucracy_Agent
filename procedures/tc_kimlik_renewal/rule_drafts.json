@@ -1,0 +1,186 @@
+[
+  {
+    "draft_id": "D001",
+    "topics": [
+      "What must I do if my ID card is lost or stolen?"
+    ],
+    "description": "The applicant must report the loss of their ID card to Alo 199 or a population directorate.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Kimlik kartı sahibi; Kartı kaybetmesi halinde durumu yurt içinde çağrı merkezine veya nüfus müdürlüklerine, yurt dışında ise en yakın dış temsilciliğe bildirmekle, yükümlüdür.",
+    "fields": [
+      "loss_reported"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [
+      "TCR003"
+    ],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D002",
+    "topics": [
+      "What must I do if my ID card is lost or stolen?"
+    ],
+    "description": "The applicant must apply for a new ID card through the State Gate (Devlet Kapısı) or at a population directorate (nüfus müdürlüğü) in Türkiye.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Devlet kapısı üzerinden veya yurt içinde nüfus cüzdanı/kimlik kartı kaybı nedeniyle yurt içinde nüfus müdürlüklerine, yurt dışında ise dış temsilciliklerimize yeniden kimlik kartı başvurusu yapılmalıdır.",
+    "fields": [
+      "applying_in_turkiye"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D003",
+    "topics": [
+      "What must I do if my ID card is lost or stolen?"
+    ],
+    "description": "The applicant must have reported the loss of their ID card to Alo 199 or a population directorate.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Kartı kaybetmesi halinde durumu yurt içinde çağrı merkezine veya nüfus müdürlüklerine, yurt dışında ise en yakın dış temsilciliğe bildirmekle, yükümlüdür.",
+    "fields": [
+      "loss_reported"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [
+      "TCR003"
+    ],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D004",
+    "topics": [
+      "Which photo do I need for the new ID card?"
+    ],
+    "description": "The applicant must have a biometric photo taken within the last 6 months.",
+    "source_id": "NVI_TCKK_PROCEDURES",
+    "quote": "On beş yaşını tamamlamış olan kişilerin kimlik kartı başvurusunda son 6 ay içinde çekilmiş biyometrik fotoğraf gereklidir.",
+    "fields": [
+      "renewal_reason"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D005",
+    "topics": [
+      "Which photo do I need for the new ID card?"
+    ],
+    "description": "The applicant must have a biometric photo taken within the last 6 months.",
+    "source_id": "NVI_TCKK_PROCEDURES",
+    "quote": "1 adet Son altı ay içinde çekilmiş Biyometrik Fotoğraf",
+    "fields": [
+      "renewal_reason"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D006",
+    "topics": [
+      "Which photo do I need for the new ID card?"
+    ],
+    "description": "The applicant must have a biometric photo taken within the last 6 months.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Son 6 (altı ) ay içinde çekilmiş Biyometrik Fotoğraf (1 adet), 15 (On beş) yaşını tamamlamış olanların biyometrik fotoğrafı gerekir.",
+    "fields": [
+      "renewal_reason"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [
+      "TCR002",
+      "TCR003"
+    ],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D007",
+    "topics": [
+      "Which photo do I need for the new ID card?"
+    ],
+    "description": "The applicant must have a biometric photo taken within the last 6 months.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Kimlik kartı başvurusunda on beş yaşını tamamlamış olanların biyometrik fotoğrafı gerekir.",
+    "fields": [
+      "renewal_reason"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [
+      "TCR002",
+      "TCR003"
+    ],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D008",
+    "topics": [
+      "When and how do I pay the ID card fee?"
+    ],
+    "description": "The applicant must pay the ID card fee using a credit card or bank card through the Digital Tax Office's virtual POS application, or via an agreed bank.",
+    "source_id": "NVI_APPOINTMENT_FAQ",
+    "quote": "T.C. Kimlik kartı, pasaport ve sürücü belgesi başvuru bedellerinin, başvurudan önce vergi dairesi müdürlüklerine, dijital.gib.gov.tr internet adresi üzerinden sanal pos uygulamasıyla kredi kartı veya banka kartı aracılığıyla ya da anlaşmalı bankalara yatırılması gerekmektedir.",
+    "fields": [
+      "fee_payment_date"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [
+      "TCR010"
+    ],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D009",
+    "topics": [
+      "When and how do I pay the ID card fee?"
+    ],
+    "description": "The applicant must check the fee amount through the Digital Tax Office's virtual POS application, or via an agreed bank, or through the official gazette.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Kimlik Kartı bedelinin de içinde bulunduğu değerli kâğıt bedellerinin, Gelir İdaresi Başkanlığının resmi platformu olan Dijital Vergi Dairesi üzerinden, https://randevu.nvi.gov.tr/ veya https://alo199.nvi.gov.tr/ internet adresinden ya da Resmi Gazete’den (Değerli Kağıt Kanununa Ekli Değerli Kağıt Tablosu) öğrenilmesi mümkündür.",
+    "fields": [
+      "fee_payment_date"
+    ],
+    "severity": "advisory",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [],
+    "status": "unverified"
+  },
+  {
+    "draft_id": "D010",
+    "topics": [
+      "When and how do I pay the ID card fee?"
+    ],
+    "description": "The applicant must pay the fee for the current year's rate to be valid.",
+    "source_id": "NVI_TCKK_FAQ",
+    "quote": "Değerli Kağıt Bedelleri, her yıl için Hazine ve Maliye Bakanlığınca belirlenerek Resmi Gazetede yayımlanmaktadır.",
+    "fields": [
+      "fee_is_current_year_rate"
+    ],
+    "severity": "blocking",
+    "quote_found": true,
+    "problems": [],
+    "similar_rules": [
+      "TCR011"
+    ],
+    "status": "unverified"
+  }
+]

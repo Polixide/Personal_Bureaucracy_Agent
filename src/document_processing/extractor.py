@@ -16,6 +16,7 @@ class DocumentExtractionError(ValueError):
 class TextPage:
     number: int  # One-based original page; TXT is one logical page.
     text: str
+    ocr: bool = False  # True when the text was recognised from the page image (a scan or a photo)
 
 
 def _create_ocr_engine():
@@ -75,11 +76,61 @@ def ocr_page(page, number):
         ) from error
 
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+MIN_TEXT_CHARS = 30          # fewer letters/digits than this on a page with an image: OCR it
+IMAGE_PAGE_TEXT_CHARS = 50   # a page mostly covered by an image (a scan) with only a watermark or header: OCR too
+IMAGE_COVERAGE = 0.5
+
+
+def image_coverage(page) -> float:
+    """Share of the page area covered by images (0..1); scans are close to 1."""
+    area = abs(page.rect.width * page.rect.height) or 1.0
+    covered = 0.0
+    for image in page.get_images(full=True):
+        for rect in page.get_image_rects(image[0]):
+            covered += abs(rect.width * rect.height)
+    return min(covered / area, 1.0)
+
+
+def needs_ocr(page, text: str) -> bool:
+    """OCR raster pages whose text layer is missing, or is only a watermark/header over a scan."""
+    letters = sum(c.isalnum() for c in text)
+    if not page.get_images(full=True):
+        return False
+    if letters < MIN_TEXT_CHARS:
+        return True
+    return letters < IMAGE_PAGE_TEXT_CHARS and image_coverage(page) >= IMAGE_COVERAGE
+
+
+def read_page(page, number: int) -> TextPage:
+    """One page: its text layer, or its OCR text when it is a scan (see page_text)."""
+    text = page.get_text()
+    if not needs_ocr(page, text):
+        return TextPage(number, text)
+    return TextPage(number, page_text(page, number, text), ocr=True)
+
+
+def page_text(page, number: int, text: str) -> str:
+    """OCR text of a scanned page; appended to a short text layer (a watermark or a header) when there is one."""
+    recognised = ocr_page(page, number) or ""
+    if text.strip() and recognised:
+        return text.rstrip() + "\n" + recognised
+    return recognised or text
+
+
+def open_document(path: Path):
+    """A PDF, or a photo (JPG/PNG) converted to a one-page PDF so it follows the scanned-page path."""
+    if path.suffix.lower() in IMAGE_EXTENSIONS:
+        with pymupdf.open(path) as image:
+            return pymupdf.open("pdf", image.convert_to_pdf())
+    return pymupdf.open(path)
+
+
 def extract_pages(file_path: str | Path) -> list[TextPage]:
-    """Read UTF-8 TXT or PDF text, retaining original one-based page numbers.
+    """Read UTF-8 TXT, PDF or a photo (JPG/PNG), retaining original one-based page numbers.
 
     Raises FileNotFoundError for missing paths, ValueError for unsupported
-    extensions, and DocumentExtractionError for unreadable or textless PDFs.
+    extensions, and DocumentExtractionError for unreadable or textless files.
     Filesystem errors (such as permission errors) propagate to the caller.
     """
     path = Path(file_path)
@@ -91,23 +142,16 @@ def extract_pages(file_path: str | Path) -> list[TextPage]:
     extension = path.suffix.lower()
     if extension == ".txt":
         return [TextPage(1, path.read_text(encoding="utf-8-sig"))]
-    if extension != ".pdf":
-        raise ValueError(f"Unsupported extension '{extension}'. Use PDF or TXT.")
+    if extension != ".pdf" and extension not in IMAGE_EXTENSIONS:
+        raise ValueError(f"Unsupported extension '{extension}'. Use PDF, TXT, JPG or PNG.")
 
     try:
-        with pymupdf.open(path) as document:
+        with open_document(path) as document:
             if document.needs_pass:
                 raise DocumentExtractionError("Password-protected PDFs are not supported.")
-            pages = []
-            for i, page in enumerate(document):
-                text = page.get_text()
-                # Short text-only pages (and blank pages) keep their existing
-                # behavior. OCR only raster-containing pages with little text.
-                if sum(c.isalnum() for c in text) < 30 and page.get_images(full=True):
-                    text = ocr_page(page, i + 1) or text
-                pages.append(TextPage(i + 1, text))
+            pages = [read_page(page, i + 1) for i, page in enumerate(document)]
     except (pymupdf.FileDataError, RuntimeError) as error:
-        raise DocumentExtractionError(f"Cannot read PDF: {path}") from error
+        raise DocumentExtractionError(f"Cannot read file: {path}") from error
 
     if not any(page.text.strip() for page in pages):
         raise DocumentExtractionError(

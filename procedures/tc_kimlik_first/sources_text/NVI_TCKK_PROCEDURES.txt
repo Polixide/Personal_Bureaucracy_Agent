@@ -1,0 +1,74 @@
+SOURCE: T.C. Kimlik Kartı İşlemleri (Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ))
+URL: https://www.nvi.gov.tr/kimlik-karti-islemleri
+RETRIEVED: 2026-11-19
+SHA256: 1fbdfc1fc5d2400bcf1a705b97f9e633b46338236dfbb87d8ae0f81acff961ed
+
+T.C. kimlik Kartı İşlemleri
+
+TÜRKİYE CUMHURİYETİ KİMLİK KARTI
+
+Türkiye Cumhuriyeti Kimlik Kartı;
+
+Kişinin Türk vatandaşı olduğunu ve aile kütüğüne kayıtlı bulunduğunu gösteren, elektronik sistemler aracılığı ile kimlik tespit doğrulama işlemlerinin gerçekleştirilmesini sağlamak amacıyla kişiye özgü veriler ile biyometrik fotoğraftan oluşan kimlik kartıdır.
+
+Türkiye Cumhuriyeti Kimlik Kartı Başvurusunda Gerekli Belgeler;
+
+Fotoğraflı ve geçerli bir kimlik belgesi (Nüfus cüzdanı, kimlik kartı, uluslararası aile cüzdanı, sürücü belgesi, pasaport, geçici kimlik belgesi, güncel ve doğrulanabilir olması kaydıyla kurumların kendi mevzuatlarında kimlik yerine geçen resmi belge)
+
+1 adet Son altı ay içinde çekilmiş Biyometrik Fotoğraf
+
+(On beş yaşını tamamlamış olanların kimlik kartı başvurusunda biyometrik fotoğraf bulunması zorunludur. Ancak, kimlik kartının seyahat belgesi olarak kullanılmasının talep veya beyan edilmesi halinde her yaş grubu için biyometrik fotoğraf istenir.)
+
+Her yıl için Hazine ve Maliye Bakanlığınca belirlenen kimlik kartı satış bedelinin ilgili ödeme yöntemleri üzerinden ödenmesi gerekmekte olup başvuru tarihi esas alınmaktadır.
+
+Kimlik belgesi ibraz edemeyen veya ibraz ettiği kimlik belgesinde fotoğrafı bulunmayan ve biyometrik doğrulama yapılamayan on beş yaşını tamamlayan kişinin MERNİS’te kayıtlı aynı kişi olup olmadığı hususunda tereddüde düşülmesi durumunda Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 12’nci maddesindeki usul ve esaslara göre başvuru işlemleri yapılır.
+
+Türkiye Cumhuriyeti Kimlik Kartı Randevuları;
+
+Kimlik kartı başvurusu; randevulu olarak yurt içinde nüfus müdürlüklerine, yurt dışında ise dış temsilciliklere yapılır. Kimlik kartı başvurusu için randevu alınması işlemi; yurt içinde https://randevu.nvi.gov.tr/ internet adresinden, Çağrı Merkezi (Alo199) üzerinden, e-Devlet kapısı üzerinden, NVİ Mobil ya da Nüfusmatik üzerinden yapılabilir.
+
+Türkiye Cumhuriyeti Kimlik Kartı Başvurusu ve Teslimi;
+
+Kimlik kartı başvurusu; yurt içinde randevulu veya randevusuz olarak nüfus müdürlüklerine, yurt dışında ise randevulu olarak dış temsilciliklere yapılır.
+
+Kimlik kartı; doğum, değiştirme, kayıp, yeniden kayıt ve vatandaşlığın kazanılması nedenleriyle düzenlenir.
+
+Kimlik kartı başvurusunda; on beş yaşını tamamlayan kişilerin şahsen başvurmaları esastır. Kimlik belgesi ibraz edemeyen veya ibraz ettiği kimlik belgesinde fotoğrafı bulunmayan ve biyometrik doğrulama yapılamayan on beş yaşını tamamlayan kişinin MERNİS’te kayıtlı aynı kişi olup olmadığı hususunda tereddüde düşülmesi durumunda Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 12’nci maddesindeki usul ve esaslara göre başvuru işlemleri yapılır.
+
+On beş yaşını tamamlamayanların başvuruları ise veli, vasi, kayyum, bunların bulunmaması halinde, çocuğun büyük ana, büyük baba, ergin kardeşleri, çocuğu yanında bulunduranlar ya da vekâletname ibraz eden resmî vekil tarafından yapılır.
+
+2828 sayılı Kanun ile 5395 sayılı Kanun kapsamında koruma altında bulunan onbeş yaşını tamamlamayan çocuklara ait kimlik kartı başvurusu; veli veya vasiye ulaşılamaması veya ulaşılmasının sakıncalı olması halinde ilgili kuruluş yetkililerince yapılır.
+
+Akıl hastalığı veya zayıflığı nedeniyle kısıtlananların başvuruları veli, vasi veya kayyum tarafından yapılır. Standartlara uygun biyometrik fotoğraf veya biyometrik verilerin alınamaması halinde bu durum başvuru makamınca kayıt altına alınarak başvuru işlemi tamamlanır..
+
+Doğum bildirimi ile birlikte doğum olayının kişinin aile kütüklerine tescili sonrasında kimlik kartı başvurusu alınır.
+
+Türk vatandaşlığının kazanılması nedeniyle kimlik kartı düzenlenmesinde, (kişinin vatandaşlık kazanma olayının aile kütüklerine tescili sonrasında) bir adet biyometrik fotoğrafı, kimliğini ispatlayan pasaport benzeri bir belge ve vatandaşlığı kazandığını gösterir resmi bir belge istenir.
+
+15 yaşını tamamlayan kişilerin kimlik kartları kendilerine veya başvuru sırasında belirledikleri adrese ve kişiye, 15 yaşını tamamlamayan kişilerin kimlik kartları ise başvuru yapan kişinin belirlediği adrese ve kişiye teslim edilir. Bu durumda, talepte bulunan ile kimlik kartını teslim alacak kişi arasında soy bağı bulunması şartı aranmaz.
+
+Başvurusu yapılan kimlik kartı, kişiselleştirilmesinin akabinde yurt içinde anlaşmalı dağıtım birimi aracılığı ile, yurt dışında ise Dışişleri Bakanlığı aracılığı ile makul olan en kısa sürede teslim edilmektedir.
+
+T.C. Kimlik Kartında Kullanılacak Fotoğraf;
+
+On beş yaşını tamamlamış olan kişilerin kimlik kartı başvurusunda son 6 ay içinde çekilmiş biyometrik fotoğraf gereklidir.
+
+Uluslararası Sivil Havacılık Teşkilatının (ICAO) 9303 sayılı Makinede Okunabilir Seyahat Belgeleri (MRTD) dokümanı ve eklerine uygun olarak; yüz tamamen görünür şekilde ön cepheden çekilmiş, gözler açık konumda; alın, yüz ve çene açık olmalı ve renkli cam ya da güneş gözlüğü kullanılmamalıdır. Fotokopi, bilgisayarda çoğaltılan veya biyometrik olmayan fotoğraflar kabul edilmez
+
+Kimlik kartı başvurusunda talep edilmesi veya kimlik kartının seyahat belgesi olarak kullanılacağının beyan edilmesi halinde 15 yaşını tamamlamamış olanların kimlik kartı fotoğraflı olarak düzenlenmektedir.
+
+Seyahat belgelerinin uluslararası standartları (ICAO) gereği ülkemiz ile yapılan ikili anlaşmalar kapsamında kimlik kartı ile yapılacak yurt dışı seyahatlerde her yaş gurubu için fotoğraf bulunması zorunludur.
+
+Türkiye Cumhuriyeti kimlik kartının özellikleri;
+
+Kimlik kartı uluslararası standartlara uygun olarak tasarlanmıştır.
+
+E-imza aracı olarak kullanılabilir
+
+Seyahat belgesi özelliğine sahiptir.
+
+Kimlik kartının son geçerlilik tarihi kartın üzerinde yer almaktadır.
+
+Yatalak ve ağır hasta olanlar için kimlik kartı başvurusu;
+
+Yaşlılık, engellilik, hastalık veya mücbir sebepler dolayısıyla kendileri veya yakınları tarafından yurt içinde nüfus müdürlüklerine yapılacak başvuru üzerine, başvuru yapılan nüfus müdürlükleri tarafından yurt içindeki adreslerine gidilmek suretiyle taşınabilir kayıt cihazları ile kimlik kartı başvurusu alınabilmektedir.

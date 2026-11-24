@@ -9,7 +9,7 @@ import pymupdf
 import pytest
 from pydantic import ValidationError
 
-from config import OLLAMA_MODEL, OLLAMA_HOST
+from config import LLM_MODEL, OLLAMA_HOST
 from src.document_processing.extractor import TextPage
 from src.document_processing.processor import (
     CHUNK_CHARS, MAX_INPUT_CHARS, MAX_CHUNKS, DocumentProcessingError,
@@ -84,7 +84,7 @@ def test_student_type_fields_and_source_page(tmp_path):
     assert info.source_pages["student_id"] == 1
     assert set(calls[1].kwargs["format"]["properties"]) == set(StudentCertificate.model_fields) - {"missing_fields", "validation_issues", "source_evidence", "correction_notes", "selected_pages"}
     assert "SourceEvidence" not in calls[1].kwargs["format"].get("$defs", {})
-    assert all(call.kwargs["model"] == OLLAMA_MODEL for call in calls)
+    assert all(call.kwargs["model"] == LLM_MODEL for call in calls)
 
 
 def test_insurance_uses_specific_schema_and_identity_field(tmp_path):
@@ -205,7 +205,7 @@ def test_model_and_host_configuration(tmp_path):
         client.return_value.chat.side_effect = [response({"document_type":"student_enrollment_certificate"}),response(STUDENT)]
         process_document(path,timeout=10)
         client.assert_called_once_with(host=OLLAMA_HOST,timeout=10)
-        assert all(c.kwargs["model"] == OLLAMA_MODEL for c in client.return_value.chat.call_args_list)
+        assert all(c.kwargs["model"] == LLM_MODEL for c in client.return_value.chat.call_args_list)
 
 
 @pytest.mark.parametrize("content",["not JSON","[]",'{"document_type":"invented"}'])
@@ -657,22 +657,25 @@ def test_ikamet_roles_and_provenance_remain_supported(tmp_path):
 
 
 def test_hybrid_observations_and_correction_notes_survive_sqlite(tmp_path):
-    from src.core.graph import build_graph
-    from src.core.state import Document
-    from src.memory.checkpointer import sqlite_checkpointer
+    """Ported in phase 9 from the milestone-1 checkpointer to the Twin store (same guarantee)."""
+    from src.document_processing.observations import ExtractionResult
     from src.document_processing.schemas import SourceEvidence
+    from src.pack import load_pack
+    from src.tools.extract_document import observe_typed
+    from src.twin import service
+    from src.twin.store import TwinStore
     info, _ = hybrid_insurance(tmp_path)
-    document=Document(doc_id="policy",file_path="synthetic.txt",doc_type="health_insurance",status="analyzed",info=info)
-    config={"configurable":{"thread_id":"hybrid-policy"}}
-    db=tmp_path/"hybrid.db"
-    with sqlite_checkpointer(db) as saver:
-        build_graph(saver).update_state(config,{"documents":[document],"extracted_facts":{"policy":info.model_dump(mode="json")}})
-    with sqlite_checkpointer(db) as saver:
-        state=build_graph(saver).get_state(config).values
-    restored=state["documents"][0].info
+    pack = load_pack("ikamet_first")
+    db = tmp_path / "hybrid.sqlite"
+    with TwinStore(db) as store:
+        service.register_upload(store, "u", "policy", "synthetic.txt", pack.id)
+        service.store_extraction(store, pack, "u", "policy", ExtractionResult(observations=[observe_typed(pack, info)]))
+    with TwinStore(db) as store:
+        stored = store.get_document("u", "policy").observation
+    restored = type(info).model_validate(stored["info"])
     assert restored == info
-    assert isinstance(restored.source_evidence[0],SourceEvidence)
-    assert state["extracted_facts"]["policy"]["correction_notes"] == info.correction_notes
+    assert isinstance(restored.source_evidence[0], SourceEvidence)
+    assert stored["info"]["correction_notes"] == info.correction_notes
 
 
 def test_repeated_date_in_two_chunks_of_same_page_retains_real_snippet():
@@ -683,14 +686,13 @@ def test_repeated_date_in_two_chunks_of_same_page_retains_real_snippet():
 
 
 def test_correction_notes_alone_do_not_block_gate_1(tmp_path):
-    from src.core.state import ActionPlan, Document, PlanStep
-    from src.guardrails.gate_1 import validate_plan
-    info, _=hybrid_insurance(tmp_path)
+    """Ported in phase 9: correction notes (without validation issues) still yield grounded facts."""
+    from src.pack import load_pack
+    from src.tools.extract_document import observe_typed
+    info, _ = hybrid_insurance(tmp_path)
     assert info.correction_notes and not info.validation_issues
-    document=Document(doc_id="policy",file_path="synthetic.txt",status="analyzed",doc_type="health_insurance",info=info,expiry_date=info.coverage_end_date)
-    plan=ActionPlan(actions=[PlanStep(step_id="review",priority=1,action="Review policy details",reason="Check the grounded observations",related_rule_id="R015",required_documents=["health_insurance"])],summary="Review proposed observations")
-    from src.workers.rules_engine import evaluate_requirements
-    assert not validate_plan({"documents":[document],"relevant_requirements":evaluate_requirements({})},plan)
+    observation = observe_typed(load_pack("ikamet_first"), info)
+    assert observation.facts and not observation.issues
 
 
 @pytest.mark.parametrize("holder", ["MARCO BELFORTI", None])

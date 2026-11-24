@@ -1,0 +1,12 @@
+[
+  {"scenario_id": "G01-first-ikamet", "goal": "I want to apply for İkamet", "today": "2026-11-18", "expected_procedure": "ikamet_first"},
+  {"scenario_id": "G02-no-procedure", "goal": "I want to open a bank account", "today": "2026-11-18", "expected_procedure": null},
+  {"scenario_id": "G03-other-wording", "goal": "How do I get my first residence permit?", "today": "2026-11-18", "expected_procedure": "ikamet_first"},
+  {"scenario_id": "G04-extension", "goal": "I need to extend my İkamet", "today": "2027-01-10", "expected_procedure": "ikamet_extension"},
+  {"scenario_id": "G05-first-id-card", "goal": "I want to get my first Turkish ID card (TC kimlik)", "today": "2026-11-19", "expected_procedure": "tc_kimlik_first"},
+  {"scenario_id": "G06b-lost-turkish-id-card", "goal": "I lost my Turkish ID card (TC kimlik) last week. What do I need to get a new one?", "today": "2026-11-19", "expected_procedure": "tc_kimlik_renewal"},
+  {"scenario_id": "G06-lost-id-card", "goal": "I lost my ID card, what do I do?", "today": "2026-11-19", "expected_procedure": "tc_kimlik_renewal"},
+  {"scenario_id": "G07-renew-kimlik", "goal": "Kimlik kartımı yenilemek istiyorum", "today": "2026-11-19", "expected_procedure": "tc_kimlik_renewal"},
+  {"scenario_id": "G08-first-or-renewal-is-ambiguous", "goal": "I want to get a Turkish ID card (TC kimlik)", "today": "2026-11-19", "expected_procedure": null},
+  {"scenario_id": "G09-replace-paper-id", "goal": "I want to replace my old nufus cuzdani with the new ID card", "today": "2026-11-19", "expected_procedure": "tc_kimlik_first"}
+]

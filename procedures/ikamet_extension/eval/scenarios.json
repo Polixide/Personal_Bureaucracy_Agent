@@ -1,0 +1,76 @@
+[
+  {
+    "scenario_id": "X01-ready-extension", "kind": "pass",
+    "description": "Everything needed for the extension is known and consistent.",
+    "goal": "I need to extend my İkamet", "today": "2027-01-10",
+    "facts": {"application_date": "2027-01-10", "current_permit_expiry_date": "2027-02-15",
+              "residence_permit_card_present": true, "exchange_student": true,
+              "passport_expiry_date": "2027-12-01", "requested_permit_end_date": "2027-07-31",
+              "insurance_end_date": "2027-08-31", "application_form_signed": true,
+              "application_channel": "https://e-ikamet.goc.gov.tr/", "approval_status": "pending",
+              "institution": "Sabancı University"},
+    "expected": {"procedure_id": "ikamet_extension", "rule_status": {
+      "EXT001": "pass", "EXT002": "pass", "EXT003": "pass", "EXT004": "pass",
+      "EXT005": "pass", "EXT006": "pass", "EXT007": "pass", "EXT008": "pass"}}
+  },
+  {
+    "scenario_id": "X02-application-after-expiry", "kind": "date_conflict",
+    "description": "The planned application date is after the current permit expires.",
+    "goal": "I need to extend my İkamet", "today": "2027-01-10",
+    "facts": {"application_date": "2027-02-20", "current_permit_expiry_date": "2027-02-15",
+              "residence_permit_card_present": true, "exchange_student": true,
+              "passport_expiry_date": "2027-12-01", "requested_permit_end_date": "2027-07-31",
+              "insurance_end_date": "2027-08-31", "application_form_signed": true,
+              "application_channel": "https://e-ikamet.goc.gov.tr/", "approval_status": "pending"},
+    "expected": {"procedure_id": "ikamet_extension", "rule_status": {
+      "EXT001": "fail", "EXT002": "pass", "EXT003": "pass", "EXT004": "pass",
+      "EXT005": "pass", "EXT006": "pass", "EXT007": "pass", "EXT008": "pass"}}
+  },
+  {
+    "scenario_id": "X03-insurance-too-short", "kind": "date_conflict",
+    "description": "Insurance ends before the requested end of the extended permit.",
+    "goal": "I need to extend my İkamet", "today": "2027-01-10",
+    "facts": {"application_date": "2027-01-10", "current_permit_expiry_date": "2027-02-15",
+              "residence_permit_card_present": true, "exchange_student": true,
+              "passport_expiry_date": "2027-12-01", "requested_permit_end_date": "2027-07-31",
+              "insurance_end_date": "2027-06-30", "application_form_signed": true,
+              "application_channel": "https://e-ikamet.goc.gov.tr/", "approval_status": "pending"},
+    "expected": {"procedure_id": "ikamet_extension", "rule_status": {
+      "EXT001": "pass", "EXT002": "pass", "EXT003": "pass", "EXT004": "pass",
+      "EXT005": "fail", "EXT006": "pass", "EXT007": "pass", "EXT008": "pass"}}
+  },
+  {
+    "scenario_id": "X04-passport-buffer", "kind": "date_conflict",
+    "description": "The passport expires less than 60 days after the requested end date.",
+    "goal": "I need to extend my İkamet", "today": "2027-01-10",
+    "facts": {"application_date": "2027-01-10", "current_permit_expiry_date": "2027-02-15",
+              "residence_permit_card_present": true, "exchange_student": true,
+              "passport_expiry_date": "2027-09-01", "requested_permit_end_date": "2027-07-31",
+              "insurance_end_date": "2027-08-31", "application_form_signed": true,
+              "application_channel": "https://e-ikamet.goc.gov.tr/", "approval_status": "pending"},
+    "expected": {"procedure_id": "ikamet_extension", "rule_status": {
+      "EXT001": "pass", "EXT002": "pass", "EXT003": "pass", "EXT004": "fail",
+      "EXT005": "pass", "EXT006": "pass", "EXT007": "pass", "EXT008": "pass"}}
+  },
+  {
+    "scenario_id": "X05-nothing-known", "kind": "missing",
+    "description": "No information yet: every rule is unknown, none is failed.",
+    "goal": "I need to extend my İkamet", "today": "2027-01-10",
+    "facts": {},
+    "expected": {"procedure_id": "ikamet_extension", "rule_status": {
+      "EXT001": "unknown", "EXT002": "unknown", "EXT003": "unknown", "EXT004": "unknown",
+      "EXT005": "unknown", "EXT006": "unknown", "EXT007": "unknown", "EXT008": "unknown"}}
+  },
+  {
+    "scenario_id": "X06-form-not-signed", "kind": "fail",
+    "description": "The extension form is not signed yet; the official channel is not confirmed.",
+    "goal": "I need to extend my İkamet", "today": "2027-01-10",
+    "facts": {"application_date": "2027-01-10", "current_permit_expiry_date": "2027-02-15",
+              "residence_permit_card_present": true, "exchange_student": true,
+              "passport_expiry_date": "2027-12-01", "requested_permit_end_date": "2027-07-31",
+              "insurance_end_date": "2027-08-31", "application_form_signed": false, "approval_status": "pending"},
+    "expected": {"procedure_id": "ikamet_extension", "rule_status": {
+      "EXT001": "pass", "EXT002": "pass", "EXT003": "pass", "EXT004": "pass",
+      "EXT005": "pass", "EXT006": "unknown", "EXT007": "fail", "EXT008": "pass"}}
+  }
+]

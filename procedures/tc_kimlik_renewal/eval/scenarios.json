@@ -1,0 +1,242 @@
+[
+  {
+    "scenario_id": "R01-expired-card-ready",
+    "kind": "pass",
+    "description": "An adult renews an expired card; everything needed is in order.",
+    "goal": "I need to renew my TC kimlik",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "renewal_reason": "expired",
+      "birth_date": "1988-02-02",
+      "application_date": "2026-12-03",
+      "card_expiry_date": "2026-11-30",
+      "current_card_present": true,
+      "photo_date": "2026-11-01",
+      "travel_document_use": false,
+      "applies_in_person": true,
+      "fee_payment_date": "2026-11-25",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_renewal",
+      "rule_status": {
+        "TCR001": "pass",
+        "TCR002": "pass",
+        "TCR003": "pass",
+        "TCR004": "pass",
+        "TCR005": "pass",
+        "TCR006": "pass",
+        "TCR007": "pass",
+        "TCR008": "pass",
+        "TCR009": "pass",
+        "TCR010": "pass",
+        "TCR011": "pass",
+        "TCR012": "pass",
+        "TCR013": "pass",
+        "TCR014": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "R02-stolen-card-not-reported",
+    "kind": "fail",
+    "description": "A stolen card that was not reported, and no other photo ID.",
+    "goal": "I lost my ID card",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "renewal_reason": "stolen",
+      "birth_date": "1995-09-09",
+      "application_date": "2026-11-28",
+      "loss_reported": false,
+      "photo_id_present": false,
+      "photo_date": "2026-11-15",
+      "travel_document_use": false,
+      "applies_in_person": true,
+      "fee_payment_date": "2026-11-20",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_renewal",
+      "rule_status": {
+        "TCR001": "pass",
+        "TCR002": "pass",
+        "TCR003": "fail",
+        "TCR004": "pass",
+        "TCR005": "pass",
+        "TCR006": "fail",
+        "TCR007": "pass",
+        "TCR008": "pass",
+        "TCR009": "pass",
+        "TCR010": "pass",
+        "TCR011": "pass",
+        "TCR012": "pass",
+        "TCR013": "pass",
+        "TCR014": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "R03-damaged-card-missing-information",
+    "kind": "missing_information",
+    "description": "Only the reason and the application date are known.",
+    "goal": "My ID card is damaged, I need to renew my identity card",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "renewal_reason": "damaged",
+      "application_date": "2026-12-01"
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_renewal",
+      "rule_status": {
+        "TCR001": "pass",
+        "TCR002": "pass",
+        "TCR003": "pass",
+        "TCR004": "unknown",
+        "TCR005": "unknown",
+        "TCR006": "pass",
+        "TCR007": "unknown",
+        "TCR008": "unknown",
+        "TCR009": "unknown",
+        "TCR010": "unknown",
+        "TCR011": "unknown",
+        "TCR012": "unknown",
+        "TCR013": "pass",
+        "TCR014": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "R04-old-photo-last-years-fee",
+    "kind": "date_conflict",
+    "description": "The photo is 7 months old and the amount paid is not the fee of the application year.",
+    "goal": "I need to renew my TC kimlik",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "renewal_reason": "expired",
+      "birth_date": "1979-12-12",
+      "application_date": "2027-01-05",
+      "current_card_present": true,
+      "photo_date": "2026-06-01",
+      "travel_document_use": false,
+      "applies_in_person": true,
+      "fee_payment_date": "2027-01-05",
+      "fee_is_current_year_rate": false,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_renewal",
+      "rule_status": {
+        "TCR001": "pass",
+        "TCR002": "pass",
+        "TCR003": "pass",
+        "TCR004": "pass",
+        "TCR005": "pass",
+        "TCR006": "pass",
+        "TCR007": "fail",
+        "TCR008": "pass",
+        "TCR009": "pass",
+        "TCR010": "pass",
+        "TCR011": "fail",
+        "TCR012": "pass",
+        "TCR013": "pass",
+        "TCR014": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "R05-child-lost-card-parent-applies",
+    "kind": "pass",
+    "description": "A 12-year-old lost the card; a parent applies, the loss is reported, no photo is needed.",
+    "goal": "I lost my kimlik",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "renewal_reason": "lost",
+      "birth_date": "2014-08-20",
+      "application_date": "2026-12-02",
+      "loss_reported": true,
+      "photo_id_present": true,
+      "travel_document_use": false,
+      "legal_representative_applies": true,
+      "fee_payment_date": "2026-11-30",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_renewal",
+      "rule_status": {
+        "TCR001": "pass",
+        "TCR002": "pass",
+        "TCR003": "pass",
+        "TCR004": "pass",
+        "TCR005": "pass",
+        "TCR006": "pass",
+        "TCR007": "pass",
+        "TCR008": "pass",
+        "TCR009": "pass",
+        "TCR010": "pass",
+        "TCR011": "pass",
+        "TCR012": "pass",
+        "TCR013": "pass",
+        "TCR014": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "R06-first-card-in-the-wrong-procedure",
+    "kind": "fail",
+    "description": "The reason is not a renewal, and the current card will not be brought.",
+    "goal": "I need to renew my TC kimlik",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "renewal_reason": "first card",
+      "birth_date": "2000-01-01",
+      "application_date": "2026-12-01",
+      "current_card_present": false,
+      "photo_date": "2026-11-01",
+      "travel_document_use": false,
+      "applies_in_person": true,
+      "fee_payment_date": "2026-11-25",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_renewal",
+      "rule_status": {
+        "TCR001": "pass",
+        "TCR002": "fail",
+        "TCR003": "pass",
+        "TCR004": "fail",
+        "TCR005": "pass",
+        "TCR006": "pass",
+        "TCR007": "pass",
+        "TCR008": "pass",
+        "TCR009": "pass",
+        "TCR010": "pass",
+        "TCR011": "pass",
+        "TCR012": "pass",
+        "TCR013": "pass",
+        "TCR014": "pass"
+      }
+    }
+  }
+]
