@@ -1,0 +1,30 @@
+SOURCE: Mobile Phone/IMEI registration (iro.sabanciuniv.edu)
+URL: https://iro.sabanciuniv.edu/en/imei-registration
+RETRIEVED: 2026-11-20
+SHA256: b93549a5a5a70a9729cf8ef940868e95e8ea0bb76a7793494d80a2467ef4ba4d
+
+Mobile Phone/IMEI registration
+
+Guide for Full Time Students
+
+Guide for Exchange Students
+
+Guide for Family Members
+
+Mobile Phone (Device) / IMEI Registration
+
+If you have brought your own mobile phone to Turkey, you must register it within 120 days after your last entry date to Turkey. If you do not, your phone will be blocked after 120 days.
+
+You will need to submit your residence permit card during the phone registration. If you register without a residence permit card, your phone will be blocked after 6 months.
+
+In order to register your phone to the system, first you need to pay the mobile phone registration fee (currently 31000 TL). You can pay your fee via online banking/tax office page, by going to the nearest tax office, or to any bank branch.
+
+Whether you pay your fee online or in person, you will be asked to provide the IMEI number of your mobile phone. After making the payment, please take the receipt and keep with you.
+
+If you do not know the device’s IMEI number, you can learn it by dialing these digits:
+
+*#06# After you learn your IMEI number, please write it down to a paper.
+
+Paying the registration fee does not mean registering the phone. You must register your phone through the e-devlet portal. https://www.turkiye.gov.tr/btk-imei-kaydet
+
+Note: As the cost of registering your phone is almost equal to a new phone cost, we suggest buying a new phone instead of going through all these bureaucratic processes.

@@ -1,0 +1,34 @@
+SOURCE: What is UETS (iro.sabanciuniv.edu)
+URL: https://iro.sabanciuniv.edu/en/uets
+RETRIEVED: 2026-11-20
+SHA256: 353a27265e5969c142fe4a186c43bbedb2725143437de9bbe49bc72e53b7bef8
+
+What is UETS
+
+Guide for Full Time Students
+
+Guide for Exchange Students
+
+Guide for Family Members
+
+UETS
+
+UETS registration is required only for residence permit extension.
+
+The PTT UETS (National Electronic Commerce Branch) code is a tracking and tracing code used in postal and courier services in Turkey. It is a unique identifier that enables tracking of any mail or package sent through the postal service. Senders can provide this code to recipients or share it in shipment information to allow tracking of the shipment. By entering this code into the PTT's tracking system, information about the whereabouts and delivery status of the shipment can be obtained.
+
+As of April 2024, a copy of this document must be attached to the residence permit application forms. To obtain this document you have 2 options:
+
+A ) Online:
+
+First, download the e-Devlet app on your phone and log in. Then, go to the "Profilim" section at the bottom and confirm your mobile phone number, residence permit card, and email address. Instructions on how to confirm the information are explained in the link below:
+
+After confirming your information, click on "İki Aşamalı Giriş Aktif" in the "Profilim" section and perform the relevant steps. Then, log out from e-Devlet and log in again. Next, go to the following address:
+
+https://basvuru.etebligat.gov.tr/online-bireysel.php
+
+Log in using the e-Devlet option. There is a form that we should fill out. After confirming the information, print the form and submit its copy to IRO.
+
+B ) Physical
+
+If you are not able to get your UETS online, then you must go to PTT Samandıra Müdürlüğü with your current residence permit card. Also, you must have your own Turkish cell phone number.

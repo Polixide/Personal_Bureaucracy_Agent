@@ -1,6 +1,9 @@
 # Reference test documents
 
-Public documents for testing document recognition: no real person's data.
+Public documents for testing document recognition: no real person's data. In the app, choose the
+`ikamet_first` procedure; the document types are `declaration_control_document`, `ikamet_application_form`,
+`passport_identity_page` and `turkiye_entry_stamp`. The blank e-İkamet form is also the saved text of the
+source `GOV_SHORT_TERM_FORM_2026` (`python -m src.rag fetch ikamet_first GOV_SHORT_TERM_FORM_2026 --file ...`).
 Retrieved 2026-11-19. Images were converted to one-page, image-only PDFs, so
 they exercise the OCR path. PDF metadata (author, producer, dates) was removed.
 

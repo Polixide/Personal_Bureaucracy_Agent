@@ -1,0 +1,142 @@
+SOURCE: T.C Kimlik Kartı Sıkça Sorulan Sorular (Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ))
+URL: https://www.nvi.gov.tr/sss-kimlik-karti
+RETRIEVED: 2026-11-19
+SHA256: 52d8ba60c264c7590e42b2ca1e4175fa4440448f01054d49716d3cfcc1b378c1
+
+T.C Kimlik Kartı Sıkça Sorulan Sorular
+
+Türkiye Cumhuriyeti Kimlik Kartı başvurusu için gerekli belgeler nelerdir?
+
+Fotoğraflı ve geçerli kimlik belgesi (Nüfus cüzdanı, kimlik kartı, uluslararası aile cüzdanı, sürücü belgesi, pasaport, geçici kimlik belgesi ve kurumların kendi mevzuatlarında kimlik yerine geçen resmi belge)
+
+Son 6 (altı ) ay içinde çekilmiş Biyometrik Fotoğraf (1 adet), 15 (On beş) yaşını tamamlamış olanların biyometrik fotoğrafı gerekir. Kimlik kartı başvurusu sırasında talep edilmesi veya kimlik kartının seyahat belgesi olarak kullanılacağının başvuran tarafından beyan edilmesi halinde on beş yaşını tamamlamamış olanların da kimlik kartı fotoğraflı olarak düzenlenir.)
+
+Hazine ve Maliye Bakanlığınca belirlenen kimlik kartı satış bedelinin ödenmesi
+
+(Bakınız; Türkiye Cumhuriyeti Kimlik Kartı bedelini nereden öğrenebilirim ve nereye ödeyebilirim? Bir önceki yıla ait kimlik kartı satış bedelini ödesem olur mu? Soru Cevabı)
+
+Türkiye Cumhuriyeti Kimlik Kartı başvurusunu kimler, nasıl, nereye yapar?
+
+Kimlik kartı başvurusu; randevulu olarak yurt içinde nüfus müdürlüklerine, yurt dışında ise dış temsilciliklere yapılır. Kimlik kartı başvurusu için randevu alınması işlemi; yurt içinde https://randevu.nvi.gov.tr/ internet adresinden, Çağrı Merkezi (Alo199) üzerinden, e-Devlet kapısı üzerinden, NVİ Mobil ya da Nüfusmatik üzerinden yapılabilir.
+
+Kimlik kartı; doğum, değiştirme, kayıp, yeniden kayıt ve vatandaşlığın kazanılması nedenleriyle düzenlenir.
+
+Kimlik kartı başvurusunda; on beş yaşını tamamlayan kişilerin şahsen başvurmaları esastır. Kimlik belgesi ibraz edemeyen veya ibraz ettiği kimlik belgesinde fotoğrafı bulunmayan ve biyometrik doğrulama yapılamayan on beş yaşını tamamlayan kişinin MERNİS’te kayıtlı aynı kişi olup olmadığı hususunda tereddüde düşülmesi durumunda Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 12’nci maddesindeki usul ve esaslara göre başvuru işlemleri yapılır.
+
+On beş yaşını tamamlamayanların başvuruları ise veli, vasi, kayyum, bunların bulunmaması halinde, çocuğun büyük ana, büyük baba, ergin kardeşleri, çocuğu yanında bulunduranlar ya da vekâletname ibraz eden resmî vekil tarafından yapılır.
+
+2828 sayılı Kanun ile 5395 sayılı Kanun kapsamında koruma altında bulunan on beş yaşını tamamlamayan çocuklara ait kimlik kartı başvurusu; veli veya vasiye ulaşılamaması veya ulaşılmasının sakıncalı olması halinde ilgili kuruluş yetkililerince yapılır.
+
+Akıl hastalığı veya zayıflığı nedeniyle kısıtlananların başvuruları veli, vasi veya kayyum tarafından yapılır. Standartlara uygun biyometrik fotoğraf veya biyometrik verilerin alınamaması halinde bu durum başvuru makamınca kayıt altına alınarak başvuru işlemi tamamlanır.
+
+Doğum bildirimi ile birlikte doğum olayının kişinin aile kütüklerine tescili sonrasında kimlik kartı başvurusu alınır.
+
+Türk vatandaşlığının kazanılması nedeniyle kimlik kartı düzenlenmesinde, (kişinin vatandaşlık kazanma olayının aile kütüklerine tescili sonrasında) bir adet biyometrik fotoğrafı, kimliğini ispatlayan pasaport benzeri bir belge ve vatandaşlığı kazandığını gösterir resmi bir belge istenir.
+
+Başvurusu yapılan Türkiye Cumhuriyeti Kimlik Kartı kime/nereye teslim edilir?
+
+Akıl hastalığı veya zayıflığı nedeniyle kısıtlanmamış on beş yaşını tamamlayan kişilerin kimlik kartları kendilerine veya başvuru sırasında belirlediği kişiye teslim edilir. Bu durumda talepte bulunan ile kimlik kartını teslim alacak kişi arasında soy bağı bulunması şartı aranmaz.
+
+İlgilisine veya başvurusu sırasında belirlediği kişiye teslim edilemeyen kartlar ilgilinin başvurusu sırasında belirttiği nüfus müdürlüğüne teslim edilir. Belirlenen süre (90 gün) içinde teslim alınmayan kartlar iptal ve imha edilir.
+
+Akıl hastalığı veya zayıflığı nedeniyle kısıtlı olanların kimlik kartları veli, vasi veya kayyum ya da bunların belirlediği kişiye teslim edilir.
+
+On beş yaşını tamamlamamış çocukların kimlik kartları; ana, baba ya da vasileri, bunların bulunmaması hâlinde büyük ana, büyük baba veya ergin kardeşleri ya da çocukları yanlarında bulunduranlar veya vekâletname ibraz eden resmî vekili ile veli ya da vasi tarafından belirlenen kişiye teslim edilir.
+
+2828 sayılı Kanun ile 5395 sayılı Kanun kapsamında adına başvuru yapılan kişinin kimlik kartı, kuruluş yetkilisine teslim edilir.
+
+Dış temsilciliklerce alınan başvurularda Genel Müdürlük tarafından kişiselleştirilen kimlik kartları dış temsilcilikler yoluyla başvuru sahibine teslim edilmek üzere Dışişleri Bakanlığına gönderilir. Belirlenen süre (180 gün) içinde teslim alınmayan kartlar iptal ve imha edilir.
+
+Kimlik kartındaki fotoğraf nasıl olmalıdır;
+
+Uluslararası Sivil Havacılık Teşkilatının (ICAO) 9303 sayılı Makinede Okunabilir Seyahat Belgeleri (MRTD) dokümanı ve eklerine uygun olarak; yüz tamamen görünür şekilde ön cepheden çekilmiş, gözler açık konumda; alın, yüz ve çene açık olmalı ve renkli cam ya da güneş gözlüğü kullanılmaz. Fotokopi, bilgisayarda çoğaltılan veya biyometrik olmayan fotoğraflar kabul edilmez.
+
+Kimlik kartı başvurusunda on beş yaşını tamamlamış olanların biyometrik fotoğrafı gerekir. Yüz biyometrisinin tespit edilmesine engel olacak herhangi bir sağlık sorunu bulunması halinde bu durum başvuru makamınca kayıt altına alınır.
+
+Seyahat belgelerinin uluslararası standartları (ICAO) gereği seyahat belgelerinde her yaş gurubu için fotoğraf bulunmaktadır. Kimlik kartı başvurusunda talep edilmesi veya kimlik kartının seyahat belgesi olarak kullanılacağının beyan edilmesi halinde on beş yaşını tamamlamamış olanların da kimlik kartı fotoğraflı olarak düzenlenir.
+
+Kimlik kartındaki fotoğraf nasıl olmalıdır;
+
+Türkiye Cumhuriyeti Kimlik Kartı bedelini nereden öğrenebiliri ve nereye ödeyebilirim? Bir önceki yıla ait kimlik kartı satış bedelini ödesem olur mu?
+
+Kimlik Kartı bedelinin de içinde bulunduğu değerli kâğıt bedellerinin, Gelir İdaresi Başkanlığının resmi platformu olan Dijital Vergi Dairesi üzerinden, https://randevu.nvi.gov.tr/ veya https://alo199.nvi.gov.tr/ internet adresinden ya da Resmi Gazete’den (Değerli Kağıt Kanununa Ekli Değerli Kağıt Tablosu) öğrenilmesi mümkündür.
+
+Kimlik Kartı bedelleri, yurt içinde;
+
+• Vergi Dairesi Müdürlüklerinden,
+
+• Gelir İdaresi Başkanlığına ait https://ivd.gib.gov.tr/ internet adresi üzerinden sanal pos uygulamasıyla kredi kartı veya banka kartı aracılığıyla,
+
+• Gelir İdarisi Başkanlığına ait web sayfasından,
+
+• https://alo199.nvi.gov.tr/ ve https://randevu.gov.tr internet adresinde belirtilen anlaşmalı bankalardan,
+
+• PTT Şubelerinden,
+
+Yurt dışında;
+
+• Dış temsilciliklerimizden, yatırılabilmektedir.
+
+Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 7. maddesinin birinci fıkrası “Kimlik kartının satış bedeli, 21/2/1963 tarihli ve 210 sayılı Değerli Kâğıtlar Kanununa göre Hazine ve Maliye Bakanlığınca belirlenir. Kimlik kartı satış bedelinin belirlenmesinde başvuru tarihi esas alınır .” hükmünde olup Değerli Kağıt Bedelleri, her yıl için Hazine ve Maliye Bakanlığınca belirlenerek Resmi Gazetede yayımlanmaktadır. .
+
+Bu nedenle; yurt içinde nüfus müdürlüklerine, yurt dışında ise dış temsilciliklere kimlik kartı başvurusunun yapıldığı tarihte Hazine ve Maliye Bakanlığınca belirlenerek Resmî Gazetede yayımlanan kimlik kartı satış bedelinin ödenmesi gerekmektedir. 06
+
+Türkiye Cumhuriyeti Kimlik Kartı satış bedelinin fazla yatırılması halinde ne yapılmalıdır?
+
+Yurt içinde fazla ödenen kimlik kartı ücretleri için yurt içinde bulunduğunuz yer Hazine ve Maliye Bakanlığı veznelerine müracaat edilmelidir.
+
+Nüfus cüzdanımı Türkiye Cumhuriyeti Kimlik Kartı ile değiştirmek zorunlu mu?
+
+5490 sayılı Nüfus Hizmetleri Kanununun 11 inci maddesi ile Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 8 inci maddesine göre Türkiye Cumhuriyeti vatandaşı herkes kimlik kartı almak mecburiyetinde ve zorundadır.
+
+Nüfus cüzdanlarının Türkiye Cumhuriyeti Kimlik Kartları ile değiştirilmesi ile ilgili zorunlu son bir tarih var mı?
+
+Nüfus cüzdanlarının kimlik kartı ile değiştirilmesi için belirlenen son tarih bulunmamaktadır.
+
+Nüfus cüzdanımı Türkiye Cumhuriyeti Kimlik Kartları ile değiştirmezsem idari para cezası var mı?
+
+5490 sayılı Nüfus Hizmetleri Kanununda ve Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinde, nüfus cüzdanının kimlik kartıyla değiştirilmemesi durumunda idari para cezası ödeneceğine dair bir düzenleneme bulunmamaktadır. Ancak, 5490 sayılı Nüfus Hizmetleri Kanununun 11 inci maddesi ile Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 8 inci maddesine göre Türkiye Cumhuriyeti vatandaşı herkes kimlik kartı almak zorundadır.
+
+Nüfus cüzdanının veya kimlik kartının kaybı nedeniyle idari para cezası uygulanmakta mıdır?
+
+5490 sayılı Nüfus Hizmetleri Kanununda ve Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinde, nüfus cüzdanı/kimlik kartının kaybı nedeniyle idari para cezası uygulanacağına dair bir düzenleneme bulunmamaktadır.
+
+e-Devlet kapısı üzerinden Türkiye Cumhuriyeti Kimlik Kartı başvurusu yapılabilir mi?
+
+On beş yaşını tamamlamamış çocukların fotoğrafsız kimlik kartı başvuruları e-Devlet kapısı üzerinden yapılabilmektedir.
+
+On beş yaşını tamamlamamış olanların kimlik kartında fotoğraf bulunmasının talep edilmesi halinde yurt içinde nüfus müdürlüklerine yurt dışında ise dış temsilciliğe başvuru yapılmalıdır.
+
+Nüfus cüzdanımı/Kimlik Kartımı kaybettim, ne yapmalıyım?
+
+Türkiye Cumhuriyeti Kimlik Kartı Yönetmeliğinin 19. Maddesinin birinci fıkrasının (ç) bendi “Kimlik kartı sahibi; Kartı kaybetmesi halinde durumu yurt içinde çağrı merkezine veya nüfus müdürlüklerine, yurt dışında ise en yakın dış temsilciliğe bildirmekle, yükümlüdür.” hükmündedir.
+
+Başvuru adımları aşağıda yer almaktadır;
+
+e- Devlet kapısı üzerinden veya yurt içinde nüfus cüzdanı/kimlik kartı kaybı nedeniyle yurt içinde nüfus müdürlüklerine, yurt dışında ise dış temsilciliklerimize yeniden kimlik kartı başvurusu yapılmalıdır.
+
+e- Devlet kapısı üzerinden ve yurt içinde nüfus müdürlüklerine, yurt dışında ise dış temsilciliklerimize yapılacak yeniden kimlik kartı başvurusu neticesinde kayıp nüfus cüzdanı/kimlik kartı geçersiz hale gelir.
+
+Yeni Kimlik için Alo 199 numaralı çağrı merkezinden randevu oluşturabilir ve detaylı bilgi alabilirsiniz.
+
+Türkiye Cumhuriyeti Kimlik Kartı başvurumun hangi aşamada olduğunu nasıl öğrenebilirim?
+
+Yurt içinde Alo 199 Çağrı Merkezinden veya Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü https://randevu.nvi.gov.tr/ web portalı ya da e-Devlet uygulaması üzerinden öğrenilmekte ve takip edilebilmektedir.
+
+PIN ve PUK nedir? Hangi amaçla kullanılır?
+
+PIN: Kimlik kartı sahibi ile kartın eşleştirilmesine olanak sağlayan sayısal veriyi,
+
+PUK: PIN bloke edildiğinde blokeyi kaldırmak için kullanılan sayısal veriyi,
+
+PİN (şifre), elektronik sistemler aracılığı ile kimlik doğrulama yapılması amacıyla kullanılmaktadır.
+
+PIN şifresi unutulduğunda veya değiştirilmek istendiğinde ne yapılmalıdır?
+
+İlk defa yapılacak kimlik kartı başvurusu haricindeki kimlik kartı başvurularında PIN, PUK ve Kişisel Mesaj bilgileri otomatik olarak belirlenmektedir.
+
+Kimlik kartına ait olan PIN, PUK ve Kişisel Mesaj bilgileri e-Devlet Kapısı www.turkiye.gov.tr üzerinden sunulmakta olan "T.C. Kimlik Kartı PIN/PUK Kodu ve Kişisel Mesaj Sorgulama" hizmetinden öğrenilebilmektedir.
+
+Kimlik kartına ait olan PIN kodu ve Kişisel Mesaj bilgilerinin nüfus müdürlüklerinde bulunan KYKEC veya Nüfusmatik cihazları üzerinden değiştirilmesi halinde kişi tarafından belirlenen PIN ve Kişisel Mesaj bilgileri geçerli olacağından ve sistemde kayıtlı olan PIN ve Kişisel Mesaj bilgileri güncellenemeyeceğinden e-Devlet üzerinden sunulan hizmet ile edinilen PIN kodu ve Kişisel Mesaj bilgilerinin geçerliliği sona ermektedir.
+
+PIN kodu ve Kişisel Mesaj bilgilerinin unutulması veya bloke edilmesi durumunda nüfus müdürlüklerinde bulunan KYKEC veya Nüfusmatik cihazları üzerinden yeni bir PIN kodu ve Kişisel Mesaj belirlenebilmektedir ve PIN blokesi kaldırılabilmektedir.

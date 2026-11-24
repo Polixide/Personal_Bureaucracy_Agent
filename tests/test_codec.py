@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from src.memory.codec import (EncodingError, decode_date, decode_fact, decode_timestamp,
+from src.twin.codec import (EncodingError, decode_date, decode_fact, decode_timestamp,
                               encode_date, encode_fact, encode_timestamp)
 
 ISTANBUL = timezone(timedelta(hours=3))

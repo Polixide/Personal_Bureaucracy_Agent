@@ -1,0 +1,246 @@
+[
+  {
+    "scenario_id": "F01-adult-replaces-nufus-cuzdani",
+    "kind": "pass",
+    "description": "An adult replaces the old paper ID; documents, photo, fee and appointment are in order.",
+    "goal": "I want to get my first Turkish ID card (TC kimlik)",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "application_reason": "nufus_cuzdani",
+      "birth_date": "1990-05-10",
+      "application_date": "2026-12-01",
+      "photo_id_present": true,
+      "nufus_cuzdani_present": true,
+      "photo_date": "2026-10-01",
+      "travel_document_use": false,
+      "applies_in_person": true,
+      "fee_payment_date": "2026-11-20",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_first",
+      "rule_status": {
+        "TCF001": "pass",
+        "TCF002": "pass",
+        "TCF003": "pass",
+        "TCF004": "pass",
+        "TCF005": "pass",
+        "TCF006": "pass",
+        "TCF007": "pass",
+        "TCF008": "pass",
+        "TCF009": "pass",
+        "TCF010": "pass",
+        "TCF011": "pass",
+        "TCF012": "pass",
+        "TCF013": "pass",
+        "TCF014": "pass",
+        "TCF015": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "F02-newborn-free-card",
+    "kind": "pass",
+    "description": "A newborn's card is applied for with a birth notified in time: no photo, no fee, no appointment.",
+    "goal": "I need a TC kimlik for my baby",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "application_reason": "birth",
+      "birth_date": "2026-11-10",
+      "application_date": "2026-11-25",
+      "travel_document_use": false,
+      "legal_representative_applies": true,
+      "birth_notified_within_legal_period": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_first",
+      "rule_status": {
+        "TCF001": "pass",
+        "TCF002": "pass",
+        "TCF003": "pass",
+        "TCF004": "pass",
+        "TCF005": "pass",
+        "TCF006": "pass",
+        "TCF007": "pass",
+        "TCF008": "pass",
+        "TCF009": "pass",
+        "TCF010": "pass",
+        "TCF011": "pass",
+        "TCF012": "pass",
+        "TCF013": "pass",
+        "TCF014": "pass",
+        "TCF015": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "F03-new-citizen-missing-information",
+    "kind": "missing_information",
+    "description": "A new citizen states only the reason and the dates; most requirements are still unknown.",
+    "goal": "I want to get my first Turkish ID card (TC kimlik)",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "application_reason": "citizenship",
+      "birth_date": "1985-03-03",
+      "application_date": "2026-12-10"
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_first",
+      "rule_status": {
+        "TCF001": "pass",
+        "TCF002": "pass",
+        "TCF003": "unknown",
+        "TCF004": "unknown",
+        "TCF005": "unknown",
+        "TCF006": "pass",
+        "TCF007": "unknown",
+        "TCF008": "unknown",
+        "TCF009": "unknown",
+        "TCF010": "pass",
+        "TCF011": "unknown",
+        "TCF012": "unknown",
+        "TCF013": "unknown",
+        "TCF014": "pass",
+        "TCF015": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "F04-old-photo-fee-after-application",
+    "kind": "date_conflict",
+    "description": "The photo is 8 months old and the fee is paid after the application date.",
+    "goal": "I want to get my first Turkish ID card (TC kimlik)",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "application_reason": "nufus_cuzdani",
+      "birth_date": "1970-01-15",
+      "application_date": "2026-12-01",
+      "photo_id_present": true,
+      "nufus_cuzdani_present": true,
+      "photo_date": "2026-03-20",
+      "travel_document_use": false,
+      "applies_in_person": true,
+      "fee_payment_date": "2026-12-05",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_first",
+      "rule_status": {
+        "TCF001": "pass",
+        "TCF002": "pass",
+        "TCF003": "pass",
+        "TCF004": "pass",
+        "TCF005": "pass",
+        "TCF006": "pass",
+        "TCF007": "pass",
+        "TCF008": "fail",
+        "TCF009": "pass",
+        "TCF010": "pass",
+        "TCF011": "fail",
+        "TCF012": "pass",
+        "TCF013": "pass",
+        "TCF014": "pass",
+        "TCF015": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "F05-lost-card-in-the-wrong-procedure",
+    "kind": "fail",
+    "description": "A 16-year-old with a lost card (a renewal reason) and no photo ID who will not go in person.",
+    "goal": "I want to get my first Turkish ID card (TC kimlik)",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "application_reason": "kayıp",
+      "birth_date": "2010-06-01",
+      "application_date": "2026-12-15",
+      "photo_id_present": false,
+      "relative_statement_available": false,
+      "applies_in_person": false,
+      "photo_date": "2026-11-01",
+      "travel_document_use": false,
+      "fee_payment_date": "2026-11-30",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_first",
+      "rule_status": {
+        "TCF001": "pass",
+        "TCF002": "fail",
+        "TCF003": "pass",
+        "TCF004": "pass",
+        "TCF005": "fail",
+        "TCF006": "pass",
+        "TCF007": "pass",
+        "TCF008": "pass",
+        "TCF009": "fail",
+        "TCF010": "pass",
+        "TCF011": "pass",
+        "TCF012": "pass",
+        "TCF013": "pass",
+        "TCF014": "pass",
+        "TCF015": "pass"
+      }
+    }
+  },
+  {
+    "scenario_id": "F06-child-missed-appointment",
+    "kind": "date_conflict",
+    "description": "A 10-year-old who will travel with the card; the booked appointment date has already passed.",
+    "goal": "I want to get my first Turkish ID card (TC kimlik)",
+    "today": "2026-11-19",
+    "facts": {
+      "is_turkish_citizen": true,
+      "applying_in_turkiye": true,
+      "card_issuance_status": "pending",
+      "application_reason": "nufus_cuzdani",
+      "birth_date": "2016-04-04",
+      "application_date": "2026-11-10",
+      "nufus_cuzdani_present": true,
+      "travel_document_use": true,
+      "photo_date": "2026-10-20",
+      "legal_representative_applies": true,
+      "fee_payment_date": "2026-11-01",
+      "fee_is_current_year_rate": true,
+      "appointment_booked": true
+    },
+    "expected": {
+      "procedure_id": "tc_kimlik_first",
+      "rule_status": {
+        "TCF001": "pass",
+        "TCF002": "pass",
+        "TCF003": "pass",
+        "TCF004": "pass",
+        "TCF005": "pass",
+        "TCF006": "pass",
+        "TCF007": "pass",
+        "TCF008": "pass",
+        "TCF009": "pass",
+        "TCF010": "pass",
+        "TCF011": "pass",
+        "TCF012": "pass",
+        "TCF013": "pass",
+        "TCF014": "fail",
+        "TCF015": "pass"
+      }
+    }
+  }
+]

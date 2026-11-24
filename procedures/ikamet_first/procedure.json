@@ -1,0 +1,891 @@
+{
+  "id": "ikamet_first",
+  "title": "First short-term residence permit (İkamet) for Sabancı University incoming exchange students",
+  "status": "verified",
+  "version": "1.0.0",
+  "aliases": [
+    "ikamet",
+    "ikamet izni",
+    "residence permit",
+    "short-term residence permit",
+    "short term residence permit",
+    "first residence permit",
+    "residence permit application",
+    "oturma izni"
+  ],
+  "scope": "Sabancı University incoming exchange student, 18+, staying 3 months or longer, first short-term residence permit application in Türkiye.",
+  "excluded": [
+    "extensions",
+    "transfers",
+    "minors",
+    "family permits",
+    "work permits",
+    "degree-student variants"
+  ],
+  "scope_conditions": [
+    {
+      "op": "eq",
+      "field": "institution",
+      "value": "Sabancı University"
+    },
+    {
+      "op": "eq",
+      "field": "applicant_type",
+      "value": "incoming_exchange"
+    },
+    {
+      "op": "eq",
+      "field": "application_kind",
+      "value": "first"
+    },
+    {
+      "op": "eq",
+      "field": "permit_type",
+      "value": "short_term"
+    },
+    {
+      "op": "gte",
+      "field": "age",
+      "value": 18
+    },
+    {
+      "op": "is_true",
+      "field": "exchange_student"
+    },
+    {
+      "op": "gte",
+      "field": "planned_stay_months",
+      "value": 3
+    }
+  ],
+  "sections": [
+    {
+      "id": "eligibility",
+      "title": "Eligibility and legal stay",
+      "order": 1,
+      "delegate": true
+    },
+    {
+      "id": "passport_photo",
+      "title": "Passport, entry pages and photo",
+      "order": 2,
+      "delegate": true
+    },
+    {
+      "id": "application_fees",
+      "title": "Online application, form and fees",
+      "order": 3,
+      "delegate": true
+    },
+    {
+      "id": "student_insurance",
+      "title": "Student status and health insurance",
+      "order": 4,
+      "delegate": true
+    },
+    {
+      "id": "address_declaration",
+      "title": "Address, contact and declaration",
+      "order": 5,
+      "delegate": true
+    },
+    {
+      "id": "iro_submission",
+      "title": "IRO pre-verification and submission",
+      "order": 6,
+      "delegate": true
+    },
+    {
+      "id": "guardrails",
+      "title": "Authority and after submission",
+      "order": 7,
+      "delegate": false
+    }
+  ],
+  "stages": [
+    {
+      "id": "official_application",
+      "title": "Online e-İkamet application",
+      "requires": [
+        "R001",
+        "R002",
+        "R003",
+        "R004",
+        "R005",
+        "R006"
+      ]
+    },
+    {
+      "id": "fingerprint",
+      "title": "Fingerprint / GI step",
+      "requires": [
+        "R005",
+        "R007"
+      ]
+    },
+    {
+      "id": "iro_preverification",
+      "title": "Send scans to IRO for pre-verification",
+      "requires": [
+        "R020"
+      ]
+    },
+    {
+      "id": "iro_submission",
+      "title": "Physical file submission at IRO",
+      "requires": [
+        "R023",
+        "R024",
+        "R025",
+        "R026"
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "name": "nationality",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "latest_entry_date",
+      "type": "date",
+      "question": "Confirm the latest Turkiye entry date (not a legal-stay deadline)"
+    },
+    {
+      "name": "entry_stamp_present",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "receipt_payment_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "receipt_reference_number",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "receipt_amount",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "program_start_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "program_end_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "holder_name",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "student_id",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "student_certificate_issue_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "insurance_insurer",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "insurance_policy_number",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "passport_or_foreign_id",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "application_number",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "exchange_student",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "is_in_turkiye",
+      "type": "bool",
+      "question": "Are you currently in Türkiye?"
+    },
+    {
+      "name": "entered_with_passport",
+      "type": "bool",
+      "question": "Did you enter Türkiye using your passport?"
+    },
+    {
+      "name": "application_form_generated",
+      "type": "bool",
+      "question": "Prepare or upload the online residence-permit application form"
+    },
+    {
+      "name": "application_form_signed",
+      "type": "bool",
+      "question": "Review and sign the printed application form when appropriate"
+    },
+    {
+      "name": "passport_id_page_present",
+      "type": "bool",
+      "question": "Have you provided a readable passport identity page?"
+    },
+    {
+      "name": "turkey_entry_page_present",
+      "type": "bool",
+      "question": "Have you provided a readable Turkish entry-stamp page?"
+    },
+    {
+      "name": "visa_required",
+      "type": "bool",
+      "question": "Was a visa required for your entry?"
+    },
+    {
+      "name": "visa_page_present",
+      "type": "bool",
+      "question": "Have you provided the applicable visa page?"
+    },
+    {
+      "name": "biometric_photo",
+      "type": "bool",
+      "question": "Provide a recent biometric photograph"
+    },
+    {
+      "name": "icao_compliant",
+      "type": "bool",
+      "question": "Have the photograph checked against the ICAO standard referenced by R009"
+    },
+    {
+      "name": "fee_payment_required",
+      "type": "bool",
+      "question": "Confirm with IRO whether the card fee applies to your case"
+    },
+    {
+      "name": "fee_receipt_present",
+      "type": "bool",
+      "question": "Provide the card-fee payment receipt if required"
+    },
+    {
+      "name": "single_entry_visa_fee_required",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "single_entry_visa_fee_receipt_present",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "financial_capacity_declared",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "exchange_program_evidence_present",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "student_certificate_present",
+      "type": "bool",
+      "question": "Provide a current student certificate"
+    },
+    {
+      "name": "insurance_exempt",
+      "type": "bool",
+      "question": "Do you have confirmed evidence of an insurance exemption?"
+    },
+    {
+      "name": "insurance_valid_for_ikamet",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "turkey_address_present",
+      "type": "bool",
+      "question": "Provide your address in Turkiye"
+    },
+    {
+      "name": "phone_present",
+      "type": "bool",
+      "question": "Provide a contact telephone number"
+    },
+    {
+      "name": "email_present",
+      "type": "bool",
+      "question": "Provide a contact email address"
+    },
+    {
+      "name": "declaration_control_document_present",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "declaration_control_document_signed",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "all_core_documents_present",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "scans_sent_to_iro",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "iro_preverification_confirmed",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "online_application_completed",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "fingerprint_step_completed",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "gi_number_present",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "submitted_to_iro",
+      "type": "bool",
+      "question": ""
+    },
+    {
+      "name": "application_date",
+      "type": "date",
+      "question": "What is your planned application date?"
+    },
+    {
+      "name": "legal_stay_expiry_date",
+      "type": "date",
+      "question": "What is the end date of your current legal stay?"
+    },
+    {
+      "name": "passport_expiry_date",
+      "type": "date",
+      "question": "Provide the passport expiration date to assess R006"
+    },
+    {
+      "name": "requested_permit_end_date",
+      "type": "date",
+      "question": "What is the requested permit end date?"
+    },
+    {
+      "name": "insurance_start_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "insurance_end_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "requested_start_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "requested_end_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "current_date",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "iro_window_start",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "iro_window_end",
+      "type": "date",
+      "question": ""
+    },
+    {
+      "name": "institution",
+      "type": "str",
+      "question": "",
+      "aliases": {
+        "sabanci university": "Sabancı University",
+        "sabancı university": "Sabancı University"
+      }
+    },
+    {
+      "name": "applicant_type",
+      "type": "str",
+      "question": "",
+      "aliases": {
+        "incoming_exchange": "incoming_exchange",
+        "incoming exchange": "incoming_exchange",
+        "incoming-exchange": "incoming_exchange"
+      }
+    },
+    {
+      "name": "permit_type",
+      "type": "str",
+      "question": "",
+      "aliases": {
+        "short_term": "short_term",
+        "short term": "short_term",
+        "short-term": "short_term"
+      }
+    },
+    {
+      "name": "application_kind",
+      "type": "str",
+      "question": "",
+      "aliases": {
+        "first": "first"
+      }
+    },
+    {
+      "name": "application_channel",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "insurance_evidence_type",
+      "type": "str",
+      "question": "Which insurance evidence type do you have?"
+    },
+    {
+      "name": "address_proof_type",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "application_form_window_id",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "current_iro_window_id",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "approval_status",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "decision_authority",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "tracking_channel",
+      "type": "str",
+      "question": ""
+    },
+    {
+      "name": "age",
+      "type": "int",
+      "question": ""
+    },
+    {
+      "name": "planned_stay_months",
+      "type": "int",
+      "question": ""
+    },
+    {
+      "name": "photo_age_months",
+      "type": "int",
+      "question": "Confirm when the photograph was taken"
+    },
+    {
+      "name": "missing_required_documents_count",
+      "type": "int",
+      "question": ""
+    }
+  ],
+  "documents": [
+    {
+      "doc_type": "student_enrollment_certificate",
+      "description": "Student certificate (öğrenci belgesi) issued by the university",
+      "extracts": [
+        {
+          "field": "holder_name"
+        },
+        {
+          "field": "student_id"
+        },
+        {
+          "field": "institution"
+        },
+        {
+          "field": "student_certificate_issue_date",
+          "from_field": "issue_date"
+        },
+        {
+          "field": "exchange_student"
+        },
+        {
+          "field": "program_start_date"
+        },
+        {
+          "field": "program_end_date"
+        }
+      ],
+      "titles": [
+        "student certificate",
+        "student enrollment certificate",
+        "enrollment certificate",
+        "certificate of enrollment",
+        "certificate of registration",
+        "ogrenci belgesi"
+      ],
+      "keywords": [
+        "student certificate",
+        "student enrollment certificate",
+        "enrollment certificate",
+        "certificate of enrollment",
+        "ogrenci belgesi",
+        "student id",
+        "exchange student",
+        "registered student",
+        "kayitli ogrencisi"
+      ]
+    },
+    {
+      "doc_type": "health_insurance_certificate",
+      "description": "Health insurance policy or certificate",
+      "extracts": [
+        {
+          "field": "holder_name"
+        },
+        {
+          "field": "insurance_insurer",
+          "from_field": "insurer"
+        },
+        {
+          "field": "insurance_policy_number",
+          "from_field": "policy_number"
+        },
+        {
+          "field": "insurance_start_date",
+          "from_field": "coverage_start_date"
+        },
+        {
+          "field": "insurance_end_date",
+          "from_field": "coverage_end_date"
+        },
+        {
+          "field": "passport_or_foreign_id"
+        }
+      ],
+      "titles": [
+        "health insurance certificate",
+        "health insurance policy",
+        "insurance certificate",
+        "insurance policy",
+        "certificate of insurance",
+        "saglik sigortasi policesi",
+        "sigorta policesi",
+        "sigorta sertifikasi"
+      ],
+      "keywords": [
+        "health insurance",
+        "insurance policy",
+        "insurance certificate",
+        "saglik sigortasi",
+        "sigorta policesi",
+        "insurer",
+        "coverage",
+        "policy number",
+        "police no",
+        "insured person"
+      ]
+    },
+    {
+      "doc_type": "ikamet_application_form",
+      "description": "IKAMET / online residence-permit application form",
+      "extracts": [
+        {
+          "field": "holder_name",
+          "from_field": "applicant_name"
+        },
+        {
+          "field": "passport_or_foreign_id"
+        },
+        {
+          "field": "permit_type"
+        },
+        {
+          "field": "application_number"
+        },
+        {
+          "field": "requested_start_date"
+        },
+        {
+          "field": "requested_end_date"
+        },
+        {
+          "field": "requested_permit_end_date",
+          "from_field": "requested_end_date"
+        }
+      ],
+      "titles": [
+        "residence permit application form",
+        "residence permit registration form",
+        "ikamet izni basvuru formu",
+        "ikamet izni kisa donem kayit formu"
+      ],
+      "keywords": [
+        "residence permit application form",
+        "residence permit registration form",
+        "ikamet izni basvuru formu",
+        "application number",
+        "basvuru numarasi",
+        "requested period",
+        "short term residence permit",
+        "e-ikamet"
+      ]
+    },
+    {
+      "doc_type": "passport_identity_page",
+      "description": "Passport identity page",
+      "extracts": [
+        {
+          "field": "holder_name"
+        },
+        {
+          "field": "passport_or_foreign_id",
+          "from_field": "passport_number"
+        },
+        {
+          "field": "nationality"
+        },
+        {
+          "field": "passport_expiry_date",
+          "from_field": "expiry_date"
+        },
+        {
+          "field": "passport_id_page_present",
+          "from_field": "identity_page_present"
+        }
+      ],
+      "titles": [
+        "passport",
+        "pasaport",
+        "passeport",
+        "reisepass"
+      ],
+      "keywords": [
+        "passport",
+        "pasaport",
+        "passeport",
+        "reisepass",
+        "date of expiry",
+        "nationality",
+        "place of birth"
+      ],
+      "mrz": "passport"
+    },
+    {
+      "doc_type": "turkiye_entry_stamp",
+      "description": "Latest Türkiye entry-stamp page",
+      "extracts": [
+        {
+          "field": "entry_stamp_present"
+        },
+        {
+          "field": "turkey_entry_page_present",
+          "from_field": "entry_stamp_present"
+        },
+        {
+          "field": "latest_entry_date",
+          "requires_confirmation": true
+        }
+      ],
+      "titles": [
+        "entry stamp",
+        "turkiye entry",
+        "turkey entry",
+        "giris"
+      ],
+      "keywords": [
+        "entry stamp",
+        "turkiye entry",
+        "turkey entry",
+        "entry date",
+        "giris tarihi",
+        "giris"
+      ]
+    },
+    {
+      "doc_type": "declaration_control_document",
+      "description": "Sabancı declaration control document",
+      "extracts": [
+        {
+          "field": "holder_name"
+        },
+        {
+          "field": "declaration_control_document_present",
+          "from_field": "document_present"
+        },
+        {
+          "field": "declaration_control_document_signed",
+          "from_field": "signed"
+        }
+      ],
+      "titles": [
+        "declaration control document",
+        "beyan kontrol belgesi",
+        "beyan/kontrol belgesi"
+      ],
+      "keywords": [
+        "declaration control document",
+        "declaration control",
+        "beyan kontrol belgesi",
+        "beyan/kontrol"
+      ]
+    },
+    {
+      "doc_type": "card_fee_receipt",
+      "description": "Residence-permit card / document fee payment receipt",
+      "extracts": [
+        {
+          "field": "holder_name"
+        },
+        {
+          "field": "fee_receipt_present",
+          "from_field": "receipt_present"
+        },
+        {
+          "field": "receipt_payment_date",
+          "from_field": "payment_date"
+        },
+        {
+          "field": "receipt_reference_number",
+          "from_field": "reference_number"
+        },
+        {
+          "field": "receipt_amount",
+          "from_field": "amount"
+        }
+      ],
+      "titles": [
+        "residence permit card fee",
+        "card fee payment receipt",
+        "document fee payment receipt",
+        "ikamet belge bedeli"
+      ],
+      "keywords": [
+        "card fee",
+        "document fee",
+        "belge bedeli",
+        "ikamet belge bedeli",
+        "residence permit card fee",
+        "dekont",
+        "makbuz",
+        "payment receipt"
+      ]
+    }
+  ],
+  "derived": [
+    {
+      "field": "current_date",
+      "op": "today"
+    },
+    {
+      "field": "planned_stay_months",
+      "op": "months_between",
+      "args": [
+        "program_start_date",
+        "program_end_date"
+      ]
+    },
+    {
+      "field": "exchange_program_evidence_present",
+      "op": "true_if_all",
+      "args": [
+        "exchange_student",
+        "program_start_date",
+        "program_end_date"
+      ]
+    },
+    {
+      "field": "student_certificate_present",
+      "op": "document_complete",
+      "doc_type": "student_enrollment_certificate",
+      "required": [
+        "holder_name",
+        "student_id",
+        "institution",
+        "issue_date"
+      ]
+    },
+    {
+      "field": "application_form_generated",
+      "op": "document_complete",
+      "doc_type": "ikamet_application_form",
+      "required": [
+        "applicant_name",
+        "passport_or_foreign_id",
+        "requested_start_date",
+        "requested_end_date"
+      ]
+    }
+  ],
+  "contacts": [
+    {
+      "role": "IRO",
+      "name": "Sabancı University International Relations Office",
+      "email": null
+    },
+    {
+      "role": "Migration Management",
+      "name": "Presidency of Migration Management (e-İkamet)",
+      "email": null
+    }
+  ],
+  "forms": [
+    {
+      "form_id": "preparation_sheet",
+      "title": "Personal preparation sheet (synthetic, not an official form)",
+      "template": "forms/preparation_sheet.pdf",
+      "fields": {
+        "holder_name": "holder_name",
+        "passport_number": "passport_or_foreign_id",
+        "nationality": "nationality",
+        "passport_expiry": "passport_expiry_date",
+        "permit_start": "requested_start_date",
+        "permit_end": "requested_permit_end_date",
+        "insurance_end": "insurance_end_date",
+        "institution": "institution"
+      }
+    }
+  ]
+}
