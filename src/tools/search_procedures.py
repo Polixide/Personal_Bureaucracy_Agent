@@ -1,6 +1,7 @@
 """search_procedures tool: which Procedure Pack matches the user's goal.
 
-Deterministic: a pack scores one point per word of each alias/title phrase found in the goal.
+Deterministic: a pack scores one point per word of each alias/title phrase found in the goal, plus one per
+word of each qualifier phrase, but only when at least one alias matched (see score()).
 A single best match becomes the active procedure; a tie means "ask the user"; no match means
 "no procedure is available" (the agent must say so instead of improvising).
 """
@@ -43,11 +44,20 @@ def plain(text: str) -> str:
     return " ".join("".join(c if c.isalnum() else " " for c in folded).split())
 
 
-def score(pack: Pack, query: str) -> int:
-    """Words of every alias (and the id) that appear as a whole phrase in the query."""
-    words = f" {plain(query)} "
-    phrases = pack.procedure.aliases + [pack.id.replace("_", " ")]
+def phrase_score(phrases: list[str], words: str) -> int:
+    """Words of every phrase that appears whole in `words` (already plain and space-padded)."""
     return sum(len(plain(p).split()) for p in phrases if plain(p) and f" {plain(p)} " in words)
+
+
+def score(pack: Pack, query: str) -> int:
+    """Alias (and id) words found in the query, plus qualifier words, which count only next to an alias.
+
+    A generic word alone ("lost", "first", "expired") must not select a procedure: it says what happened,
+    not what the goal is about.
+    """
+    words = f" {plain(query)} "
+    subject = phrase_score(pack.procedure.aliases + [pack.id.replace("_", " ")], words)
+    return subject + phrase_score(pack.procedure.qualifiers, words) if subject else 0
 
 
 def rank(packs: dict[str, Pack], query: str) -> list[ProcedureMatch]:

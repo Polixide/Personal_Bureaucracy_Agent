@@ -38,6 +38,11 @@ A part of `procedure.json`:
   ignored key.
 - **Unverified rules.** A rule with no source must say `"status": "unverified"`, and answers that use it
   must label it.
+- **Aliases vs qualifiers (2026-11-24).** `search_procedures` scores alias words, and adds qualifier words only
+  when an alias matched. Before this split, generic words in the ID-card packs' aliases ("lost", "first",
+  "expired", "renew") sent "I lost my passport" or "My visa expired" to an ID-card pack and tied a first İkamet
+  request with the first ID card. `python -m eval.routing_eval` (38 goals): dev 16/26 → 26/26, held-out
+  3/12 → 9/12 with 0 wrong or out-of-scope selections (the 3 left are ties, where the agent asks).
 
 ## Rule volatility and updates
 Each rule has a `volatility` (from the milestone-1 change-monitoring policy). Re-check its sources: `very_high`

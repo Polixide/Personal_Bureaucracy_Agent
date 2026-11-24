@@ -8,6 +8,9 @@ description: Use when the user wants to add a new bureaucratic procedure (for ex
 A procedure is a folder, not code. Create `procedures/<id>/` with:
 
 1. `procedure.json`: `id`, `title`, `scope` (who it is for, what is excluded),
+   `aliases` (phrases that name what the procedure is about: "kimlik", "residence permit") and `qualifiers`
+   (words that only tell it apart from a sibling pack: "lost", "first", "renew"; they count only when an alias
+   matched, so never put a generic word in `aliases`; check with `python -m eval.routing_eval`),
    `sections` (list of `{id, title}` such as identity, insurance, housing, appointment),
    `fields` (list of `{name, type, question}`; type is one of bool, int, str, date),
    `documents` (list of `{doc_type, description, extracts, titles, keywords, mrz}`):

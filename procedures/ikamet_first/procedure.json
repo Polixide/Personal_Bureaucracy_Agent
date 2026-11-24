@@ -3,16 +3,9 @@
   "title": "First short-term residence permit (İkamet) for Sabancı University incoming exchange students",
   "status": "verified",
   "version": "1.0.0",
-  "aliases": [
-    "ikamet",
-    "ikamet izni",
-    "residence permit",
-    "short-term residence permit",
-    "short term residence permit",
-    "first residence permit",
-    "residence permit application",
-    "oturma izni"
-  ],
+  "aliases": ["ikamet", "ikamet izni", "residence permit", "oturma izni", "short-term residence permit",
+             "short term residence permit", "first residence permit", "residence permit application"],
+  "qualifiers": ["first", "apply", "application", "exchange", "arrived", "basvuru", "basvurusu", "ilk"],
   "scope": "Sabancı University incoming exchange student, 18+, staying 3 months or longer, first short-term residence permit application in Türkiye.",
   "excluded": [
     "extensions",

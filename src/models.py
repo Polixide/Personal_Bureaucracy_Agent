@@ -203,6 +203,9 @@ class Procedure(StrictModel):
     status: VerificationStatus
     version: str = "1.0"
     aliases: list[str] = Field(default_factory=list)
+    # Words that tell this pack apart from a sibling ("lost", "first", "renew"). They only add to the score
+    # when an alias matched too, so "I lost my passport" does not select an ID-card pack.
+    qualifiers: list[str] = Field(default_factory=list)
     scope: str
     excluded: list[str] = Field(default_factory=list)
     scope_conditions: list[Condition] = Field(default_factory=list)
