@@ -5,6 +5,7 @@ chat stay unconfirmed, proposals wait for approval, the conversation is kept, th
 """
 from datetime import date
 
+from config import CHAT_MAX_REPAIRS
 from agent_helpers import PASSPORT_TOO_SHORT, USER, d, seed
 from fakes import ScriptedBackend
 from src.agent.briefing import build_briefing, briefing_markdown
@@ -75,8 +76,9 @@ def test_a_question_is_answered_in_one_call_and_kept_in_the_conversation(store):
 def test_a_reply_with_a_wrong_status_is_repaired_then_replaced_by_the_plan(store):
     seed(store, PASSPORT_TOO_SHORT)
     wrong = d("final_answer", {"summary": "Everything is fine.", "claims": [{"rule_id": "R006", "status": "pass"}]})
-    reply, backend = chat(store, [wrong, wrong])
-    assert len(backend.calls) == 2 and "GATE 1 REJECTED" in backend.calls[1]["messages"][-1]["content"]
+    reply, backend = chat(store, [wrong] * (CHAT_MAX_REPAIRS + 1))
+    assert len(backend.calls) == CHAT_MAX_REPAIRS + 1
+    assert all("GATE 1 REJECTED" in call["messages"][-1]["content"] for call in backend.calls[1:])
     assert reply.status == "fallback" and "What to do next" in reply.text
     assert "Everything is fine" not in reply.text
 

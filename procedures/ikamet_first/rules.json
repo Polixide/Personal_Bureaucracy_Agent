@@ -887,5 +887,39 @@
     "volatility": "medium",
     "notes": "",
     "legacy_condition": "submitted_to_iro == false OR tracking_channel == 'e_ikamet'"
+  },
+  {
+    "rule_id": "R030",
+    "name": "own_property_utility_bill",
+    "section": "address_declaration",
+    "description": "If you live in your own property, the address proof is the title deed together with a recent utility bill (water, electricity, natural gas or landline).",
+    "category": "address",
+    "severity": "blocking",
+    "condition": {
+      "op": "any",
+      "args": [
+        {
+          "op": "not",
+          "arg": {
+            "op": "eq",
+            "field": "address_proof_type",
+            "value": "title_deed"
+          }
+        },
+        {
+          "op": "is_true",
+          "field": "utility_bill_present"
+        }
+      ]
+    },
+    "depends_on": [],
+    "source_ids": [
+      "METU_RESIDENCE_2026"
+    ],
+    "version": "1.0",
+    "status": "unverified",
+    "volatility": "medium",
+    "notes": "METU's list: 'If living in your own property: a copy of the title deed and a recent utility bill (water, electricity, natural gas, landline, etc.), or a subscription contract, or a numbering (numarataj) certificate from the municipality.' Sabancı's list does not name this case, so the rule stays unverified until IRO confirms it.",
+    "legacy_condition": "address_proof_type != 'title_deed' OR utility_bill_present == true"
   }
 ]

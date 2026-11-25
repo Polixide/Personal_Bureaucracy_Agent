@@ -55,8 +55,9 @@ Python. Unknown facts stay unknown.
   says that nothing was checked. **Memory**: the Twin keeps every run with its rule
   verdicts, and `src/memory/episodes.py` keeps lessons from repairs that Gate 1 accepted.
 
-Each module has a one-page explanation in `docs/modules/`. The migration from the milestone-1 prototype is
-recorded in `docs/migration_plan.md`.
+The whole project (problem, architecture, user experience, results, limits) is explained in one document:
+`docs/project_overview.md`. Each module has a one-page explanation in `docs/modules/`. The migration from the
+milestone-1 prototype is recorded in `docs/migration_plan.md`.
 
 ## Setup (Windows PowerShell)
 ```powershell
@@ -70,6 +71,18 @@ ollama pull bge-m3                # embeddings, chosen by measurement (docs/eval
 ```
 All settings live in `config.py`. Models can also be chosen with `OLLAMA_MODEL`, `OLLAMA_CHAT_MODEL` and
 `OLLAMA_VISION_MODEL`; `VISION_ENABLED=0` switches the vision model off.
+
+### Optional: a cloud model for the assistant and the agent team
+Reading documents always stays on the local models; a cloud model receives the state computed by code (rule
+results, values already read, the plan), never the pages of your documents. The key stays in your environment.
+```powershell
+$env:LLM_PROVIDER = "anthropic"; $env:ANTHROPIC_API_KEY = "<your key>"   # Claude (default claude-opus-5-5)
+$env:ANTHROPIC_MODEL = "claude-sonnet-5-5"                               # optional: a cheaper Claude
+$env:LLM_PROVIDER = "openai"; $env:OPENAI_API_KEY = "<your key>"         # or GPT (OPENAI_MODEL, default gpt-5.5)
+streamlit run app.py
+```
+With a cloud model the self-review (reflection) is on by default (`SELF_REVIEW=auto`) and the assistant may
+prepare e-mails, reminders and forms on its own initiative (always proposals you approve).
 
 ## Use
 ```powershell
@@ -92,16 +105,15 @@ python -m eval.chat_eval                 # the chat assistant on 8 typical messa
 The layout comes from Neda's interface; the agent, the Twin and the rules behind it are ours.
 - **Sidebar.** Your profile name (the same name continues where you left off), the procedure, today's date, and
   *Reset* (clear the conversation, or delete the profile).
-- **Status bar.** Documents ready, checks passed, and the agent's last status: *where am I?* at a glance.
-- **Waiting for your decision.** Actions to approve or deny (nothing is sent: approving writes a file you
-  download), before anything else.
-- **Assistant.** A conversation that opens with your plan, step by step. Ask anything, tell it something new
-  (it asks you to confirm), ask it to prepare a checklist or an e-mail, or attach documents to a message (a PDF
-  with several documents is fine). Beside it: your documents, *Run a full check* (the orchestrator and its workers,
-  a few minutes), *Prepare my checklist*, *Try this step* in the sandbox, and *Something happened?*.
-- **Documents** (pages and how each one was recognised, *Read it again as …*), **Your details** (open questions,
-  values to confirm with their quote), **Checks** (every requirement, its status and the official sources) and
-  **Technical** (agent steps, Gate 1, run log, lessons, knowledge base, web corpus).
+- **Journey.** The official steps (online application → fingerprints → scans to IRO → submission) with "you are
+  here", and one progress bar.
+- **Assistant.** The chat (a fixed-size window that scrolls) and beside it the **Now** box: the one next step, with
+  what it needs right there (Yes / No, a date, upload this document, approve this draft, check this value) and *Skip
+  for now*. Approved e-mails open in **Gmail** and reminders in **Google Calendar**, already filled in: you press Send
+  or Save. *The agent can prepare* lists the checklist, the form, calendar reminders and e-mails.
+- **Documents.** Upload (the type is found automatically, several documents in one PDF are fine) and what was read.
+- **Details.** For examiners: every requirement with its source, the sandbox, how the agent works (ReAct, Gate 1,
+  reflection), the last answer step by step, history, the Twin, the knowledge base.
 
 One agent run or document reading per profile runs at a time; other tabs wait and refresh by themselves.
 To try it without personal documents, upload the files in `data/synthetic_samples/` (for example
@@ -111,7 +123,8 @@ demo apart from your own Twin, set `TWIN_DATABASE` to another file:
 
 ## Procedures
 - `ikamet_first`: first short-term residence permit for Sabancı incoming exchange students. It has 29 verified
-  rules, converted from the milestone-1 `knowledge/` data (that folder was removed once the pack replaced it).
+  rules, converted from the milestone-1 `knowledge/` data (that folder was removed once the pack replaced it), and
+  R030 (own property: title deed with a utility bill), **unverified** until IRO confirms it.
 - `ikamet_extension`: short-term residence permit extension. Its rules are **unverified** until a person checks
   them against the official text.
 - `tc_kimlik_first` and `tc_kimlik_renewal`: the Turkish identity card (T.C. Kimlik Kartı) for citizens, first

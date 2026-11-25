@@ -170,6 +170,7 @@ def complete_typed(observation: DocumentObservation, pack: Pack, pages: list[Tex
     extra = [fact.model_copy(update={"requires_confirmation": True}) for fact in extra if fact.field not in known]
     if extra:
         observation.notes.append(f"{len(extra)} more values read with a quote from the page; please confirm them.")
+    observation.notes += [note for note in generic.notes if note.startswith("Read again")]   # the reflection round
     observation.facts += extra
     observation.grounded.update({name: value for name, value in generic.grounded.items() if name not in observation.grounded})
     observation.issues += issues

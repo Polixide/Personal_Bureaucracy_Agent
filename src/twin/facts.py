@@ -101,7 +101,21 @@ def _derive(pack: Pack, rule: DerivedField, values: dict[str, FactValue], docume
                 if set(rule.required) <= _document_fields_present(pack, document, confirmed):
                     return True
         return None
+    if rule.op in ("missing_documents", "documents_complete"):
+        return _document_count(rule, documents)
     raise ValueError(f"Unknown derivation {rule.op!r}")
+
+
+def _document_count(rule: DerivedField, documents: list[TwinDocument]) -> FactValue | None:
+    """missing_documents: how many of rule.doc_types are not read yet; documents_complete: none is missing.
+
+    Unknown before the first document is read: an empty file is "not started", not "incomplete".
+    """
+    read = {document.doc_type for document in documents if document.status == "analyzed"}
+    if not read:
+        return None
+    missing = sum(doc_type not in read for doc_type in rule.doc_types)
+    return missing if rule.op == "missing_documents" else missing == 0
 
 
 def build_view(pack: Pack, facts: list[Fact], documents: list[TwinDocument], today: date) -> FactView:

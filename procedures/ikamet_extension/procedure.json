@@ -73,7 +73,7 @@
      "required": ["holder_name", "valid_until"]}
   ],
   "contacts": [
-    {"role": "IRO", "name": "Sabancı University International Relations Office", "email": null},
+    {"role": "IRO", "name": "Sabancı University International Relations Office", "email": "irolegal@sabanciuniv.edu"},
     {"role": "Migration Management", "name": "Presidency of Migration Management (e-İkamet)", "email": null}
   ],
   "forms": []

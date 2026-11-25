@@ -33,18 +33,31 @@ class Issue(StrictModel):
 
 # ------------------------------------------------------------- procedure --
 class FieldSpec(StrictModel):
-    """One fact the procedure knows about. `aliases` map typed-in text to a canonical value."""
+    """One fact the procedure knows about. `aliases` map typed-in text to a canonical value.
+
+    `ask` says when the user is asked for it: "now" (default), "later" (a step after the application, such as the
+    fingerprint appointment: shown under later steps, never in today's plan) or "never" (computed by code, read only
+    from documents, or published by an office: never asked as a question). `choices` are the answers the user picks
+    from for a text field (text shown -> value stored), so nobody has to type a code such as "short_term".
+    """
     name: str
     type: FieldType
     question: str = ""
     aliases: dict[str, str] = Field(default_factory=dict)
+    ask: Literal["now", "later", "never"] = "now"
+    choices: dict[str, str] = Field(default_factory=dict)
 
 
 class ExtractSpec(StrictModel):
-    """A document field that becomes a fact. `from_field` is the document's own field name."""
+    """A document field that becomes a fact. `from_field` is the document's own field name.
+
+    `lines`: how many lines the value may take on the page (an address: 3). Code adds the lines that follow the
+    model's quote on the page, so a value written over several lines is read whole, and only text really there.
+    """
     field: str
     from_field: str = ""
     requires_confirmation: bool = False
+    lines: int = 1
 
     def source_field(self) -> str:
         """The document field to read (defaults to the fact name)."""
@@ -64,6 +77,9 @@ class DocumentSpec(StrictModel):
     keywords: list[str] = Field(default_factory=list)
     # "passport" or "id_card" when the document has a machine-readable zone (read and checked by code).
     mrz: Literal["passport", "id_card"] | None = None
+    # Needed only in some cases (the description says when, e.g. a utility bill with a title deed): not counted in
+    # the documents to collect, and suggested only when a rule waits for nothing but what it gives.
+    optional: bool = False
 
     @field_validator("extracts", mode="before")
     @classmethod
@@ -75,11 +91,16 @@ class DocumentSpec(StrictModel):
 
 
 class Section(StrictModel):
-    """A group of rules; the orchestrator delegates one section to one worker."""
+    """A group of rules; the orchestrator delegates one section to one worker.
+
+    `later`: the section is about steps after the application (submission, fingerprints): its rules are shown
+    under "later steps" and never as problems to fix today.
+    """
     id: str
     title: str
     order: int = 0
     delegate: bool = True
+    later: bool = False
 
 
 class Stage(StrictModel):
@@ -93,13 +114,16 @@ class DerivedField(StrictModel):
     """A fact computed by code from other facts (never by the LLM).
 
     ops: months_between(start, end), true_if_all(fields...), document_complete(doc_type, required),
-    today() (the evaluation date).
+    today() (the evaluation date), missing_documents(doc_types) (how many of these documents are not read yet) and
+    documents_complete(doc_types) (all of them are read). The last two stay unknown until a first document is read.
     """
     field: str
-    op: Literal["months_between", "true_if_all", "document_complete", "today"]
+    op: Literal["months_between", "true_if_all", "document_complete", "today", "missing_documents",
+                "documents_complete"]
     args: list[str] = Field(default_factory=list)
     doc_type: str = ""
     required: list[str] = Field(default_factory=list)
+    doc_types: list[str] = Field(default_factory=list)
 
 
 class Contact(StrictModel):

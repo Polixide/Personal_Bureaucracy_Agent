@@ -50,7 +50,14 @@ class RunState(TypedDict, total=False):
     records: list[dict]
     gate_issues: list[dict]
     rejected: list[list[dict]]
+    reflections: list[dict]     # each correction round: who found what (Gate 1 or the self-review)
+    reviewed: bool              # the self-review ran in this turn
     goal: str
+
+
+def reflection(by: str, issues: list[Issue]) -> dict:
+    """One correction round for the record (shown in the app): who found the problems, and which."""
+    return {"by": by, "issues": [issue.message for issue in issues]}
 
 
 def repair_message(issues: list[Issue], lessons: list[dict]) -> dict:
@@ -157,7 +164,8 @@ class Orchestrator:
             return {"status": "needs_human_review", "gate_issues": dumped}
         lessons = self.lesson_finder(sorted({i.code for i in issues})) if self.lesson_finder else []
         return {"messages": state["messages"] + [repair_message(issues, lessons)], "final": None,
-                "repairs": state["repairs"] + 1, "gate_issues": dumped, "rejected": state["rejected"] + [dumped]}
+                "repairs": state["repairs"] + 1, "gate_issues": dumped, "rejected": state["rejected"] + [dumped],
+                "reflections": state.get("reflections", []) + [reflection("Gate 1", issues)]}
 
     def _on_accepted(self, state: RunState, answer: FinalAnswer) -> None:
         """Episodic memory: a repaired answer that passed Gate 1 turns its rejections into lessons."""
@@ -224,7 +232,8 @@ class Orchestrator:
             llm_calls=state["llm_calls"] + sum(f.llm_calls for f in findings), repairs=state["repairs"],
             fallback_used=status == "fallback",
             needs_human_review=status == "needs_human_review" or (status == "fallback" and bool(issues)),
-            proposals=list(self.ctx.created_proposals), loops_detected=state["loops"], invalid_calls=state["invalid"])
+            proposals=list(self.ctx.created_proposals), loops_detected=state["loops"], invalid_calls=state["invalid"],
+            reflections=state.get("reflections", []))
 
 
 def make_context(store: TwinStore, packs: dict[str, Pack], user_id: str, today: date, backend: Backend | None,
@@ -250,10 +259,14 @@ def log_result(store: TwinStore, user_id: str, goal: str, result: AgentResult, s
 
 def run_agent(goal: str, store: TwinStore, packs: dict[str, Pack], user_id: str, today: date, backend: Backend,
               outbox_dir=OUTBOX_DIR, lessons: list[dict] | None = None, lesson_finder=None,
-              orchestrator_class=None) -> AgentResult:
-    """One user turn: run the orchestrator graph, log the run in the Twin, return the result."""
+              orchestrator_class=None, tool_backend: Backend | None = None) -> AgentResult:
+    """One user turn: run the orchestrator graph, log the run in the Twin, return the result.
+
+    `backend` plans and writes (maybe a cloud model); `tool_backend` is what the tools use (reading documents,
+    embeddings): the local model, so document pages never leave the computer. Without it, `backend` does both.
+    """
     started = utc_now()
-    ctx = make_context(store, packs, user_id, today, backend, outbox_dir)
+    ctx = make_context(store, packs, user_id, today, tool_backend or backend, outbox_dir)
     registry = build_registry([DELEGATE_SPEC])
 
     def worker_for_section(section_id: str, focus: str):

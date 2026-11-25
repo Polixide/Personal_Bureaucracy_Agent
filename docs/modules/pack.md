@@ -28,6 +28,15 @@ A part of `procedure.json`:
   `SCHEMA_ERROR`.
 - **Example of typing:** `coerce_fact(pack, "institution", " sabanci UNIVERSITY")` returns
   `"Sabancı University"` (through a field alias).
+- **When and how a field is asked.** `ask`: `"now"` (default), `"later"` (a step after the application: shown under
+  later steps) or `"never"` (computed, read from documents only, or published by an office). `choices`: for a text
+  field, the answers shown (label → stored value), e.g. "Rental agreement in my name" → `rental_agreement`; a printed
+  title that contains an alias ("KİRA SÖZLEŞMESİ / RENTAL AGREEMENT") maps to its value too.
+- **Sections and documents.** `Section.later`: rules about steps after the application (never "problems to fix
+  today"). `DocumentSpec.optional`: needed only in some cases (not counted; suggested only when a rule waits for
+  nothing else). `ExtractSpec.lines`: a value written over several lines (an address: 3).
+- **Derived document counts.** `missing_documents` / `documents_complete` over `doc_types`, unknown until the first
+  document is read.
 
 ## Why it is built this way
 - **The İkamet pack was converted, not written by hand.** A one-off script (`scripts/convert_knowledge.py`,

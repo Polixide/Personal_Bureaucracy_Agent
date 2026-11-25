@@ -241,6 +241,53 @@ must match a row in this file, or update this file first.
       expects version 4, and a v3 case was added.
     - New: `test_chat.py`, `test_segment.py`, `test_vision_and_crawl.py`.
 
+- **2026-11-24: cloud model option, reflection made visible, address documents, plain questions, new UI.**
+  User feedback: documents still read badly (the home address only partly, no utility bill), the chat assistant
+  often misses the point, reflection never shows up, the chat grows downwards forever, the checks are confusing and
+  some are pointless, and it is not clear where the plan comes from and when the tools (e-mail, form, calendar)
+  are used. Decisions, each recorded before the change:
+
+  | Module | Decision | Why |
+  |---|---|---|
+  | `src/llm.py` | **adapt**: `AnthropicBackend` (Claude, official `anthropic` SDK) and `OpenAIBackend` (GPT, official `openai` SDK) next to Ollama; `agent_backend()` / `local_backend()` | User approved both SDKs (2026-11-24) and chose "documents stay local": the cloud model runs the chat, the orchestrator and its workers and sees the state, never document pages. Schemas Claude cannot constrain (free-form `args`) are asked for in words; a refused schema is retried without it; errors become `LLMError`, so the deterministic fallback still works. |
+  | `src/agent/chat.py` | **adapt**: self-review (reflection) after Gate 1, `CHAT_MAX_REPAIRS` 1 → 2, every round recorded (`reflections`), all chat tools offered with a cloud model, section ids accepted as refs | Reflection existed (Gate 1 repair) but code tidied most mistakes first and the single repair usually ended in the fallback, so it was never seen. The self-review catches what Gate 1 cannot judge (prose that contradicts the state); code keeps only criticisms that quote words of the reply. |
+  | `src/document_processing/generic.py` | **adapt**: one re-reading of misquoted values (reflection), quotes over several lines, `lines` for multi-line values, choice fields must map to a known value | The address was read as its first line only, and the printed title "KİRA SÖZLEŞMESİ" was stored instead of `rental_agreement` (seen live). |
+  | `src/models.py`, `src/pack.py`, `src/twin/facts.py` | **adapt**: `FieldSpec.ask` (now / later / never) and `choices`, `Section.later`, `DocumentSpec.optional`, `ExtractSpec.lines`, derived `missing_documents` / `documents_complete` | Generic engine features; no procedure is named in code. |
+  | `src/agent/briefing.py`, `src/agent/gate1.py` | **adapt**: no questions for office data or computed values, yes/no about a missing document becomes an upload, later steps kept apart, Gate 1 does not require later-step failures in today's answer | "Iro window end?", "Missing required documents count?", "Application channel?" were asked as questions. |
+  | `src/agent/actions.py` | **new**: what the agent can prepare now (checklist, filled form, reminders for known dates, e-mail drafts) | Makes the twin → real tools explicit and one click away; they still only create proposals. |
+  | `procedures/ikamet_first` | **adapt**: plain questions, choices, ask flags, `turkey_address` / `turkey_phone` / `contact_email` as text, address proof document and optional utility bill, R030 (title deed needs a utility bill, **unverified**, source METU_RESIDENCE_2026), `iro_submission` marked later | The pack had no document for the address proof at all. Sabancı's list (dorm certificate, rental agreement, notarized commitment) has no utility bill; METU's list asks for one only with a title deed. |
+  | `app.py` | **replace layout** (same functions underneath): Assistant (fixed-size scrolling chat + plan + quick actions), To do (confirm or correct, fix, upload, questions, later steps, all requirements), Documents, Actions, Technical (tabs: how it works, last answer, run history, Twin, knowledge base with a search box) | The old Your details / Checks tabs were the confusing part. |
+
+  - **Measured live (local models, synthetic rental agreement over two lines):** before, `turkey_address` was the
+    first line only and `address_proof_type` the printed title (R017 then failed); after, the whole address and
+    `rental_agreement`. A chat turn on `qwen2.5:3b` with the self-review on passed Gate 1 and was reviewed and
+    rewritten; the small model criticised correct sentences too, so `SELF_REVIEW=auto` keeps it on only for a cloud
+    model. The cloud backends are tested with fake clients only (no API key in this environment).
+  - **Tests changed on purpose.**
+    - `tests/test_rules_oracle.py`: the oracle compares only the rules of the legacy snapshot (R030 did not exist
+      in the old engine); no legacy verdict changed. `procedures/ikamet_first/eval/scenarios.json`: R030 expected
+      statuses were added (pass where the proof is a dorm certificate or Airbnb, unknown where it is not given).
+    - `tests/test_pack.py`, `tests/test_tools.py`: 29 → 30 rules; `tests/test_rules.py`: a pass/fail case for R030.
+    - `tests/test_chat.py`: the repair test follows `CHAT_MAX_REPAIRS` (now 2). `tests/test_extract_document.py`:
+      a misquote now gets one second reading, so the scripted model gets a reply for it (still no fact accepted).
+    - `tests/test_app.py`: views renamed (details/checks → todo), status bar labels, the checklist button label, a
+      choice field stored as `short_term` instead of the typed text, the open-item count = plan steps, optional
+      documents not counted.
+    - New: `test_llm_cloud.py`, `test_reflection.py`, `test_pack_address.py`, `test_actions.py`.
+
+- **2026-11-24 (later): the app simplified for the presentation.** User feedback: "too confusing, a thousand things
+  to tick, To do repeats Documents, too many strange rules, the plan should connect to Gmail / Google Calendar".
+  Decisions: `app.py` **replace layout** again: three views (Assistant, Documents, Details); the plan is shown one
+  step at a time in a *Now* box with the control the step needs (one click answers a yes/no; *Skip for now*); the
+  journey bar shows the pack's official steps; the requirements list moved to Details. `src/agent/links.py`
+  **new**: an approved e-mail opens in Gmail and an approved reminder in Google Calendar through their public
+  "compose" / "add event" addresses, already filled in; the user presses Send or Save, so the hard rule "nothing is
+  sent or booked" holds and no OAuth, key or new library is needed (sending through the Gmail API would break that
+  rule). Packs `ikamet_first` and `ikamet_extension`: the IRO contact gets `irolegal@sabanciuniv.edu`, the address
+  the official page SAB_EXCHANGE_CURRENT gives. Tests changed on purpose: `tests/test_app.py` (views, the Now box,
+  Gmail link after approval), `tests/test_sandbox.py` (the unknown-address case now uses Migration Management, which
+  has no address in the sources; a new test checks the IRO address). New: `tests/test_links.py`.
+
 ## 1. What was audited
 
 There is no single integrated branch. The repository has four separate lines of work that all start from the

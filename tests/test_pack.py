@@ -89,7 +89,7 @@ def test_too_few_scenarios(pack_copy):
 
 def test_every_rule_cites_a_known_source_and_has_a_section():
     pack = load_pack("ikamet_first")
-    assert len(pack.rules) == 29
+    assert len(pack.rules) == 30          # 29 from milestone 1 + R030 (own property: utility bill)
     for rule in pack.rules:
         assert rule.source_ids and all(pack.source(s) for s in rule.source_ids)
         assert pack.section(rule.section)

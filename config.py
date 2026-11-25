@@ -43,8 +43,26 @@ AGENT_RECURSION_LIMIT = 100    # LangGraph node visits per run (well above MAX_S
 # (45% of it on the CPU) and qwen2.5:3b 16 s (all on the GPU). See docs/modules/chat.md.
 CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:3b")
 CHAT_MAX_STEPS = 4       # decisions per chat turn (record a fact, recheck, answer)
-CHAT_MAX_REPAIRS = 1     # then the reply is the plan written by code
+CHAT_MAX_REPAIRS = 2     # reflection rounds (Gate 1 or self-review), then the reply is the plan written by code
 CHAT_HISTORY_TURNS = 4   # previous exchanges the model sees
+# Self-review (reflection): after Gate 1 passes, the model reads its own reply against the state and quotes the
+# sentences the state does not support; code keeps only quotes that really are in the reply, and the model rewrites.
+# "auto": on with a cloud model (one cheap extra call), off with Ollama (about a minute more per turn on 4 GB).
+SELF_REVIEW = os.getenv("SELF_REVIEW", "auto").strip().lower()
+
+# ---------------------------------------------------- cloud models (optional) --
+# LLM_PROVIDER=anthropic or openai runs the chat assistant, the orchestrator and its workers on that provider.
+# They receive the state computed by code (rule results, values already read, the plan), never the document pages:
+# reading documents (text, OCR, vision) and embeddings always stay on the local Ollama server.
+# Keys come from the environment (ANTHROPIC_API_KEY / OPENAI_API_KEY) and are never stored in the project.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()      # ollama | anthropic | openai
+CLOUD_PROVIDERS = ("anthropic", "openai")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5-5")      # or claude-sonnet-5-5 / claude-haiku-5-5
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
+CLOUD_EFFORT = os.getenv("CLOUD_EFFORT", "low")          # Claude effort: low | medium | high ("" sends none)
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "")   # "" sends none (model default)
+CLOUD_MAX_TOKENS = 16000  # per reply, thinking included
+CLOUD_TIMEOUT = 120.0
 
 # ------------------------------------------------------ document processing --
 DOCUMENT_OLLAMA_TIMEOUT = 180.0

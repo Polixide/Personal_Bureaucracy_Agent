@@ -23,6 +23,13 @@ scanned together): each becomes its own document in the Twin.
      characters were read), asking only for the fields still missing.
    - **Second pass for typed documents.** Values the typed processor left out (not those it found ambiguous) are
      asked to the generic reader; they are stored as values **the user must confirm**.
+   - **Reflection.** A proposal refused because its quote is not on the page (or its value is not in the quote)
+     goes back to the model once with the reason; the new proposal is checked the same way. The document card says
+     "Read again after a check by code: …" when it worked.
+   - **Values over several lines.** Quotes may span consecutive lines; for a field with `lines` > 1 (an address)
+     code adds the lines that follow the quote on the page, until an empty line or another label ("Rent: …"). A text
+     field with `choices` must map to one of them ("KİRA SÖZLEŞMESİ" → `rental_agreement`), otherwise it is left for
+     the user to choose.
 4. **Pictures** (`vision.py`, vision model `qwen3-vl:2b-instruct`). Only for pages that are images:
    - nothing names the page (a border stamp has no title; its OCR text is "ISTANBUL 26.02.22"): the vision model
      chooses one of the pack's documents; every value of a document named this way waits for confirmation;

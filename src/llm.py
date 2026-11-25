@@ -11,20 +11,27 @@ Document extraction (src/document_processing/processor.py) uses `logged_chat` di
 own schema validation and its fallback is "no facts, ask the user to confirm"; a retry there would
 change its tested call counts.
 
-Backends: `OllamaBackend` talks to the local Ollama server. Tests pass a scripted backend with the
+Backends: `OllamaBackend` talks to the local Ollama server. `AnthropicBackend` (Claude) and `OpenAIBackend` (GPT)
+use the providers' official SDKs when LLM_PROVIDER says so (`agent_backend`); they are used by the chat assistant,
+the orchestrator and its workers only. Reading documents and embeddings always use the local Ollama server
+(`local_backend`), so document pages never leave the computer. Tests pass a scripted backend with the
 same `chat` / `embed` methods (see tests/fakes.py). Logs never contain prompt or reply text.
 """
 import json
 import sys
+from collections.abc import Callable
 from time import perf_counter
 from typing import Any, Protocol
 
+import anthropic
 import httpx
+import openai
 from ollama import Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
-from config import (EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT, VISION_MODEL,
-                    VISION_NUM_CTX, VISION_TIMEOUT)
+from config import (ANTHROPIC_MODEL, CHAT_MODEL, CLOUD_EFFORT, CLOUD_MAX_TOKENS, CLOUD_PROVIDERS, CLOUD_TIMEOUT,
+                    EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_PROVIDER, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT,
+                    OPENAI_MODEL, OPENAI_REASONING_EFFORT, VISION_MODEL, VISION_NUM_CTX, VISION_TIMEOUT)
 
 TRANSPORT_ERRORS = (ResponseError, ConnectionError, httpx.HTTPError, TimeoutError)
 
@@ -52,20 +59,25 @@ def _emit(message: str) -> None:
         pass
 
 
-def logged_chat(client: Any, *, component: str, **kwargs: Any) -> Any:
-    """Forward one `client.chat` call and log only model, component, outcome and duration."""
-    model = str(kwargs.get("model", "")).replace("\r", " ").replace("\n", " ")
+def timed_call(component: str, model: str, call: Callable[[], Any]) -> Any:
+    """Run one model call and log only model, component, outcome and duration (never prompt or reply text)."""
+    model = str(model).replace("\r", " ").replace("\n", " ")
     prefix = f"[LLM] {component} model={model}"
     started = perf_counter()
     _emit(prefix + " started")
     try:
-        response = client.chat(**kwargs)
+        response = call()
     except Exception as error:
         outcome = "timeout" if isinstance(error, (TimeoutError, httpx.TimeoutException)) else "failure"
         _emit(f"{prefix} {outcome} elapsed={perf_counter() - started:.1f}s")
         raise
     _emit(f"{prefix} success elapsed={perf_counter() - started:.1f}s")
     return response
+
+
+def logged_chat(client: Any, *, component: str, **kwargs: Any) -> Any:
+    """Forward one `client.chat` call (Ollama) through timed_call."""
+    return timed_call(component, kwargs.get("model", ""), lambda: client.chat(**kwargs))
 
 
 # ---------------------------------------------------------------- Ollama --
@@ -111,6 +123,189 @@ class OllamaBackend:
         except TRANSPORT_ERRORS as error:
             raise LLMError(f"Ollama embeddings unavailable: {error}") from error
         return [list(vector) for vector in response.embeddings]
+
+
+# ----------------------------------------------------------------- cloud --
+# Keywords Claude's structured outputs do not accept (Pydantic still checks them after the reply).
+UNSUPPORTED_KEYWORDS = ("minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
+                        "multipleOf", "minItems", "maxItems", "pattern", "default")
+SCHEMA_MAPS = ("properties", "$defs", "definitions")          # name -> schema mappings
+SCHEMA_LISTS = ("items", "anyOf", "allOf", "oneOf", "prefixItems", "not")
+JSON_INSTRUCTION = "Reply with ONLY one JSON object (no text around it) that matches this JSON schema: "
+
+
+def strict_schema(schema: dict) -> dict | None:
+    """The schema as Claude's structured outputs accept it, or None when it cannot be written that way.
+
+    Every object needs `additionalProperties: false`; length and number limits are dropped (Pydantic checks them).
+    A free-form object (any keys, like a tool's `args`) cannot be expressed: then the caller asks for JSON in words.
+    """
+    copy = json.loads(json.dumps(schema))
+    return copy if _make_strict(copy) else None
+
+
+def _make_strict(node: Any) -> bool:
+    """Adapt one schema node in place; False when it (or a child) is a free-form object."""
+    if isinstance(node, list):
+        return all([_make_strict(item) for item in node])
+    if not isinstance(node, dict):
+        return True
+    for keyword in UNSUPPORTED_KEYWORDS:
+        node.pop(keyword, None)
+    if node.get("type") == "object" or "properties" in node:
+        if not isinstance(node.get("properties"), dict):
+            return False
+        node["additionalProperties"] = False
+    results = [True]
+    for key, value in node.items():
+        if key in SCHEMA_MAPS and isinstance(value, dict):
+            results += [_make_strict(child) for child in value.values()]
+        elif key in SCHEMA_LISTS:
+            results.append(_make_strict(value))
+    return all(results)
+
+
+def split_system(messages: list[dict]) -> tuple[str, list[dict]]:
+    """Ollama-style messages -> (system text, turns) as the Messages API wants them.
+
+    The turns start with the user and end with the user (current Claude models refuse a prefilled assistant turn).
+    """
+    system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
+    turns = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]
+    if not turns or turns[0]["role"] != "user":
+        turns.insert(0, {"role": "user", "content": "Start."})
+    if turns[-1]["role"] != "user":
+        turns.append({"role": "user", "content": "Continue."})
+    return system, turns
+
+
+class AnthropicBackend:
+    """Claude through the official `anthropic` SDK (LLM_PROVIDER=anthropic). Embeddings stay local (Ollama)."""
+
+    def __init__(self, model: str = ANTHROPIC_MODEL, client: Any = None, embedder: Any = None):
+        self.model = model
+        self.client = client
+        self.embedder = embedder or OllamaBackend()
+
+    def chat(self, messages: list[dict], schema: dict, component: str) -> str:
+        """One JSON reply: schema-constrained when the schema allows it, otherwise asked for in the system text."""
+        system, turns = split_system(messages)
+        strict = strict_schema(schema)
+        attempts = [strict, None] if strict is not None else [None]    # schema not accepted: ask for JSON in words
+        error: Exception | None = None
+        for constraint in attempts:
+            try:
+                return self._send(system, turns, constraint, schema, component)
+            except anthropic.BadRequestError as refused:
+                error = refused
+        raise LLMError(f"Claude refused the request: {error}")
+
+    def _send(self, system: str, turns: list[dict], strict: dict | None, schema: dict, component: str) -> str:
+        output_config: dict[str, Any] = {"effort": CLOUD_EFFORT} if CLOUD_EFFORT else {}
+        if strict is not None:
+            output_config["format"] = {"type": "json_schema", "schema": strict}
+        else:
+            system = f"{system}\n\n{JSON_INSTRUCTION}{to_json(schema)}".strip()
+        request: dict[str, Any] = {"model": self.model, "max_tokens": CLOUD_MAX_TOKENS, "messages": turns,
+                                   "system": system, "cache_control": {"type": "ephemeral"}}
+        if output_config:
+            request["output_config"] = output_config
+        try:
+            response = timed_call(component, self.model, lambda: self._client().messages.create(**request))
+        except anthropic.BadRequestError:
+            raise
+        except anthropic.AnthropicError as error:
+            raise LLMError(f"Claude unavailable: {error}") from error
+        if response.stop_reason == "refusal":
+            raise LLMError("Claude declined to answer this request")
+        return "".join(block.text for block in response.content if block.type == "text")
+
+    def _client(self) -> Any:
+        if self.client is None:
+            self.client = anthropic.Anthropic(timeout=CLOUD_TIMEOUT, max_retries=2)
+        return self.client
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        """Embeddings stay on the local Ollama server (the official sources are indexed there)."""
+        return self.embedder.embed(texts)
+
+
+class OpenAIBackend:
+    """GPT through the official `openai` SDK (LLM_PROVIDER=openai). Embeddings stay local (Ollama)."""
+
+    def __init__(self, model: str = OPENAI_MODEL, client: Any = None, embedder: Any = None):
+        self.model = model
+        self.client = client
+        self.embedder = embedder or OllamaBackend()
+
+    def chat(self, messages: list[dict], schema: dict, component: str) -> str:
+        """One JSON reply: json_schema mode (not strict, so any schema works), JSON mode if the schema is refused."""
+        turns = [{"role": m["role"], "content": m["content"]} for m in messages]
+        guided = {"type": "json_schema", "json_schema": {"name": "reply", "schema": schema, "strict": False}}
+        hint = {"role": "system", "content": JSON_INSTRUCTION + to_json(schema)}
+        error: Exception | None = None
+        for attempt, response_format in ((turns, guided), ([hint] + turns, {"type": "json_object"})):
+            try:
+                return self._send(attempt, response_format, component)
+            except openai.BadRequestError as refused:
+                error = refused
+        raise LLMError(f"OpenAI refused the request: {error}")
+
+    def _send(self, turns: list[dict], response_format: dict, component: str) -> str:
+        request: dict[str, Any] = {"model": self.model, "messages": turns, "response_format": response_format,
+                                   "max_completion_tokens": CLOUD_MAX_TOKENS}
+        if OPENAI_REASONING_EFFORT:
+            request["reasoning_effort"] = OPENAI_REASONING_EFFORT
+        try:
+            response = timed_call(component, self.model, lambda: self._client().chat.completions.create(**request))
+        except openai.BadRequestError:
+            raise
+        except openai.OpenAIError as error:
+            raise LLMError(f"OpenAI unavailable: {error}") from error
+        message = response.choices[0].message
+        if getattr(message, "refusal", None):
+            raise LLMError("The model declined to answer this request")
+        return message.content or ""
+
+    def _client(self) -> Any:
+        if self.client is None:
+            self.client = openai.OpenAI(timeout=CLOUD_TIMEOUT, max_retries=2)
+        return self.client
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        """Embeddings stay on the local Ollama server."""
+        return self.embedder.embed(texts)
+
+
+def is_cloud() -> bool:
+    """True when the agent runs on a cloud model (LLM_PROVIDER=anthropic or openai)."""
+    return LLM_PROVIDER in CLOUD_PROVIDERS
+
+
+def agent_backend(kind: str = "chat") -> Any:
+    """The model that plans, talks and repairs: the cloud model when LLM_PROVIDER says so, otherwise Ollama.
+
+    kind "chat" is the chat assistant (small fast local model), "team" the orchestrator and its workers.
+    """
+    if LLM_PROVIDER == "anthropic":
+        return AnthropicBackend()
+    if LLM_PROVIDER == "openai":
+        return OpenAIBackend()
+    return OllamaBackend(model=CHAT_MODEL if kind == "chat" else LLM_MODEL)
+
+
+def local_backend() -> OllamaBackend:
+    """Documents (text, OCR, vision) and embeddings: always the local Ollama server."""
+    return OllamaBackend()
+
+
+def agent_model_label(kind: str = "chat") -> str:
+    """Which model answers, in words, for the app."""
+    if LLM_PROVIDER == "anthropic":
+        return f"{ANTHROPIC_MODEL} (Anthropic, cloud)"
+    if LLM_PROVIDER == "openai":
+        return f"{OPENAI_MODEL} (OpenAI, cloud)"
+    return f"{CHAT_MODEL if kind == 'chat' else LLM_MODEL} (local)"
 
 
 # --------------------------------------------------------- structured --

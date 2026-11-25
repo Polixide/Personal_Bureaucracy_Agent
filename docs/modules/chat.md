@@ -28,7 +28,10 @@ A ReAct agent built on the orchestrator's graph (`src/agent/orchestrator.py`), s
 - **Starts from the state**: the briefing, the last 4 exchanges (`chat_messages` in the Twin) and official passages
   retrieved for the message — 3 from the procedure's sources and up to 2 from the web corpus when they are about
   the question (`CORPUS_MIN_SCORE`). So a question usually needs **one** model call.
-- **Tools, chosen per message by code** (`offered_tools`; validated like every tool): `search_procedures` and
+- **Tools, chosen per message by code** (`offered_tools`; validated like every tool). With a **cloud model**
+  (`LLM_PROVIDER`) every chat tool is offered and STATE lists what can be prepared now (`can_prepare`: reminder
+  dates, form ids, contact roles), so the assistant may prepare an e-mail, a reminder or a form for the next step on
+  its own (always a proposal). With a small local model: `search_procedures` and
   `search_sources` always; `record_fact` only when the message tells something (a date, or a sentence in the first
   person: "I lost…", "My passport…"), never for a question; the artifact tools (`build_checklist`, `create_ics`,
   `draft_email`, `fill_pdf`: proposals for approval) and `simulate_submission` only when the message asks to prepare
@@ -44,13 +47,25 @@ A ReAct agent built on the orchestrator's graph (`src/agent/orchestrator.py`), s
   (the summary still lists every step). Anything else is left for Gate 1.
 - **Gate 1** checks every reply like the orchestrator's answer (statuses copied from `evaluate_rules`, no completion
   or approval claims, no unknown called failure, no invented dates or rule ids, refs that exist), except
-  `MISSING_FAILED_RULE` (the plan above already lists every problem). Dates in the given passages and in values
-  waiting for the user's check are allowed. After **one** failed repair the reply is the plan written by code.
+  `MISSING_FAILED_RULE` (the plan beside the chat already lists every problem). Dates in the given passages and in
+  values waiting for the user's check are allowed. A section id given as a ref becomes the first plan step of that
+  section (seen live).
+- **Reflection** (at most `CHAT_MAX_REPAIRS` = 2 rewrites):
+  1. a reply Gate 1 refuses goes back to the model with the structured errors (and past lessons);
+  2. a reply Gate 1 accepts is re-read once by the model against STATE and SOURCES (**self-review**,
+     `REVIEW_SYSTEM`): it quotes the sentences that state something STATE does not support, change a status, invent a
+     fee or date, contradict the plan or miss the question. Code keeps only quotes of 12–300 characters that really
+     are in the reply, then the model rewrites. `SELF_REVIEW=auto`: on with a cloud model, off with Ollama (measured:
+     `qwen2.5:3b` also criticised correct sentences, and the extra call costs about 40 s on 4 GB).
+  Gate 1 keeps the last word: a reply it still refuses after the last rewrite is replaced by the plan; doubts of the
+  self-review left after the last rewrite are recorded with the reply. Every round is stored (`reflections`) and
+  shown under the reply and in *Technical*.
 - **Labels added by code, not by the model**: "some rules are unverified" when the reply uses unverified rules;
   "general information … nothing was checked against your documents" when there is no procedure and the reply
   cites web pages.
 - **Progress**: each step is shown while it runs ("Rechecking the requirements", "Checking the answer (Gate 1)").
-- **Model**: `CHAT_MODEL` (default `qwen2.5:3b`), separate from the agent team's model. Measured on the 4 GB GPU:
+- **Model**: `agent_backend("chat")`: Claude or GPT when `LLM_PROVIDER` says so, else `CHAT_MODEL` (default
+  `qwen2.5:3b`), separate from the agent team's model. Tools (documents, search) always use the local backend. Measured on the 4 GB GPU:
   one reply took 16 s with `qwen2.5:3b` (all on the GPU) and 42 s with `qwen3:4b` (45% on the CPU); a smaller
   context (4096) only brought `qwen3:4b` to 37 s. On 8 typical messages (`docs/eval_chat.md`) `qwen2.5:3b` passed
   Gate 1 on 6 in about 50 s per turn, `qwen3:4b` on 4 in about 210 s.
@@ -61,12 +76,12 @@ delegates each section to a worker and posts its checked answer in the conversat
 ## Inputs and outputs
 `run_chat(message, store, packs, user_id, today, backend, embedder=..., progress=...) -> ChatReply` with
 `text`, `status` (answered / fallback / needs_human_review), `sources` (id, title, url), `facts` recorded this
-turn (to confirm), `proposals`, `steps`, `llm_calls`, `gate_issues`. Both messages are stored in the Twin and the
+turn (to confirm), `proposals`, `steps`, `llm_calls`, `gate_issues`, `reflections`, `model`. Both messages are stored in the Twin and the
 turn is logged in the run log (memory across sessions).
 
 ## How to test it
 ```
-python -m pytest -q tests/test_chat.py
+python -m pytest -q tests/test_chat.py tests/test_reflection.py
 python -m eval.chat_eval --models qwen2.5:3b qwen3:4b --out docs/eval_chat.md   # live, needs Ollama
 ```
 

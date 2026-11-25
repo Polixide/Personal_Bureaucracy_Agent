@@ -93,7 +93,8 @@
       "id": "iro_submission",
       "title": "IRO pre-verification and submission",
       "order": 6,
-      "delegate": true
+      "delegate": true,
+      "later": true
     },
     {
       "id": "guardrails",
@@ -145,82 +146,95 @@
     {
       "name": "nationality",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "latest_entry_date",
       "type": "date",
-      "question": "Confirm the latest Turkiye entry date (not a legal-stay deadline)"
+      "question": "Confirm the latest Turkiye entry date (not a legal-stay deadline)",
+      "ask": "never"
     },
     {
       "name": "entry_stamp_present",
       "type": "bool",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "receipt_payment_date",
       "type": "date",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "receipt_reference_number",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "receipt_amount",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "program_start_date",
       "type": "date",
-      "question": ""
+      "question": "When does your exchange programme start?"
     },
     {
       "name": "program_end_date",
       "type": "date",
-      "question": ""
+      "question": "When does your exchange programme end?"
     },
     {
       "name": "holder_name",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "student_id",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "student_certificate_issue_date",
       "type": "date",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "insurance_insurer",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "insurance_policy_number",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "passport_or_foreign_id",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "application_number",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "exchange_student",
       "type": "bool",
-      "question": ""
+      "question": "Are you an incoming exchange student at Sabancı University?"
     },
     {
       "name": "is_in_turkiye",
@@ -230,207 +244,223 @@
     {
       "name": "entered_with_passport",
       "type": "bool",
-      "question": "Did you enter Türkiye using your passport?"
+      "question": "Did you enter Türkiye with your passport?"
     },
     {
       "name": "application_form_generated",
       "type": "bool",
-      "question": "Prepare or upload the online residence-permit application form"
+      "question": "Prepare or upload the online residence-permit application form",
+      "ask": "never"
     },
     {
       "name": "application_form_signed",
       "type": "bool",
-      "question": "Review and sign the printed application form when appropriate"
+      "question": "Have you signed the printed application form?"
     },
     {
       "name": "passport_id_page_present",
       "type": "bool",
-      "question": "Have you provided a readable passport identity page?"
+      "question": "Do you have a readable copy of your passport's identity page?"
     },
     {
       "name": "turkey_entry_page_present",
       "type": "bool",
-      "question": "Have you provided a readable Turkish entry-stamp page?"
+      "question": "Do you have a copy of the passport page with your latest Türkiye entry stamp?"
     },
     {
       "name": "visa_required",
       "type": "bool",
-      "question": "Was a visa required for your entry?"
+      "question": "Did you need a visa to enter Türkiye?"
     },
     {
       "name": "visa_page_present",
       "type": "bool",
-      "question": "Have you provided the applicable visa page?"
+      "question": "If you entered with a visa: do you have a copy of the visa page?"
     },
     {
       "name": "biometric_photo",
       "type": "bool",
-      "question": "Provide a recent biometric photograph"
+      "question": "Do you have a recent biometric photo?"
     },
     {
       "name": "icao_compliant",
       "type": "bool",
-      "question": "Have the photograph checked against the ICAO standard referenced by R009"
+      "question": "Does your photo meet the biometric photo standard (ICAO)? A photo studio can confirm it."
     },
     {
       "name": "fee_payment_required",
       "type": "bool",
-      "question": "Confirm with IRO whether the card fee applies to your case"
+      "question": "Do you have to pay the residence-permit card fee? (Ask IRO if you are not sure.)"
     },
     {
       "name": "fee_receipt_present",
       "type": "bool",
-      "question": "Provide the card-fee payment receipt if required"
+      "question": "Do you have the receipt of the card-fee payment?"
     },
     {
       "name": "single_entry_visa_fee_required",
       "type": "bool",
-      "question": ""
+      "question": "Do you have to pay the single-entry visa fee? (Ask IRO if you are not sure.)"
     },
     {
       "name": "single_entry_visa_fee_receipt_present",
       "type": "bool",
-      "question": ""
+      "question": "Do you have the receipt of the single-entry visa fee?"
     },
     {
       "name": "financial_capacity_declared",
       "type": "bool",
-      "question": ""
+      "question": "Have you declared on the application form that you have enough money for your stay?"
     },
     {
       "name": "exchange_program_evidence_present",
       "type": "bool",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "student_certificate_present",
       "type": "bool",
-      "question": "Provide a current student certificate"
+      "question": "Provide a current student certificate",
+      "ask": "never"
     },
     {
       "name": "insurance_exempt",
       "type": "bool",
-      "question": "Do you have confirmed evidence of an insurance exemption?"
+      "question": "Do you have an official document that exempts you from health insurance?"
     },
     {
       "name": "insurance_valid_for_ikamet",
       "type": "bool",
-      "question": ""
+      "question": "Is your health insurance valid in Türkiye for the whole stay (the kind accepted for the residence permit)?"
     },
     {
       "name": "turkey_address_present",
       "type": "bool",
-      "question": "Provide your address in Turkiye"
+      "question": "Provide your address in Turkiye",
+      "ask": "never"
     },
     {
       "name": "phone_present",
       "type": "bool",
-      "question": "Provide a contact telephone number"
+      "question": "Provide a contact telephone number",
+      "ask": "never"
     },
     {
       "name": "email_present",
       "type": "bool",
-      "question": "Provide a contact email address"
+      "question": "Provide a contact email address",
+      "ask": "never"
     },
     {
       "name": "declaration_control_document_present",
       "type": "bool",
-      "question": ""
+      "question": "Do you have the Sabancı declaration control document?"
     },
     {
       "name": "declaration_control_document_signed",
       "type": "bool",
-      "question": ""
+      "question": "Have you signed the declaration control document?"
     },
     {
       "name": "all_core_documents_present",
       "type": "bool",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "scans_sent_to_iro",
       "type": "bool",
-      "question": ""
+      "question": "Have you e-mailed the scans of your documents to IRO?",
+      "ask": "later"
     },
     {
       "name": "iro_preverification_confirmed",
       "type": "bool",
-      "question": ""
+      "question": "Has IRO confirmed your scanned documents?",
+      "ask": "later"
     },
     {
       "name": "online_application_completed",
       "type": "bool",
-      "question": ""
+      "question": "Have you completed the online application on e-İkamet?",
+      "ask": "later"
     },
     {
       "name": "fingerprint_step_completed",
       "type": "bool",
-      "question": ""
+      "question": "Have you given your fingerprints at the migration office?",
+      "ask": "later"
     },
     {
       "name": "gi_number_present",
       "type": "bool",
-      "question": ""
+      "question": "Is there a GI number on your application form (after the fingerprint step)?",
+      "ask": "later"
     },
     {
       "name": "submitted_to_iro",
       "type": "bool",
-      "question": ""
+      "question": "Have you handed in your file at IRO?",
+      "ask": "later"
     },
     {
       "name": "application_date",
       "type": "date",
-      "question": "What is your planned application date?"
+      "question": "On which day do you plan to fill in the online application?"
     },
     {
       "name": "legal_stay_expiry_date",
       "type": "date",
-      "question": "What is the end date of your current legal stay?"
+      "question": "When does your current legal stay end (the end of your visa or of your visa-free period)?"
     },
     {
       "name": "passport_expiry_date",
       "type": "date",
-      "question": "Provide the passport expiration date to assess R006"
+      "question": "When does your passport expire?"
     },
     {
       "name": "requested_permit_end_date",
       "type": "date",
-      "question": "What is the requested permit end date?"
+      "question": "Until which day do you ask for the permit?"
     },
     {
       "name": "insurance_start_date",
       "type": "date",
-      "question": ""
+      "question": "From which day does your health insurance cover you?"
     },
     {
       "name": "insurance_end_date",
       "type": "date",
-      "question": ""
+      "question": "Until which day does your health insurance cover you?"
     },
     {
       "name": "requested_start_date",
       "type": "date",
-      "question": ""
+      "question": "From which day do you ask for the permit?"
     },
     {
       "name": "requested_end_date",
       "type": "date",
-      "question": ""
+      "question": "Until which day do you ask for the permit (as written on the application form)?"
     },
     {
       "name": "current_date",
       "type": "date",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "iro_window_start",
       "type": "date",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "iro_window_end",
       "type": "date",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "institution",
@@ -439,7 +469,8 @@
       "aliases": {
         "sabanci university": "Sabancı University",
         "sabancı university": "Sabancı University"
-      }
+      },
+      "ask": "never"
     },
     {
       "name": "applicant_type",
@@ -449,16 +480,21 @@
         "incoming_exchange": "incoming_exchange",
         "incoming exchange": "incoming_exchange",
         "incoming-exchange": "incoming_exchange"
-      }
+      },
+      "ask": "never"
     },
     {
       "name": "permit_type",
       "type": "str",
-      "question": "",
+      "question": "Which residence permit are you applying for?",
       "aliases": {
         "short_term": "short_term",
         "short term": "short_term",
         "short-term": "short_term"
+      },
+      "choices": {
+        "Short-term residence permit (the one for exchange students)": "short_term",
+        "Another kind of residence permit": "other"
       }
     },
     {
@@ -467,47 +503,84 @@
       "question": "",
       "aliases": {
         "first": "first"
-      }
+      },
+      "ask": "never"
     },
     {
       "name": "application_channel",
       "type": "str",
-      "question": ""
+      "question": "Where will you fill in the application?",
+      "choices": {
+        "Online at e-ikamet.goc.gov.tr (the official site)": "https://e-ikamet.goc.gov.tr/",
+        "Another way": "other"
+      }
     },
     {
       "name": "insurance_evidence_type",
       "type": "str",
-      "question": "Which insurance evidence type do you have?"
+      "question": "Which health cover do you have?",
+      "choices": {
+        "Private health insurance": "private_health_insurance",
+        "Social security of my country, under a bilateral agreement": "bilateral_social_security",
+        "Turkish general health insurance (SGK) already provided": "sgk_provision",
+        "I applied to the Turkish general health insurance (SGK)": "sgk_application",
+        "Something else": "other"
+      }
     },
     {
       "name": "address_proof_type",
       "type": "str",
-      "question": ""
+      "question": "Which document proves your address in Türkiye?",
+      "choices": {
+        "Dorm certificate from the dormitory office": "dorm_certificate",
+        "Rental agreement in my name (kira sözleşmesi)": "rental_agreement",
+        "Notarized commitment from the person I stay with (taahhütname)": "notarized_commitment",
+        "Title deed of my own home": "title_deed",
+        "Something else (for example only an Airbnb booking)": "other"
+      },
+      "aliases": {
+        "kira sozlesmesi": "rental_agreement",
+        "kira sözleşmesi": "rental_agreement",
+        "rental agreement": "rental_agreement",
+        "lease agreement": "rental_agreement",
+        "taahhutname": "notarized_commitment",
+        "taahhütname": "notarized_commitment",
+        "letter of commitment": "notarized_commitment",
+        "yurt belgesi": "dorm_certificate",
+        "dormitory certificate": "dorm_certificate",
+        "tapu": "title_deed",
+        "title deed": "title_deed"
+      }
     },
     {
       "name": "application_form_window_id",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "current_iro_window_id",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "approval_status",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "decision_authority",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "tracking_channel",
       "type": "str",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "age",
@@ -517,17 +590,44 @@
     {
       "name": "planned_stay_months",
       "type": "int",
-      "question": ""
+      "question": "",
+      "ask": "never"
     },
     {
       "name": "photo_age_months",
       "type": "int",
-      "question": "Confirm when the photograph was taken"
+      "question": "How many months ago was your photo taken?"
     },
     {
       "name": "missing_required_documents_count",
       "type": "int",
-      "question": ""
+      "question": "",
+      "ask": "never"
+    },
+    {
+      "name": "turkey_address",
+      "type": "str",
+      "question": "What is your address in Türkiye (street, number, district, city)?"
+    },
+    {
+      "name": "turkey_phone",
+      "type": "str",
+      "question": "Which phone number can the office use to reach you?"
+    },
+    {
+      "name": "contact_email",
+      "type": "str",
+      "question": "Which e-mail address can the office use to reach you?"
+    },
+    {
+      "name": "utility_bill_present",
+      "type": "bool",
+      "question": "Do you have a recent utility bill (water, electricity, gas or landline) for your address?"
+    },
+    {
+      "name": "utility_bill_date",
+      "type": "date",
+      "ask": "never"
     }
   ],
   "documents": [
@@ -812,6 +912,93 @@
         "makbuz",
         "payment receipt"
       ]
+    },
+    {
+      "doc_type": "address_proof_document",
+      "description": "Address proof: dorm certificate, rental agreement (kira sözleşmesi) or notarized commitment (taahhütname)",
+      "extracts": [
+        {
+          "field": "turkey_address",
+          "from_field": "address",
+          "lines": 3
+        },
+        {
+          "field": "address_proof_type",
+          "from_field": "document_kind"
+        }
+      ],
+      "titles": [
+        "kira sozlesmesi",
+        "kira kontrati",
+        "rental agreement",
+        "lease agreement",
+        "tenancy agreement",
+        "taahhutname",
+        "letter of commitment",
+        "dormitory certificate",
+        "yurt belgesi",
+        "barinma belgesi",
+        "residence certificate"
+      ],
+      "keywords": [
+        "kiraya veren",
+        "kiraci",
+        "landlord",
+        "tenant",
+        "monthly rent",
+        "aylik kira",
+        "kiralanan",
+        "dormitory",
+        "yurt",
+        "taahhut",
+        "noter",
+        "notary",
+        "room number",
+        "oda no"
+      ]
+    },
+    {
+      "doc_type": "utility_bill",
+      "description": "Recent utility bill for your address (electricity, water, natural gas or landline): needed with a title deed",
+      "extracts": [
+        {
+          "field": "turkey_address",
+          "from_field": "address",
+          "lines": 3
+        },
+        {
+          "field": "utility_bill_date",
+          "from_field": "bill_date"
+        },
+        {
+          "field": "utility_bill_present",
+          "from_field": "bill_present"
+        }
+      ],
+      "titles": [
+        "elektrik faturasi",
+        "su faturasi",
+        "dogalgaz faturasi",
+        "fatura",
+        "utility bill",
+        "electricity bill",
+        "water bill",
+        "gas bill"
+      ],
+      "keywords": [
+        "fatura",
+        "abone no",
+        "tesisat no",
+        "son odeme tarihi",
+        "tuketim",
+        "kwh",
+        "m3",
+        "sayac",
+        "subscriber number",
+        "meter",
+        "amount due"
+      ],
+      "optional": true
     }
   ],
   "derived": [
@@ -857,13 +1044,62 @@
         "requested_start_date",
         "requested_end_date"
       ]
+    },
+    {
+      "field": "turkey_address_present",
+      "op": "true_if_all",
+      "args": [
+        "turkey_address"
+      ]
+    },
+    {
+      "field": "phone_present",
+      "op": "true_if_all",
+      "args": [
+        "turkey_phone"
+      ]
+    },
+    {
+      "field": "email_present",
+      "op": "true_if_all",
+      "args": [
+        "contact_email"
+      ]
+    },
+    {
+      "field": "missing_required_documents_count",
+      "op": "missing_documents",
+      "doc_types": [
+        "student_enrollment_certificate",
+        "health_insurance_certificate",
+        "ikamet_application_form",
+        "passport_identity_page",
+        "turkiye_entry_stamp",
+        "declaration_control_document",
+        "card_fee_receipt",
+        "address_proof_document"
+      ]
+    },
+    {
+      "field": "all_core_documents_present",
+      "op": "documents_complete",
+      "doc_types": [
+        "student_enrollment_certificate",
+        "health_insurance_certificate",
+        "ikamet_application_form",
+        "passport_identity_page",
+        "turkiye_entry_stamp",
+        "declaration_control_document",
+        "card_fee_receipt",
+        "address_proof_document"
+      ]
     }
   ],
   "contacts": [
     {
       "role": "IRO",
       "name": "Sabancı University International Relations Office",
-      "email": null
+      "email": "irolegal@sabanciuniv.edu"
     },
     {
       "role": "Migration Management",

@@ -204,6 +204,12 @@ class TwinStore:
             raise ValueError("Only a current fact of this user can be confirmed")
         return self.add_fact(fact.model_copy(update={"fact_id": None, "confirmed": True}))
 
+    def close_fact(self, user_id: str, fact_id: int) -> None:
+        """End one current fact of this user (a value the user corrected instead of confirming it)."""
+        with self.transaction() as conn:
+            conn.execute("UPDATE facts SET valid_to = ? WHERE fact_id = ? AND user_id = ? AND valid_to IS NULL",
+                         (self.now(), fact_id, user_id))
+
     def close_source(self, user_id: str, procedure_id: str, source_ref: str, provenance: str | None = None) -> int:
         """End every current fact from one source (for example a deleted document). Returns the count."""
         sql = "UPDATE facts SET valid_to = ? WHERE user_id = ? AND procedure_id = ? AND source_ref = ? AND valid_to IS NULL"

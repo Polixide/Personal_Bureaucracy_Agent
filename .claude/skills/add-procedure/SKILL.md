@@ -9,9 +9,14 @@ A procedure is a folder, not code. Create `procedures/<id>/` with:
 
 1. `procedure.json`: `id`, `title`, `scope` (who it is for, what is excluded),
    `sections` (list of `{id, title}` such as identity, insurance, housing, appointment),
-   `fields` (list of `{name, type, question}`; type is one of bool, int, str, date),
-   `documents` (list of `{doc_type, description, extracts, titles, keywords, mrz}`):
-   - `extracts`: field names (or `{field, from_field, requires_confirmation}`);
+   `fields` (list of `{name, type, question}`; type is one of bool, int, str, date). Write the question as you would
+   ask a person ("When does your passport expire?"), never with a rule id. Optional: `ask` = `"later"` for steps after
+   the application, `"never"` for values computed by code, read from documents only or published by an office (IRO
+   windows, counts); `choices` = `{"text shown": "stored value"}` for a text field the rules compare with codes.
+   Sections about steps after the application get `"later": true`.
+   `documents` (list of `{doc_type, description, extracts, titles, keywords, mrz, optional}`); `optional: true` for a
+   document needed only in some cases (say which in its description):
+   - `extracts`: field names (or `{field, from_field, requires_confirmation, lines}`; `lines: 3` for an address);
    - `titles`: phrases printed at the top of the document's first page (any language; compared without case or
      accents). A page whose top lines show one of them starts this document, so one PDF can hold several documents.
      Use real titles ("Health Insurance Certificate", "nüfus cüzdanı"), never a label with a value;
