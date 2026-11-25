@@ -8,7 +8,7 @@ from time import perf_counter
 
 import httpx
 from ollama import Client, ResponseError
-from src.llm import logged_chat
+from src.llm import LLMError, clean_reply, logged_chat
 from pydantic import ValidationError
 
 from config import (
@@ -114,7 +114,8 @@ def select_chunks(pages, document_type=None, *, max_context_chars=MAX_INPUT_CHAR
     if document_type == "ikamet_application_form" and any("short term residence permit registration form" in " ".join(normalized(c[3]).split()) for c in candidates):
         first = min(candidates, key=lambda item: (item[1],item[2]))
         ranked = [first] + [c for c in ranked if c != first]
-    selected = ranked[:MAX_CHUNKS]
+    # The local budget (DOCUMENT_MAX_INPUT_CHARS) gives MAX_CHUNKS; a cloud model's larger budget takes more chunks.
+    selected = ranked[:max(MAX_CHUNKS, max_context_chars // CHUNK_CHARS)]
     selected.sort(key=lambda item: (item[1], item[2]))
     # Trim the chunks themselves, not just the final prompt: provenance must
     # never refer to text discarded by the request-size cap.
@@ -134,7 +135,17 @@ def render_chunks(chunks, *, max_context_chars=MAX_INPUT_CHARS):
     return "\n\n".join(f"[PAGE {c.number}]\n{c.text}" for c in chunks)[:max_context_chars]
 
 
-def request_json(client, prompt, schema, chunks, *, stage, max_context_chars, debug=False, hint=""):
+def cloud_payload(backend, messages, response_schema, stage):
+    """The same request on the cloud model (DOCUMENT_PROVIDER=cloud): its JSON reply as a dict."""
+    try:
+        return json.loads(clean_reply(backend.chat(messages, response_schema, f"document_{stage}")))
+    except LLMError as error:
+        raise DocumentProcessingError(f"Cloud model {stage} request failed: {error}", stage=stage) from error
+    except json.JSONDecodeError as error:
+        raise DocumentProcessingError("The cloud model returned invalid JSON", stage=stage) from error
+
+
+def request_json(client, prompt, schema, chunks, *, stage, max_context_chars, debug=False, hint="", backend=None):
     suffix = "\n\n" + hint if hint else ""
     text = render_chunks(chunks, max_context_chars=max_context_chars-len(suffix)) + suffix
     debug_message(debug, f"{stage}_selected_pages={sorted({c.number for c in chunks})}")
@@ -148,14 +159,14 @@ def request_json(client, prompt, schema, chunks, *, stage, max_context_chars, de
         response_schema["required"] = [key for key in response_schema.get("required",[]) if key not in computed]
         response_schema.get("$defs",{}).pop("SourceEvidence",None)
     started = perf_counter()
+    messages = [{"role": "system", "content": prompt}, {"role": "user", "content": text}]
     try:
-        response = logged_chat(client, component=f"document_{stage}",
-            model=LLM_MODEL,
-            messages=[{"role": "system", "content": prompt},
-                      {"role": "user", "content": text}],
-            format=response_schema, options={"temperature": 0}, think=False, stream=False,
-        )
-        payload = json.loads(response.message.content or "")
+        if backend is not None:
+            payload = cloud_payload(backend, messages, response_schema, stage)
+        else:
+            response = logged_chat(client, component=f"document_{stage}", model=LLM_MODEL, messages=messages,
+                                   format=response_schema, options={"temperature": 0}, think=False, stream=False)
+            payload = json.loads(response.message.content or "")
     except (httpx.TimeoutException, TimeoutError) as error:
         debug_message(debug, f"timeout_stage={stage}")
         raise DocumentProcessingError(f"Local Ollama timed out during {stage}",
@@ -234,7 +245,10 @@ def attach_provenance(info, chunks, proposed_sources, candidates=()):
 
 def process_document(file_path: str | Path, *, host: str = OLLAMA_HOST,
                      timeout: float = DOCUMENT_OLLAMA_TIMEOUT,
-                     max_context_chars: int = MAX_INPUT_CHARS, debug: bool = False, pages=None, document_type_hint: str | None = None) -> DocumentInfo:
+                     max_context_chars: int = MAX_INPUT_CHARS, debug: bool = False, pages=None, document_type_hint: str | None = None,
+                     backend=None) -> DocumentInfo:
+    """Classify, then extract one typed document. `backend` (DOCUMENT_PROVIDER=cloud) replaces the local Ollama
+    client; the evidence checks after the model are the same."""
     if type(max_context_chars) is not int or max_context_chars < 64:
         raise ValueError("max_context_chars must be an integer of at least 64")
     pages = extract_pages(file_path) if pages is None else pages
@@ -243,14 +257,15 @@ def process_document(file_path: str | Path, *, host: str = OLLAMA_HOST,
     debug_message(debug, f"extracted_characters={sum(len(p.text) for p in pages)}")
     if not any(p.text.strip() for p in pages):
         raise ValueError("Document contains no text to analyze")
-    client = Client(host=host, timeout=timeout)
+    client = None if backend is not None else Client(host=host, timeout=timeout)
     classification_chunks = select_chunks(pages, max_context_chars=max_context_chars)
     if document_type_hint is not None:
         if document_type_hint not in DOCUMENT_SCHEMAS or document_type_hint=="unknown": raise ValueError("Unsupported reclassification profile")
         document_type=document_type_hint
     else:
         payload = request_json(client, CLASSIFICATION_PROMPT, DocumentClassification, classification_chunks,
-                               stage="classification", max_context_chars=max_context_chars, debug=debug)
+                               stage="classification", max_context_chars=max_context_chars, debug=debug,
+                               backend=backend)
         try:
             proposed = DocumentClassification.model_validate(payload).document_type
         except ValidationError as error:
@@ -284,10 +299,12 @@ def process_document(file_path: str | Path, *, host: str = OLLAMA_HOST,
             debug_message(debug,"extraction_mode=complete_deterministic_evidence")
         else:
             payload=request_json(client, EXTRACTION_PROMPT, schema, chunks,
-                                 stage="extraction", max_context_chars=max_context_chars, debug=debug, hint=hint)
+                                 stage="extraction", max_context_chars=max_context_chars, debug=debug, hint=hint,
+                                 backend=backend)
     else:
         payload=request_json(client, EXTRACTION_PROMPT, schema, chunks,
-                             stage="extraction", max_context_chars=max_context_chars, debug=debug, hint=hint)
+                             stage="extraction", max_context_chars=max_context_chars, debug=debug, hint=hint,
+                             backend=backend)
     for name in set(payload) - set(schema.model_fields):
         del payload[name]
         issues.append(f"{name}: inappropriate field for {document_type}; discarded")
@@ -331,10 +348,14 @@ if __name__ == "__main__":
 
 
 
-def process_passport_pages(file_path, primary):
-    """Passport-only bundle expansion. Original page numbers survive each profile."""
+def process_passport_pages(file_path, primary, *, pages=None, **options):
+    """Passport-only bundle expansion. Original page numbers survive each profile.
+
+    `pages` are the pages already read (so a scan is not recognised twice); `options` go to process_document
+    (the cloud backend and its larger input budget).
+    """
     from src.document_processing.evidence import mrz_candidates
-    pages=extract_pages(file_path)
+    pages=extract_pages(file_path) if pages is None else pages
     identity=[];entry=[]
     for page in pages:
         folded=" ".join(normalized(page.text).split())
@@ -342,4 +363,5 @@ def process_passport_pages(file_path, primary):
         if mrz_candidates([page]) or (("passport" in folded or "pasaport" in folded) and not is_entry): identity.append(page)
         if checked_classification("turkiye_entry_stamp",[page])=="turkiye_entry_stamp": entry.append(page)
     if not identity or not entry or {p.number for p in identity}=={p.number for p in entry}: return [primary]
-    return [process_document(file_path,pages=identity,document_type_hint="passport_identity_page"),process_document(file_path,pages=entry,document_type_hint="turkiye_entry_stamp")]
+    return [process_document(file_path,pages=identity,document_type_hint="passport_identity_page",**options),
+            process_document(file_path,pages=entry,document_type_hint="turkiye_entry_stamp",**options)]

@@ -13,10 +13,12 @@ change its tested call counts.
 
 Backends: `OllamaBackend` talks to the local Ollama server. `AnthropicBackend` (Claude) and `OpenAIBackend` (GPT)
 use the providers' official SDKs when LLM_PROVIDER says so (`agent_backend`); they are used by the chat assistant,
-the orchestrator and its workers only. Reading documents and embeddings always use the local Ollama server
-(`local_backend`), so document pages never leave the computer. Tests pass a scripted backend with the
+the orchestrator and its workers. Reading documents uses `document_backend`: the local Ollama server, so document
+pages never leave the computer, unless DOCUMENT_PROVIDER=cloud makes the cloud model read them too (it then
+also sees page images through `see`). Embeddings always stay local. Tests pass a scripted backend with the
 same `chat` / `embed` methods (see tests/fakes.py). Logs never contain prompt or reply text.
 """
+import base64
 import json
 import sys
 from collections.abc import Callable
@@ -30,8 +32,9 @@ from ollama import Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
 from config import (ANTHROPIC_MODEL, CHAT_MODEL, CLOUD_EFFORT, CLOUD_MAX_TOKENS, CLOUD_PROVIDERS, CLOUD_TIMEOUT,
-                    EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_PROVIDER, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT,
-                    OPENAI_MODEL, OPENAI_REASONING_EFFORT, VISION_MODEL, VISION_NUM_CTX, VISION_TIMEOUT)
+                    DOCUMENT_PROVIDER, EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_PROVIDER, LLM_TEMPERATURE,
+                    OLLAMA_HOST, OLLAMA_TIMEOUT, OPENAI_MODEL, OPENAI_REASONING_EFFORT, VISION_MODEL, VISION_NUM_CTX,
+                    VISION_TIMEOUT)
 
 TRANSPORT_ERRORS = (ResponseError, ConnectionError, httpx.HTTPError, TimeoutError)
 
@@ -83,6 +86,7 @@ def logged_chat(client: Any, *, component: str, **kwargs: Any) -> Any:
 # ---------------------------------------------------------------- Ollama --
 class OllamaBackend:
     """The local Ollama server (models and host from config.py)."""
+    cloud = False
 
     def __init__(self, model: str = LLM_MODEL, host: str = OLLAMA_HOST,
                  timeout: float = OLLAMA_TIMEOUT, embed_model: str = EMBED_MODEL, vision_model: str = VISION_MODEL):
@@ -179,8 +183,19 @@ def split_system(messages: list[dict]) -> tuple[str, list[dict]]:
     return system, turns
 
 
+def image_base64(image: bytes) -> str:
+    """Image bytes as base64 text, the way both providers take an image inside a request."""
+    return base64.b64encode(image).decode("ascii")
+
+
+def image_media_type(image: bytes) -> str:
+    """image/jpeg (pages sent to a cloud model) or image/png, from the file's first bytes."""
+    return "image/jpeg" if image.startswith(b"\xff\xd8") else "image/png"
+
+
 class AnthropicBackend:
     """Claude through the official `anthropic` SDK (LLM_PROVIDER=anthropic). Embeddings stay local (Ollama)."""
+    cloud = True
 
     def __init__(self, model: str = ANTHROPIC_MODEL, client: Any = None, embedder: Any = None):
         self.model = model
@@ -190,6 +205,17 @@ class AnthropicBackend:
     def chat(self, messages: list[dict], schema: dict, component: str) -> str:
         """One JSON reply: schema-constrained when the schema allows it, otherwise asked for in the system text."""
         system, turns = split_system(messages)
+        return self._structured(system, turns, schema, component)
+
+    def see(self, prompt: str, images: list[bytes], schema: dict, component: str) -> str:
+        """One JSON reply about page images (JPEG/PNG bytes, DOCUMENT_PROVIDER=cloud): the images, then the question."""
+        blocks = [{"type": "image", "source": {"type": "base64", "media_type": image_media_type(image),
+                                               "data": image_base64(image)}} for image in images]
+        turns = [{"role": "user", "content": blocks + [{"type": "text", "text": prompt}]}]
+        return self._structured("", turns, schema, component)
+
+    def _structured(self, system: str, turns: list[dict], schema: dict, component: str) -> str:
+        """Strict JSON schema first; if Claude refuses that schema, the schema asked for in the system text."""
         strict = strict_schema(schema)
         attempts = [strict, None] if strict is not None else [None]    # schema not accepted: ask for JSON in words
         error: Exception | None = None
@@ -207,7 +233,9 @@ class AnthropicBackend:
         else:
             system = f"{system}\n\n{JSON_INSTRUCTION}{to_json(schema)}".strip()
         request: dict[str, Any] = {"model": self.model, "max_tokens": CLOUD_MAX_TOKENS, "messages": turns,
-                                   "system": system, "cache_control": {"type": "ephemeral"}}
+                                   "cache_control": {"type": "ephemeral"}}
+        if system:                     # an image question has no system text
+            request["system"] = system
         if output_config:
             request["output_config"] = output_config
         try:
@@ -232,6 +260,7 @@ class AnthropicBackend:
 
 class OpenAIBackend:
     """GPT through the official `openai` SDK (LLM_PROVIDER=openai). Embeddings stay local (Ollama)."""
+    cloud = True
 
     def __init__(self, model: str = OPENAI_MODEL, client: Any = None, embedder: Any = None):
         self.model = model
@@ -239,8 +268,20 @@ class OpenAIBackend:
         self.embedder = embedder or OllamaBackend()
 
     def chat(self, messages: list[dict], schema: dict, component: str) -> str:
-        """One JSON reply: json_schema mode (not strict, so any schema works), JSON mode if the schema is refused."""
+        """One JSON reply to text messages."""
         turns = [{"role": m["role"], "content": m["content"]} for m in messages]
+        return self._structured(turns, schema, component)
+
+    def see(self, prompt: str, images: list[bytes], schema: dict, component: str) -> str:
+        """One JSON reply about page images (JPEG/PNG bytes, DOCUMENT_PROVIDER=cloud), sent in high detail."""
+        content: list[dict] = [{"type": "text", "text": prompt}]
+        content += [{"type": "image_url", "image_url": {"url": f"data:{image_media_type(image)};base64,"
+                                                               f"{image_base64(image)}", "detail": "high"}}
+                    for image in images]
+        return self._structured([{"role": "user", "content": content}], schema, component)
+
+    def _structured(self, turns: list[dict], schema: dict, component: str) -> str:
+        """json_schema mode (not strict, so any schema works); JSON mode if the schema is refused."""
         guided = {"type": "json_schema", "json_schema": {"name": "reply", "schema": schema, "strict": False}}
         hint = {"role": "system", "content": JSON_INSTRUCTION + to_json(schema)}
         error: Exception | None = None
@@ -295,8 +336,33 @@ def agent_backend(kind: str = "chat") -> Any:
 
 
 def local_backend() -> OllamaBackend:
-    """Documents (text, OCR, vision) and embeddings: always the local Ollama server."""
+    """The local Ollama server: embeddings always, documents unless DOCUMENT_PROVIDER=cloud."""
     return OllamaBackend()
+
+
+def is_cloud_backend(backend: Any) -> bool:
+    """True for a cloud backend (Claude or GPT); False for Ollama, test doubles and None."""
+    return bool(getattr(backend, "cloud", False))
+
+
+def documents_in_cloud() -> bool:
+    """True when the cloud model reads the documents (DOCUMENT_PROVIDER=cloud with a cloud LLM_PROVIDER)."""
+    return DOCUMENT_PROVIDER == "cloud" and is_cloud()
+
+
+def document_backend() -> Any:
+    """Who reads documents (OCR of scans, extraction, vision): the cloud model when documents_in_cloud(), else Ollama.
+
+    Its `embed` stays local either way (the cloud backends hand embeddings to Ollama).
+    """
+    return agent_backend("team") if documents_in_cloud() else local_backend()
+
+
+def document_model_label() -> str:
+    """Which model reads the documents, in words, for the app."""
+    if documents_in_cloud():
+        return agent_model_label("team")
+    return f"local models only (text, OCR, {VISION_MODEL})"
 
 
 def agent_model_label(kind: str = "chat") -> str:

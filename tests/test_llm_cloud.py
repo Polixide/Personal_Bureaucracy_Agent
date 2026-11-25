@@ -122,8 +122,17 @@ def test_embeddings_stay_on_the_local_model():
     assert OpenAIBackend(client=FakeOpenAI(), embedder=FakeEmbedder()).embed(["a"]) == [[1.0, 0.0]]
 
 
-def test_the_cloud_backends_cannot_see_images():
-    assert not hasattr(AnthropicBackend(client=FakeAnthropic(), embedder=FakeEmbedder()), "see")
+@pytest.mark.parametrize("provider,documents,cloud_reads", [
+    ("openai", "local", False), ("anthropic", "local", False),     # the default: pages stay on the computer
+    ("ollama", "cloud", False),                                     # no cloud model to read them
+    ("openai", "cloud", True), ("anthropic", "cloud", True)])       # the explicit choice (2026-11-25)
+def test_documents_go_to_the_cloud_only_when_asked(monkeypatch, provider, documents, cloud_reads):
+    """Replaces test_the_cloud_backends_cannot_see_images: the cloud backends can now see page images, but they
+    read documents only with DOCUMENT_PROVIDER=cloud (decision in docs/migration_plan.md, 2026-11-25)."""
+    monkeypatch.setattr(llm, "LLM_PROVIDER", provider)
+    monkeypatch.setattr(llm, "DOCUMENT_PROVIDER", documents)
+    assert llm.documents_in_cloud() == cloud_reads
+    assert llm.is_cloud_backend(llm.document_backend()) == cloud_reads
 
 
 # ---------------------------------------------------------------- GPT --
@@ -157,4 +166,4 @@ def test_the_provider_setting_chooses_the_agent_backend(monkeypatch, provider, k
     monkeypatch.setattr(llm, "LLM_PROVIDER", provider)
     assert isinstance(llm.agent_backend("chat"), kind)
     assert llm.is_cloud() == (provider != "ollama")
-    assert isinstance(llm.local_backend(), llm.OllamaBackend)      # documents always stay local
+    assert isinstance(llm.local_backend(), llm.OllamaBackend)      # embeddings (and documents by default) stay local

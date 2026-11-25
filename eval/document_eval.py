@@ -4,7 +4,12 @@
 
 For each file: were the right documents found (and split), and for each expected value: read correctly,
 read wrong, or not read. "Wrong" is the number that must stay at zero: a missing value is asked to the user,
-a wrong one is believed. Needs Ollama running; the model comes from config (OLLAMA_MODEL).
+a wrong one is believed. Needs Ollama running; the model comes from config (OLLAMA_MODEL). With
+DOCUMENT_PROVIDER=cloud and LLM_PROVIDER=openai (or anthropic) the cloud model reads the files instead (it costs
+a few cents per run):
+
+    $env:LLM_PROVIDER="openai"; $env:DOCUMENT_PROVIDER="cloud"; $env:OPENAI_MODEL="gpt-6.1-terra"
+    python -m eval.document_eval --label "gpt-6.1-terra" --out docs/eval_documents.md
 """
 import argparse
 import json
@@ -19,7 +24,7 @@ from pydantic import BaseModel
 from eval.document_samples import ExpectedDocument, Sample, synthetic_samples
 from src.document_processing.evidence import normalized
 from src.document_processing.observations import DocumentObservation
-from src.llm import OllamaBackend
+from src.llm import document_backend
 from src.pack import load_pack
 from src.tools.extract_document import extract_file
 
@@ -134,7 +139,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=None, help="append the markdown section to this file")
     parser.add_argument("--only", nargs="*", default=None, help="sample ids to run")
     args = parser.parse_args()
-    backend = OllamaBackend()
+    backend = document_backend()          # Ollama, or the cloud model with DOCUMENT_PROVIDER=cloud
     with tempfile.TemporaryDirectory() as folder:
         samples = [s for s in synthetic_samples(Path(folder)) if not args.only or s.sample_id in args.only]
         scores = []

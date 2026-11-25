@@ -288,6 +288,32 @@ must match a row in this file, or update this file first.
   Gmail link after approval), `tests/test_sandbox.py` (the unknown-address case now uses Migration Management, which
   has no address in the sources; a new test checks the IRO address). New: `tests/test_links.py`.
 
+- **2026-11-25: documents can be read by the cloud model (opt-in).** User decision: "integrate GPT as the model that
+  reads the documents and extracts the information, so GPT's OCR is used instead of ours" (`gpt-6.1-terra`: text and
+  image input, Chat Completions and structured outputs supported, per the OpenAI model page). It reverses the
+  2026-11-24 choice "documents stay local" **only when asked**: `DOCUMENT_PROVIDER=cloud` with
+  `LLM_PROVIDER=openai|anthropic`; the default stays `local`. The app says which model reads the documents and that
+  the pages are sent to the provider.
+
+  | Module | Decision | Why |
+  |---|---|---|
+  | `src/llm.py` | **adapt**: `see()` on `OpenAIBackend` (image as a `data:` URL, detail high) and `AnthropicBackend` (base64 image block); `document_backend()`, `documents_in_cloud()`, `is_cloud_backend()`, `document_model_label()` | One switch decides who reads documents; embeddings stay local. |
+  | `src/document_processing/transcribe.py` | **new**: the cloud model transcribes picture pages (scans, photos, scans with a scanner-app text layer) from a JPEG of the page; if it fails, RapidOCR reads the page | RapidOCR misreads small print, Turkish letters and stamps. The transcription becomes the page text, so every later check is unchanged. |
+  | `src/document_processing/extractor.py` | **adapt**: `extract_pages(path, transcribe=None)`, `is_picture_page`, `page_png` / `page_jpeg` | Default behaviour unchanged (no `transcribe` means RapidOCR as before). JPEG for the cloud: a photographed page is ~1 MB instead of 6 MB as PNG (providers cap image size). |
+  | `src/document_processing/processor.py` | **adapt**: `process_document(..., backend=None)` sends the same prompts to the cloud model; `select_chunks` takes `max_context_chars // CHUNK_CHARS` chunks (still 2 at the local 3,400 budget); `process_passport_pages(..., pages=, **options)` reuses the pages already read | The 4 GB GPU limit (3,400 characters, 2 chunks) cut long documents; a cloud model reads the whole document (`CLOUD_DOCUMENT_MAX_INPUT_CHARS` 40,000). |
+  | `src/document_processing/generic.py`, `vision.py`, `src/tools/extract_document.py` | **adapt**: whole-document batches and sharper JPEG images for a cloud backend; the transcriber is used by `extract_file`; a note names the pages the cloud could not read | Same checks by code: quotes on the page, MRZ check digits, confirmation of what code cannot check. |
+  | `app.py`, `eval/document_eval.py` | **adapt**: tools read with `document_backend()`; the sidebar says who reads documents and what leaves the computer; the document evaluation runs on the cloud model with the same switch | The user sees the privacy trade-off; the before/after can be measured with `python -m eval.document_eval`. |
+
+  - **Limit, stated honestly:** with the cloud OCR, a value's quote is checked against the model's own
+    transcription, so a transcription error is caught only where code has a second check (MRZ check digits, date
+    and choice parsing, conflicts between documents). Locally the reference text came from RapidOCR, an independent
+    but weaker reader.
+  - **Verified offline:** the real `openai` 3.58 and `anthropic` 2.13 SDKs serialise the image requests (HTTP
+    intercepted with a mock transport, no network). Not yet run against the real API (no key in this environment).
+  - **Test changed on purpose:** `tests/test_llm_cloud.py::test_the_cloud_backends_cannot_see_images` encoded the
+    old decision; it is replaced by `test_documents_go_to_the_cloud_only_when_asked` (local by default, cloud only
+    with `DOCUMENT_PROVIDER=cloud` and a cloud provider). New: `tests/test_documents_cloud.py`.
+
 ## 1. What was audited
 
 There is no single integrated branch. The repository has four separate lines of work that all start from the

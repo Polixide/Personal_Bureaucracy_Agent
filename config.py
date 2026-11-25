@@ -53,7 +53,8 @@ SELF_REVIEW = os.getenv("SELF_REVIEW", "auto").strip().lower()
 # ---------------------------------------------------- cloud models (optional) --
 # LLM_PROVIDER=anthropic or openai runs the chat assistant, the orchestrator and its workers on that provider.
 # They receive the state computed by code (rule results, values already read, the plan), never the document pages:
-# reading documents (text, OCR, vision) and embeddings always stay on the local Ollama server.
+# reading documents (text, OCR, vision) stays on the local Ollama server unless DOCUMENT_PROVIDER=cloud (below),
+# and embeddings always stay local.
 # Keys come from the environment (ANTHROPIC_API_KEY / OPENAI_API_KEY) and are never stored in the project.
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()      # ollama | anthropic | openai
 CLOUD_PROVIDERS = ("anthropic", "openai")
@@ -78,6 +79,16 @@ VISION_ENABLED = os.getenv("VISION_ENABLED", "1") == "1"
 VISION_TIMEOUT = 300.0
 VISION_MAX_SIDE = 1024    # pixels: a smaller image is fewer tokens, so a faster answer
 VISION_NUM_CTX = 8192
+
+# Documents read by the cloud model (optional). DOCUMENT_PROVIDER=cloud, together with LLM_PROVIDER=openai or
+# anthropic, makes that model read the documents: it transcribes scans and photos from the page image instead of
+# RapidOCR, reads whole documents instead of DOCUMENT_MAX_INPUT_CHARS, and is the vision model. Code checks its
+# values exactly as before (quotes on the page, MRZ check digits, the user confirms what code cannot check).
+# The page images and their text are sent to the provider, so this is an explicit choice; "local" keeps them here.
+DOCUMENT_PROVIDER = os.getenv("DOCUMENT_PROVIDER", "local").strip().lower()    # local | cloud
+CLOUD_DOCUMENT_MAX_INPUT_CHARS = 40000   # characters per request for a cloud model: a whole document
+CLOUD_IMAGE_MAX_SIDE = 2048              # pixels of a page image sent to a cloud model: small print stays legible
+CLOUD_IMAGE_JPEG_QUALITY = 90            # JPEG: a photographed page is ~1 MB (6 MB as PNG; providers cap images at a few MB)
 
 # ------------------------------------------------------------------- RAG --
 RAG_CHUNK_CHARS = 800

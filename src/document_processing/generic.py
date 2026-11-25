@@ -17,12 +17,12 @@ import re
 
 from pydantic import BaseModel, Field
 
-from config import DOCUMENT_MAX_INPUT_CHARS
+from config import CLOUD_DOCUMENT_MAX_INPUT_CHARS, DOCUMENT_MAX_INPUT_CHARS
 from src.document_processing.evidence import normalized, normalized_date, normalized_snippet, snippet_in_source
 from src.document_processing.extractor import TextPage
 from src.document_processing.grounding import GroundedValue
 from src.document_processing.mrz import MrzRecord, find_mrz, mrz_values
-from src.llm import Backend, ask_structured
+from src.llm import Backend, ask_structured, is_cloud_backend
 from src.models import DocumentSpec, Pack
 from src.pack import coerce_fact
 
@@ -69,6 +69,11 @@ def reply_schema(allowed: list[str]) -> dict:
     schema = GenericReply.model_json_schema()
     schema["$defs"]["ProposedField"]["properties"]["field"]["enum"] = allowed
     return schema
+
+
+def input_limit(backend: Backend | None) -> int:
+    """Characters per request: a whole document for a cloud model, DOCUMENT_MAX_INPUT_CHARS for the local one."""
+    return CLOUD_DOCUMENT_MAX_INPUT_CHARS if is_cloud_backend(backend) else DOCUMENT_MAX_INPUT_CHARS
 
 
 def render_pages(pages: list[TextPage], limit: int = DOCUMENT_MAX_INPUT_CHARS) -> str:
@@ -212,7 +217,7 @@ def ask_batch(backend: Backend, spec: DocumentSpec, wanted: list[str], batch: li
     """One model call for the still-missing fields of one batch of pages (with the refusal reasons when re-reading)."""
     user = f"Document type: {spec.doc_type} ({spec.description})\nAllowed fields: {', '.join(wanted)}\n\n"
     messages = [{"role": "system", "content": GENERIC_PROMPT},
-                {"role": "user", "content": user + render_pages(batch)}]
+                {"role": "user", "content": user + render_pages(batch, input_limit(backend))}]
     if refused:
         reasons = "\n".join(f"- {reason}" for reason in refused.values())
         messages.append({"role": "user", "content": REFLECT_PROMPT.format(reasons=reasons)})
@@ -250,8 +255,8 @@ def extract_generic(pages: list[TextPage], spec: DocumentSpec, pack: Pack, backe
     from_mrz, record = mrz_grounded(pages, spec, pack)
     observation.grounded.update({name: value for name, value in from_mrz.items() if name != MRZ_NAME_FIELD})
     conflicted: set[str] = set()
-    for batch in page_batches(pages):
-        wanted = [name for name in allowed if name not in observation.grounded and name not in conflicted]
+    for batch in page_batches(pages, input_limit(backend)):
+        wanted =[name for name in allowed if name not in observation.grounded and name not in conflicted]
         if not wanted or backend is None:
             break
         result = ask_batch(backend, spec, wanted, batch)

@@ -1,11 +1,18 @@
-"""Deterministic text extraction, independent of future LLM processing."""
+"""Text of every page: the PDF text layer, or the text recognised from the page image for scans and photos.
+
+Recognition is RapidOCR (local) by default. With DOCUMENT_PROVIDER=cloud the caller passes `transcribe`, a cloud
+model that reads the page image (src/document_processing/transcribe.py); RapidOCR stays the fallback.
+"""
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import pymupdf
+
+from config import CLOUD_IMAGE_JPEG_QUALITY
 
 
 class DocumentExtractionError(ValueError):
@@ -102,12 +109,46 @@ def needs_ocr(page, text: str) -> bool:
     return letters < IMAGE_PAGE_TEXT_CHARS and image_coverage(page) >= IMAGE_COVERAGE
 
 
-def read_page(page, number: int) -> TextPage:
-    """One page: its text layer, or its OCR text when it is a scan (see page_text)."""
+def is_picture_page(page, text: str) -> bool:
+    """A scan or a photo: OCR is needed, or an image covers most of the page (scanner apps add their own,
+    often poor, text layer; a cloud model reads the image better)."""
+    if needs_ocr(page, text):
+        return True
+    return bool(page.get_images(full=True)) and image_coverage(page) >= IMAGE_COVERAGE
+
+
+def read_page(page, number: int, transcribe: Callable | None = None) -> TextPage:
+    """One page: its text layer, or its OCR text when it is a scan (see page_text).
+
+    With `transcribe` (a cloud model), picture pages are read from their image; "" from it means it failed, and the
+    page follows the local path.
+    """
     text = page.get_text()
+    if transcribe is not None and is_picture_page(page, text):
+        transcribed = transcribe(page, number)
+        if transcribed.strip():
+            return TextPage(number, transcribed, ocr=True)
     if not needs_ocr(page, text):
         return TextPage(number, text)
     return TextPage(number, page_text(page, number, text), ocr=True)
+
+
+def page_pixmap(page, max_side: int):
+    """The page rendered so its longer side is max_side pixels (at most 4x the PDF size)."""
+    longest = max(page.rect.width, page.rect.height) or 1.0
+    zoom = min(max_side / longest, 4.0)
+    return page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csRGB, alpha=False)
+
+
+def page_png(page, max_side: int) -> bytes:
+    """PNG of one page (for the local vision model)."""
+    return page_pixmap(page, max_side).tobytes("png")
+
+
+def page_jpeg(page, max_side: int) -> bytes:
+    """JPEG of one page, for a cloud model: a photographed page is about 1 MB instead of 6 MB as PNG (providers
+    refuse images above a few MB, and a smaller upload is faster)."""
+    return page_pixmap(page, max_side).tobytes("jpg", jpg_quality=CLOUD_IMAGE_JPEG_QUALITY)
 
 
 def page_text(page, number: int, text: str) -> str:
@@ -126,9 +167,10 @@ def open_document(path: Path):
     return pymupdf.open(path)
 
 
-def extract_pages(file_path: str | Path) -> list[TextPage]:
+def extract_pages(file_path: str | Path, transcribe: Callable | None = None) -> list[TextPage]:
     """Read UTF-8 TXT, PDF or a photo (JPG/PNG), retaining original one-based page numbers.
 
+    `transcribe(page, number) -> str` replaces RapidOCR for scans and photos (DOCUMENT_PROVIDER=cloud).
     Raises FileNotFoundError for missing paths, ValueError for unsupported
     extensions, and DocumentExtractionError for unreadable or textless files.
     Filesystem errors (such as permission errors) propagate to the caller.
@@ -149,7 +191,7 @@ def extract_pages(file_path: str | Path) -> list[TextPage]:
         with open_document(path) as document:
             if document.needs_pass:
                 raise DocumentExtractionError("Password-protected PDFs are not supported.")
-            pages = [read_page(page, i + 1) for i, page in enumerate(document)]
+            pages = [read_page(page, i + 1, transcribe) for i, page in enumerate(document)]
     except (pymupdf.FileDataError, RuntimeError) as error:
         raise DocumentExtractionError(f"Cannot read file: {path}") from error
 

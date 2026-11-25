@@ -26,8 +26,9 @@ from pathlib import Path
 
 import streamlit as st
 
-from config import (CHAT_MAX_REPAIRS, CHAT_MAX_STEPS, DATABASE_PATH, EMBED_MODEL, LLM_PROVIDER, MAX_REPAIRS,
-                    MAX_STEPS, OUTBOX_DIR, PROJECT_ROOT, UPLOAD_DIR, VISION_MODEL, WORKER_STEPS)
+from config import (CHAT_MAX_REPAIRS, CHAT_MAX_STEPS, DATABASE_PATH, DOCUMENT_PROVIDER, EMBED_MODEL, LLM_PROVIDER,
+                    MAX_REPAIRS,
+                    MAX_STEPS, OUTBOX_DIR, PROJECT_ROOT, UPLOAD_DIR, WORKER_STEPS)
 from src.agent import orchestrator
 from src.agent.actions import Suggestion, suggestions
 from src.agent.briefing import (OPEN_PROPOSALS, ORIGIN_WORDS, Briefing, Step, askable_fields, build_briefing,
@@ -35,7 +36,8 @@ from src.agent.briefing import (OPEN_PROPOSALS, ORIGIN_WORDS, Briefing, Step, as
                                 in_section, missing_fields, readable, user_results, user_sections)
 from src.agent.chat import review_enabled, run_chat
 from src.agent.links import proposal_links
-from src.llm import agent_backend, agent_model_label, is_cloud, local_backend
+from src.llm import (agent_backend, agent_model_label, document_backend, document_model_label, documents_in_cloud,
+                     is_cloud, local_backend)
 from src.models import DocumentSpec, Pack, RuleResult
 from src.pack import load_all_packs
 from src.rag.crawl import load_corpus
@@ -91,8 +93,8 @@ COMING_UP = 3            # steps shown under "Now"
 READY_SHOWN = 4
 MAX_CHOICE_BUTTONS = 5
 HOW_IT_WORKS = """
-**1. The state is computed by code.** Your documents are read by local models (text, OCR, a vision model for
-photos); code checks every value against the page and keeps it as a *fact* of your Digital Twin. The rule engine
+**1. The state is computed by code.** Your documents are read by {reader} (the text, scans and photos); code checks
+every value against the page and keeps it as a *fact* of your Digital Twin. The rule engine
 (`src/rules.py`) evaluates every requirement with three-valued logic: pass, fail, or unknown (information missing).
 No model decides whether a rule is met, and no model computes a date.
 
@@ -484,10 +486,15 @@ def sidebar(store: TwinStore, packs: dict[str, Pack]) -> tuple[str, date]:
 def models_note() -> None:
     """Which models do what, and what leaves the computer."""
     st.caption(f"Assistant: {agent_model_label('chat')} · Agent team: {agent_model_label('team')} · "
-               f"Documents: local models only (text, OCR, {VISION_MODEL}).")
-    if is_cloud():
+               f"Documents: {document_model_label()}.")
+    if documents_in_cloud():
+        st.caption("Your documents are read in the cloud: their page images and text are sent to the provider. "
+                   "Code still checks every value against the page.")
+    elif is_cloud():
         st.caption("The assistant runs in the cloud: it receives your state (requirements, values already read), "
                    "never the pages of your documents.")
+    if DOCUMENT_PROVIDER == "cloud" and not is_cloud():
+        st.caption("DOCUMENT_PROVIDER=cloud needs LLM_PROVIDER=openai or anthropic: documents are read locally.")
 
 
 def choose_procedure(store: TwinStore, packs: dict[str, Pack], user_id: str) -> None:
@@ -886,7 +893,7 @@ def full_check(store: TwinStore, ctx: ToolContext) -> None:
     store.add_chat_message(ChatMessage(user_id=ctx.user_id, role="user", content="🔍 Full check by the agent team",
                                        procedure_id=ctx.procedure_id))
     result = orchestrator.run_agent(FULL_CHECK_GOAL, store, ctx.packs, ctx.user_id, ctx.today, agent_backend("team"),
-                                    outbox_dir=OUTBOX_DIR, tool_backend=local_backend())
+                                    outbox_dir=OUTBOX_DIR, tool_backend=document_backend())
     st.session_state.setdefault("results", {})[ctx.user_id] = {"goal": FULL_CHECK_GOAL,
                                                                "result": result.model_dump(mode="json")}
     text = (result.question or "") if result.status == "needs_user_input" else agent_text(result)
@@ -1072,9 +1079,9 @@ def view_details(store: TwinStore, ctx: ToolContext, pack: Pack, view: FactView,
         st.markdown(HOW_IT_WORKS.format(chat_steps=CHAT_MAX_STEPS, chat_repairs=CHAT_MAX_REPAIRS,
                                         review="on" if review_enabled() else "off (switch on with SELF_REVIEW=1)",
                                         worker_steps=WORKER_STEPS, max_steps=MAX_STEPS, max_repairs=MAX_REPAIRS,
-                                        embed=EMBED_MODEL))
+                                        embed=EMBED_MODEL, reader=document_model_label()))
         st.caption(f"Models: assistant {agent_model_label('chat')}; agent team {agent_model_label('team')}; documents "
-                   f"local; LLM_PROVIDER={LLM_PROVIDER}.")
+                   f"{document_model_label()}; LLM_PROVIDER={LLM_PROVIDER}, DOCUMENT_PROVIDER={DOCUMENT_PROVIDER}.")
     with tabs[3]:
         last_answer(st.session_state.get("results", {}).get(ctx.user_id))
     with tabs[4]:
@@ -1208,9 +1215,9 @@ def run_passed(run) -> str:
 
 # ------------------------------------------------------------------ page --
 def tool_context(store: TwinStore, packs: dict[str, Pack], user_id: str, today: date) -> ToolContext:
-    """Tools read documents with the local model (documents never leave the computer)."""
+    """Tools read documents with `document_backend()`: the local models, or the cloud model if DOCUMENT_PROVIDER=cloud."""
     active = store.active_procedure(user_id)
-    return ToolContext(store=store, packs=packs, user_id=user_id, today=today, backend=local_backend(),
+    return ToolContext(store=store, packs=packs, user_id=user_id, today=today, backend=document_backend(),
                        procedure_id=active if active in packs else None)
 
 

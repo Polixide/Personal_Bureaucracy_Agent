@@ -76,7 +76,7 @@ The evaluation compares three systems on the same 25 scenarios (§9):
 | Every rule cites an official source | `source_ids` must exist in `sources.json`. A rule nobody has checked yet is `unverified`, and any answer that uses it must say so. |
 | Tool arguments are validated | Pydantic validates every call before the tool runs. An invalid call becomes an error observation for the model, never an execution. |
 | The app never crashes because of the model | Schema-constrained output → one retry → deterministic fallback (the plan written by code). |
-| Privacy | Documents are read only by local models. A cloud model, if enabled, receives the state computed by code, never the pages. API keys stay in the environment. Synthetic data only in the repository. |
+| Privacy | By default documents are read only by local models, and a cloud model (if enabled) receives the state computed by code, never the pages. Sending the pages to the cloud model is a separate, explicit switch (`DOCUMENT_PROVIDER=cloud`) that the app announces. API keys stay in the environment. Synthetic data only in the repository. |
 
 ---
 
@@ -111,7 +111,7 @@ flowchart TB
         SAND["Sandbox: mock portal +<br/>promotion gate + approval"]
     end
 
-    DOCS["Document processing (local only)<br/>text, OCR, MRZ, vision model"]
+    DOCS["Document processing<br/>text, OCR, MRZ, vision model<br/>local, or cloud if chosen"]
     RAG["Knowledge base / RAG<br/>official pages, bge-m3"]
     LLM["src/llm.py<br/>Ollama · Claude · GPT"]
     REAL["Real world: Gmail, Google Calendar,<br/>e-İkamet, IRO. The user acts."]
@@ -164,7 +164,14 @@ flowchart TB
   - *real → twin*: documents, statements, confirmations, outcomes the user reports, rule updates;
   - *twin → real*: only approved artifacts.
 
-**4. Document processing** (`src/document_processing/`, `src/tools/extract_document.py`), always local
+**4. Document processing** (`src/document_processing/`, `src/tools/extract_document.py`), local by default
+- **Who reads.** By default the local models (RapidOCR, `qwen3:4b`, `qwen3-vl:2b-instruct`). With
+  `DOCUMENT_PROVIDER=cloud` the cloud model (for example `gpt-6.1-terra`) reads instead:
+  - it transcribes scans and photos from the page image, replacing RapidOCR;
+  - it reads whole documents rather than the 3,400 characters that fit the 4 GB GPU;
+  - it is also the vision model.
+
+  The checks by code below are the same either way.
 - One upload may hold several documents. They are split where a title or a machine-readable zone starts, and every
   page is read.
 - The type is recognised by title, MRZ, keywords, the model or the vision model.
@@ -270,7 +277,7 @@ Pydantic validation, one retry, then a fallback.
 | Chat assistant | `qwen2.5:3b` | `gpt-5.5` (OpenAI) or `claude-opus-5-5` (Anthropic) |
 | Orchestrator and workers | `qwen3:4b` | the same cloud model |
 | Self-review | off (about 1 min more per turn locally) | on (`SELF_REVIEW=auto`) |
-| Reading documents | `qwen3:4b` + OCR + `qwen3-vl:2b-instruct` | **always local**: the cloud never sees the pages |
+| Reading documents | `qwen3:4b` + RapidOCR + `qwen3-vl:2b-instruct` | local unless `DOCUMENT_PROVIDER=cloud`; then the cloud model transcribes the pages (its OCR), extracts the values and is the vision model |
 | Embeddings | `bge-m3` | always local |
 
 ### 4.3 One request, end to end
@@ -402,9 +409,13 @@ sequenceDiagram
 
 ## 6. Safety, privacy and trust
 
-- **Documents never leave the computer.** Text, OCR, vision and embeddings run on the local Ollama server. With
-  `LLM_PROVIDER=openai|anthropic`, only the state computed by code is sent: rule results, values already read,
-  the plan. Keys come from environment variables and are never stored in the project.
+- **By default, documents never leave the computer.** Text, OCR, vision and embeddings run on the local Ollama
+  server. With `LLM_PROVIDER=openai|anthropic`, only the state computed by code is sent: rule results, values
+  already read, the plan. Keys come from environment variables and are never stored in the project.
+- **Sending documents to the cloud is a separate, visible choice.** With `DOCUMENT_PROVIDER=cloud`, the page images
+  and text go to the provider for a much better reading, and the sidebar says so. Embeddings stay local. The
+  trade-off: a quote is then checked against the cloud model's own transcription, so a transcription error is
+  caught only by code's second checks (MRZ check digits, date and choice parsing, conflicts between documents).
 - **Real world only through the user.** Approval is the only exit from the Twin, and it only writes a local file
   and opens a prefilled page.
 - **Verified vs unverified.** Of the 67 rules, 29 are verified. The others (R030, the extension pack, the ID-card
@@ -417,7 +428,7 @@ sequenceDiagram
 
 ## 7. Evaluation and results
 
-**Tests:** 1048 automated tests pass (`python -m pytest -q`). The LLM is always mocked, and a real model call
+**Tests:** 1063 automated tests pass (`python -m pytest -q`). The LLM is always mocked, and a real model call
 fails a test.
 
 **Agent vs baselines** (`python -m eval.run_eval`, 25 scenarios × 3 runs, offline; `docs/eval_results.md`):
@@ -481,7 +492,7 @@ pages.
 | `src/memory/episodes.py` | lessons from validated repairs |
 | `procedures/` | the four Procedure Packs |
 | `eval/` | baselines A / B / D, metrics, document / chat / RAG / memory evaluations |
-| `tests/` | 1048 tests |
+| `tests/` | 1063 tests |
 | `docs/modules/` | one page per module; `docs/migration_plan.md` holds every decision |
 
 ---
@@ -494,6 +505,9 @@ pages.
 streamlit run app.py
 # chat and agent team on GPT (documents stay local):
 $env:LLM_PROVIDER = "openai"; $env:OPENAI_API_KEY = "<your key>"; streamlit run app.py
+# everything on GPT-6.1 Terra, documents included (its OCR replaces RapidOCR):
+$env:OPENAI_MODEL = "gpt-6.1-terra"; $env:OPENAI_REASONING_EFFORT = "low"; $env:DOCUMENT_PROVIDER = "cloud"
+streamlit run app.py
 # a separate demo Twin, so your own profile stays untouched:
 $env:TWIN_DATABASE = "data/demo_twin.sqlite"; streamlit run app.py
 ```

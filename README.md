@@ -72,17 +72,23 @@ ollama pull bge-m3                # embeddings, chosen by measurement (docs/eval
 All settings live in `config.py`. Models can also be chosen with `OLLAMA_MODEL`, `OLLAMA_CHAT_MODEL` and
 `OLLAMA_VISION_MODEL`; `VISION_ENABLED=0` switches the vision model off.
 
-### Optional: a cloud model for the assistant and the agent team
-Reading documents always stays on the local models; a cloud model receives the state computed by code (rule
+### Optional: a cloud model for the assistant, the agent team and (if you choose) the documents
+By default reading documents stays on the local models; a cloud model receives the state computed by code (rule
 results, values already read, the plan), never the pages of your documents. The key stays in your environment.
 ```powershell
 $env:LLM_PROVIDER = "anthropic"; $env:ANTHROPIC_API_KEY = "<your key>"   # Claude (default claude-opus-5-5)
 $env:ANTHROPIC_MODEL = "claude-sonnet-5-5"                               # optional: a cheaper Claude
 $env:LLM_PROVIDER = "openai"; $env:OPENAI_API_KEY = "<your key>"         # or GPT (OPENAI_MODEL, default gpt-5.5)
+$env:OPENAI_MODEL = "gpt-6.1-terra"; $env:OPENAI_REASONING_EFFORT = "low"   # e.g. GPT-6.1 Terra, faster replies
+$env:DOCUMENT_PROVIDER = "cloud"     # optional: the cloud model also reads the documents (its OCR replaces RapidOCR)
 streamlit run app.py
 ```
 With a cloud model the self-review (reflection) is on by default (`SELF_REVIEW=auto`) and the assistant may
 prepare e-mails, reminders and forms on its own initiative (always proposals you approve).
+With `DOCUMENT_PROVIDER=cloud` the page images and their text are sent to the provider (the sidebar says so):
+the model transcribes scans and photos, reads whole documents and is the vision model; code still checks every
+value (quote on the page, MRZ check digits, your confirmation for what it cannot check). Measure it with
+`python -m eval.document_eval --label "gpt-6.1-terra"` in the same terminal.
 
 ## Use
 ```powershell
