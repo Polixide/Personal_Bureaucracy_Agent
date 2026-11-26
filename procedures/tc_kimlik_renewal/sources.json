@@ -1,0 +1,39 @@
+[
+  {
+    "source_id": "NVI_TCKK_PROCEDURES",
+    "title": "T.C. Kimlik Kartı İşlemleri",
+    "url": "https://www.nvi.gov.tr/kimlik-karti-islemleri",
+    "retrieved_at": "2026-11-19",
+    "authority": "government_primary",
+    "organization": "Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ)",
+    "content_sha256": "1fbdfc1fc5d2400bcf1a705b97f9e633b46338236dfbb87d8ae0f81acff961ed"
+  },
+  {
+    "source_id": "NVI_TCKK_FAQ",
+    "title": "T.C Kimlik Kartı Sıkça Sorulan Sorular",
+    "url": "https://www.nvi.gov.tr/sss-kimlik-karti",
+    "retrieved_at": "2026-11-19",
+    "authority": "government_primary",
+    "organization": "Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ)",
+    "content_sha256": "52d8ba60c264c7590e42b2ca1e4175fa4440448f01054d49716d3cfcc1b378c1"
+  },
+  {
+    "source_id": "NVI_APPOINTMENT_FAQ",
+    "title": "Randevu Sıkça Sorulan Sorular",
+    "url": "https://www.nvi.gov.tr/randevu-sikca-sorulan-sorular",
+    "retrieved_at": "2026-11-19",
+    "authority": "government_primary",
+    "organization": "Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ)",
+    "content_sha256": "c0fa5aa850315af4c982678e2ddc60fdca89fecc6c6fc8b3f5d6c84c3b49693f"
+  },
+  {
+    "source_id": "NVI_DAMAGED_CARD_2020",
+    "title": "TCKK Başvuru Nedenleri (talimat, 30.10.2020, fiziki bütünlüğü bozulmuş kimlik kartları)",
+    "url": "https://www.nvi.gov.tr/kurumlar/nvi.gov.tr/mevzuat/nufusmevzuat/talimat/kimlikkartiislemleri/30102020_115077_Fiziki_Butunlugu_Bozulmus_TCKK.pdf",
+    "retrieved_at": "2026-11-19",
+    "authority": "government_primary",
+    "organization": "Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü (NVİ)",
+    "notes": "Internal instruction to population directorates (talimat), published on nvi.gov.tr.",
+    "content_sha256": "2c138812738e0240a66885f4bbb64dd431715c815fef10599cca3bcd0b4bbced"
+  }
+]

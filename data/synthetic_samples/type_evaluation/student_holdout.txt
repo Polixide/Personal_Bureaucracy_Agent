@@ -1,0 +1,7 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Registrar attestation
+Our university confirms this student is registered.
+Institution: Horizon University
+Name: Casey Sample
+Campus code: HOLD-S1
+Recorded on: 2028-10-21

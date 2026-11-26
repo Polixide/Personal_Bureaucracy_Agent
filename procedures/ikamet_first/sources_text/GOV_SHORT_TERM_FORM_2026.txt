@@ -1,0 +1,708 @@
+SOURCE: Declaration for Short Term Residence Permit Registration Form (Presidency of Migration Management)
+URL: https://e-ikamet.goc.gov.tr/Ikamet/BasvuruFormuOrnegi/BasvuruFormuBos?tur=0
+RETRIEVED: 2026-11-19
+SHA256: 0cc1446ae6f43912189ed0f9829d27ae89929afa631a90bc0accbf3ea2541449
+
+KİŞİ BİLGİLERİ
+( Personal Information )
+Uyruk Kimlik No
+Uyruğu
+Foreign ID Number
+Nationality
+Soyadı
+Diğer Uyruğu
+Surname
+Other Citizenship
+Adı
+Doğumdaki Uyruğu
+Name
+Nationality in Born
+Önceki Soyadı
+Doğum Yeri
+Previous Surname
+Place of Birth
+Baba Adı
+Doğum Yeri Ülkesi
+Father's Name
+Born Country
+Anne Adı
+Cinsiyeti
+Mother's Name
+Gender
+Yabancı Kimlik No
+Medeni Hali
+Foreigner ID Number
+Marital Status
+Doğum Tarihi
+Date of Birth
+Özel İhtiyaç Durumu
+Special Need Status
+SEYAHAT BELGESİ BİLGİLERİ ( Travel Document Information )
+Belge Türü
+Belge No
+Type of Document
+Number of Document
+Düzenleme Tarihi / Geçerlilik Tarihi
+Veren Ülke / Makam
+Date of Issue / Date of Validity
+Granting Country / Authority
+HARÇ BİLGİLERİ ( Fees Information )
+İkamet İzin Belgesi Bedeli (Residence Permit Document Fee)
+TL
+Harç Bedeli (Fee Amount)
+Randevu Tarihi (Date of
+Appointment)
+Talep Edilen İzin Başlangıç Tarihi
+(Requested Start Date)
+Talep Edilen Bitiş Tarihi
+(Requested End Date)
+Kalış Nedeni(Purpose of Stay)
+Kayıt Numarası (Registration
+Number)
+Başvurulan İkamet İzni Türü
+(Applied Residence Permit Type)
+KISA DÖNEM
+İlk Başvuru
+Randevu Yeri (Place of
+Appointment)
+Kayıt Tarihi
+(Date of Registration)
+Başvuru Türü (Type of Application)
+TL
+RANDEVU YERİ İLETİŞİM BİLGİLERİ ( Contact Informations of Place of Appointment)
+Adres (Address)
+Telefon Numarası (Phone Number)
+Fax Numarası (Fax Number)
+E-Posta (E-Mail)
+-
+Tek Giriş Vize Harç Bedeli (One Time Entry Fee Amount)
+-
+Cezalı İkamet İzni (Penal Residence Permit )
+FORMA İLİŞKİN AÇIKLAMALAR ( Information about the Application Form)
+TAHAKKUK ÖDEME BİLGİLERİ (Accrue Payment Informations)
+GİB Ödeme Tutarı GIB Payment Amount
+Tahakkuk No Accrue No
+HUKUKİ SORUMLULUK (Civil Liability)
+Yukarıda beyan ettiğim bilgilerin doğruluğunu, yalan beyanda bulunduğum takdirde hakkımda 5237 sayılı Türk Ceza Kanunu'nun 206. maddesi uyarınca işlem yapılacağından, ikamet izni başvurumun
+reddedileceğinden, ikamet izni verilmişse iptal edileceğinden ve sınır dışı işlemlerinin başlatılacağından bilgim olduğunu kabul ederim. 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında kişisel
+bilgilerimin işlenmesine açık rızam vardır.“İkamet izni uzatma başvuruma ilişkin sonucun beyan etmiş olduğum Ulusal Elektronik Tebligat Adresime ( UETS) iletilmesini kabul ederim.”I here by confirm the
+information mentioned above, and I am aware that if I give a false statement legal procedures will be implemented to me according to the Article 206 of Turkish Criminal Code Law No. 5237, my residence permit application
+will be considered invalid, will be cancelled if it has been given and removal decision process will be started. I accept the processing of my personal information.I give my express consent to the processing of my personal
+information within the scope of the Law on the Protection of Personal Data No. 6698."I accept that the result of my residence permit extension application will be sent to my National Electronic Notification Address (UETS)
+that I have declared."
+İmza
+Signature
+Biyometrik Fotoğraf Özelliklerini Sağlayamıyorum
+(I Do Not Meet Biometric Photo Specifications)
+UETS Adresi
+UETS Address
+Çalışma amacımın bulunması halinde https://ecalismaizni.csgb.gov.tr adresinden çalışma iznine başvuracağımı kabul ederim.
+I agree that I will apply for a work permit from https://ecalismaizni.csgb.gov.tr website if I intend to work.
+Vize Türü
+Visa Type
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+1 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:17
+GöçNet Sürüm No :
+2026/5
+
+TÜRKİYE'DE KALACAĞI ANA ADRES VE İLETİŞİM BİLGİLERİ ( Information on Main Address/Contact in Turkey )
+Adres
+Telefon 1
+Address
+Phone 1
+Taşınma Tarihi
+E Posta
+Moving Date
+E Mail
+İŞ YERİ BİLGİLERİ ( Information on place of education/work )
+Durum
+Ülke
+Status
+Country
+İş Yerinin Adı
+Şehir
+The Place of
+Work/Education
+City
+Açık Adres
+Telefon 1
+Full Address
+Phone 1
+Posta Kodu
+Telefon 2
+Postal Code
+Phone 2
+Mesleği
+E Posta
+Profession
+E-mail
+Görevi
+Title
+YABANCI ADINA BAŞVURUDA BULUNAN (Applicant on behalf of foreigner )
+Yabancı Adına Başvuruda Bulunanın Yakınlığı
+(Kinship of the person who has applied on behalf of foreigner)
+GELİR BİLGİLERİ (Information on Income)
+Gelir Bilgileri
+Gelir Kaynağı
+Information on Income
+Source of Income
+Formasyon Mesleği
+Current Occupation
+SİGORTA BİLGİLERİ (Information on Insurance)
+Sağlık Sigortası Türü
+Sigorta Şirketi
+Type of Health Insurance
+Insurance Company
+Sağlık Sigortası Geçerlilik Tarihi
+Poliçe no
+Validity Date of Health Insurance
+Policy Number
+ÖĞRENİM BİLGİLERİ (Information on Education)
+Öğrenim Durumu
+Educational Background
+ÖĞRENİM BİLGİLERİ DEVAM EDEN (Information on Continuing Education)
+Öğrenim Durumu
+Okul Türü
+Educational Background
+Type of School
+Öğrenim Başlangıç Tarihi
+Öğrenim Bitiş Tarihi
+Beginning Date of Education
+Ending Date of Education
+Okul Adı
+Fakülte
+Name of School
+Faculty
+Bölüm
+Sınıf
+Department
+Year
+Öğrenci No
+Ülke
+Student Number
+Country
+Şehir
+Telefon 1
+City
+Phone1
+Posta Kodu
+Telefon 2
+Postal Code
+Phone2
+Açık Adres
+Full Address
+Başvuran Açıklaması
+Explanation
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+2 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:19
+GöçNet Sürüm No :
+2026/5
+
+Ülke
+Telefon 1
+Country
+Phone 1
+Şehir
+Telefon 2
+City
+Phone 2
+Posta Kodu
+E Posta
+Postal Code
+E-mail
+Açık Adres
+Full Address
+YABANCI ADINA BAŞVURUDA BULUNANIN ADRESİ (The Address of Applicant on behalf of Foreigner)
+YABANCI
+( Foreigner )
+Uyruk Kimlik No
+Uyruğu
+Foreign ID Number
+Nationality
+Adı
+Diğer Uyruğı
+Name
+Other Citizenship
+Soyadı
+Doğumdaki Uyruğu
+Surname
+Nationality in Born
+Önceki Soyadı
+Doğum Yeri
+Previous Surname
+Place of Birth
+Baba Adı
+Doğum Yeri Ülkesi
+Father's Name
+Born Country
+Anne Adı
+Cinsiyeti
+Mother's Name
+Gender
+Yabancı Kimlik No
+Medeni Hali
+Foreigner ID Number
+Marital Status
+Kan Gurubu
+Doğum Tarihi
+Blood Group
+Date of Birth
+KEP (Kayıtlı Elektronik Posta) Adresi
+REM (Registered Electronic Mail) Address
+T.C.VATANDAŞI
+( Turkish Citizenship )
+T.C. Kimlik No
+Uyruğu
+Turkish ID number
+Nationality
+Adı
+Doğum Yeri
+Name
+Place of Birth
+Soyadı
+Cinsiyeti
+Surname
+Gender
+Baba Adı
+Medeni Hali
+Father's Name
+Marital Status
+Anne Adı
+Doğum Tarihi
+Mother's Name
+Date of Birth
+MAVİ KARTLI
+( Blue Card Holder )
+Kimlik No
+Uyruğu
+ID Number
+Nationality
+Adı
+Doğum Yeri
+Name
+Place of Birth
+Soyadı
+Cinsiyeti
+Surname
+Gender
+Baba Adı
+Medeni Hali
+Father's Name
+Marital Status
+Anne Adı
+Doğum Tarihi
+Mother's Name
+Date of Birth
+1. İkamet İzni Başvuru Formu Yabancı ve/veya yasal temsilcisi ya da vekâletnameye haiz avukatı tarafından imzalanmalıdır.
+2. Pasaport veya Pasaport Yerine Geçen Belgenin ve Varsa Vizenin Fotokopisi Kimlik bilgileri ve fotoğrafın bulunduğu sayfa ile varsa vize bilgilerini gösteren sayfaların
+fotokopisi (Belgenin aslı randevu gününde yanınızda bulunmalıdır.)
+3. İki (2) Adet Biyometrik Fotoğraf Son 6 ay içinde çekilmiş, fonu beyaz, biyometrik ve ICAO standartlarına uygun olmalıdır.
+4. İkamet İzni Harcı ve Belge Bedelinin Ödendiğini Gösterir Belgeler/Makbuzlar İkamet izni harcından muaf ülke vatandaşları ikamet izni harcı ödemeyecek olup sadece
+belge bedeli ödeyeceklerdir.
+5. Tek Giriş Vize Harcı Bedelinin Ödendiğini Gösterir Belge/Makbuz* Türkiye’ye vize muafiyeti ile gelerek yasal süresi içerisinde ilk kez ikamet izni başvurusunda
+bulunanlar ile yasal kalış süresini ihlal edenlerin ikamet izni başvurularında tek giriş vize harcı ödemeleri zorunludur. Tek giriş vize harcından muaf ülke grupları ile tek giriş
+vize harcından muaf yabancılar hariçtir.
+6. Geçerli Sağlık Sigortası Sigorta süresi, istenilen ikamet izni süresini kapsamalıdır. Aşağıdakilerden biri yeterli sayılır:
+• İkili sosyal güvenlik sözleşmeleri kapsamında Türkiye’de sağlık hizmetlerinden faydalanıldığına dair il sosyal güvenlik birimlerinden alınan e-imzalı/imzalı ve kaşeli/mühürlü
+İSTENEN BELGELER (ORTAK)
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+3 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:21
+GöçNet Sürüm No :
+2026/5
+
+belge
+• Sosyal Güvenlik Kurumundan alınmış e-imzalı/imzalı ve kaşeli/mühürlü provizyon belgesi
+• Sosyal Güvenlik Kurumuna genel sağlık sigortalısı olmak için yapılan başvuruya dair e-imzalı/ imzalı ve kaşeli/mühürlü belge
+• Özel sağlık sigortası poliçesi
+(Lütfen başvuru sırasında sigorta poliçenizin, poliçe numarasını içerir ilk sayfasını ibraz ediniz.)
+7. Kalınacak Sürede Yeterli ve Düzenli Maddi İmkâna Sahip Olunduğuna Dair Belge/Beyan
+8. Kalınacak Yeri Gösterir Belge Aşağıdakilerden biri yeterli sayılır:
+• Kendi evinizde kalıyorsanız, tapu fotokopisi ile birlikte numarataj belgesi
+• Kira sözleşmesi ile kalıyorsanız, kiraya verenin bilgilerini içerir kira sözleşmenizin noter onaylı örneği;
+• Otel vb. konaklama yerlerinde kalıyorsanız, bu yerlerde kaldığınıza dair belge ve ikamet izni talep süresinde konaklamanın ödendiğine dair makbuz
+• Öğrenci yurtlarında kalıyorsanız, yurtta kaldığınıza dair e-imzalı/imzalı ve mühürlü/kaşeli belge
+• Üçüncü kişinin yanında kalıyorsanız, yanında kalınan kişinin noter onaylı taahhüdü (Taahhüt veren kişinin evli olması halinde ayrıca eşinin de noter onaylı taahhüdü)
+(Üçüncü kişilerin yanında misafir olanlar, kendilerine noter taahhüdünde bulunan kişi adına güncel tarihli elektrik, su, doğalgaz veya sabit telefon faturalarından birini ya da
+yeni aboneler için abonelik sözleşmesini sunmaları gerekmektedir.)
+* Çocuk adına yapılan başvurular için,
+• Pasaport veya pasaport yerine geçen belgeden ya da ulusal kimlik kartlarından anne ve/veya baba tespit edilemiyorsa, çocuğun onaylı doğum belgesi
+• Boşanma halinde çocuğun onaylı velayet belgesi veya velayetin ortak olması ya da diğer ebeveynin görme hakkının olması durumunda diğer ebeveynin vereceği onaylı
+muvafakatname
+• Ebeveynlerden birinin ölümü halinde ebeveynin onaylı ölüm belgesi
+• Ebeveynlerden biri hakkında gaiplik kararı verilmiş ise onaylı gaiplik kararı belgesi
+• Evlilik birliği dışında doğan çocuğun velayetinin diğer ebeveynde olduğunu gösteren tek ebeveyn belgesi
+(Bu belgeler Türk makamlarından alınmışsa e-imzalı/imzalı ve kaşeli/mühürlü olmalı, yurt dışından temin edilmişse Apostille şerhli ve Türkçe tercümesinin noter onaylı olması
+gerekmektedir. Apostille anlaşmasına taraf olmayan ülke vatandaşı olunması veya taraf olunsa dahi belgede Apostille şerhi olmaması halinde söz konusu belgelerin ilgili ülke
+makamları tarafından onaylanması [konsolosluk/elçilik onayı ve Dışişleri Bakanlığı/bu konuda yetkilendirilmiş Türk makamları] ve noter onaylı Türkçe tercümesi istenir.)
+(Varsa, anne ve/veya babanın ikamet izni, çalışma izni veya çalışma izni muafiyeti kartı veya ikamet izni başvuru belgesi fotokopisi istenir.)
+(Şahsın on sekiz yaşından küçük olması durumunda; yurt dışında bulunan annesi/babası veya yasal temsilcisinin vereceği onaylı muvafakatname ile muvafakatnamede
+belirtilmek kaydıyla Türkiye’deki gerçek ya da tüzel kişiler tarafından verilecek noter onaylı taahhütname aranır.)
+KISA DÖNEM İKAMET İZNİ KALIŞ NEDENLERİNE GÖRE BELGELER
+1. Adli makamların kararı
+• Adli makamlardan alınacak şahsın Türkiye'de kalması gerektiğini belirten e- imzalı/imzalı ve mühürlü/kaşeli belge
+(6458 sayılı Kanundaki süreleri aşmayacak şekilde kalınacak süre de belirtilmeli)
+
+2. Adli makamların talebi
+• Adli makamlardan alınacak şahsın Türkiye'de kalması gerektiğini belirten e- imzalı/imzalı ve mühürlü/kaşeli belge
+(6458 sayılı Kanundaki süreleri aşmayacak şekilde kalınacak süre de belirtilmeli)
+
+3. Aile ikamet izninden kısa dönem ikamet iznine geçenler
+• Önceki ikamet izni belgesinin fotokopisi (Belgenin aslı randevu gününde idareye teslim edilir)
+• Boşanmaya ilişkin mahkeme kararı (3 yıl ve üzeri süre sonunda Türk vatandaşından boşanması halinde mahkeme kararı veya 3 yıl evli kalma şartı aranmaksızın aile içi
+şiddet gerekçesiyle mağdur olduğunu ortaya koyan mahkeme kararı)
+• Destekleyicinin ölüm belgesi (Türk makamlarından alınmışsa e-imzalı/imzalı ve mühürlü/kaşeli olmalı, yurt dışından temin edilmesi halinde noter onaylı Türkçe tercümesi ve
+Apostil şerhi olması gerekmektedir. Apostil anlaşmasına taraf olmayan ülke vatandaşı olunması veya taraf olunsa dahi belgede Apostil şerhi olmaması halinde söz konusu
+belgelerin ilgili ülke makamları tarafından onaylanması [konsolosluk/elçilik onayı ve Dışişleri Bakanlığı/bu konuda yetkilendirilmiş Türk Makamları] ve noter onaylı Türkçe
+tercümesi gerekmektedir.)
+
+4. Türkiye Cumhuriyeti’nin taraf olduğu anlaşmalar ya da öğrenci değişim programları çerçevesinde eğitim veya benzeri amaçlarla gelecekler
+• Eğitimin görüleceği kurum veya kuruluşlardan alınacak eğitim belgesi (e-imzalı/imzalı ve mühürlü/kaşeli belge)
+• Erasmus Programı veya diğer uluslararası değişim programları kapsamında (Mevlana vb.) öğrenci olarak gelenler:
+Öğrenim görülecek kurumdan alınacak öğrenim amaçlı "değişim programı" kapsamında olunduğunu gösterir e-imzalı/imzalı ve kaşeli/mühürlü belge
+
+5. Bilimsel araştırma amacıyla gelecekler
+• Türkiye Cumhuriyeti dış temsilciliklerden alınmış amacına uygun vize
+(Arkeolojik kazı çalışması ve yüzey araştırması yapacaklar için)
+• Yapılacak araştırmanın süresini ve yerini gösteren resmi, e-imzalı/imzalı ve mühürlü/kaşeli belge
+
+6. Hizmet içi eğitim programlarına katılacaklar
+• Hizmet içi eğitimin görüleceği kamu kurum veya kuruluşlarından alınacak eğitimin süresini ve yerini gösterir belge e-imzalı/imzalı ve mühürlü/kaşeli belge
+
+7. İdari makamların kararı
+• İdari makamlardan alınacak şahsın Türkiye'de kalması gerektiğini belirten e- imzalı/imzalı ve mühürlü/kaşeli belge
+(6458 sayılı Kanundaki süreleri aşmayacak şekilde kalınacak süre de belirtilmeli)
+
+8. İdari makamların talebi
+• İdari makamlardan alınacak şahsın Türkiye'de kalması gerektiğini belirten e- imzalı/imzalı kaşeli/mühürlü belge
+(6458 sayılı Kanundaki süreleri aşmayacak şekilde kalınacak süre de belirtilmeli)
+
+9. Kamu kurumları aracılığıyla eğitim, araştırma, staj ve kurslara katılacaklar
+• Eğitim, araştırma, staj veya kursun alınacağı kamu kurum veya kuruluşlarından alınacak programın süresini ve yerini gösterir belge (e-imzalı/imzalı ve mühürlü/kaşeli)
+
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+4 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:22
+GöçNet Sürüm No :
+2026/5
+
+- Türkiye’de vize veya vize muafiyetinden daha uzun kalacak veya mevcut ikamet izinlerini uzatacak olanların 6458 Yabancılar ve Uluslararası Koruma Kanunu’nun 30 uncu
+maddesinde belirtilen ikamet izinlerinden birine başvuru yapması gerekmektedir.
+- Türkiye’de çalışacak yabancıların 6735 sayılı Uluslararası İşgücü Kanunu kapsamında çalışma iznine, çalışma muafiyeti sağlanan kişilerin ise anılan Kanunun
+Uygulanmasına İlişkin Yönetmeliğin 48 inci maddesinde belirtilen çalışma izni muafiyetine başvurması gerekmektedir. İkamet izni Türkiye’de çalışma hakkı sağlamaz.
+- İkamet izni randevuları https://e-ikamet.goc.gov.tr/ uzantılı resmi internet adresinden ücretsiz yapılmakta olup ücret talep eden üçüncü kurum veya şahıslara itibar
+edilmemesi gerekmektedir.
+- İkamet izni başvurularında yabancıya ait iletişim bilgilerinin eksiksiz ve doğru olarak bildirilmesi gerekmektedir. İkamet izni başvurularının değerlendirmeye alınabilmesi için
+başvuruya ilişkin belgelerin randevu günü ve saatinde eksiksiz teslim edilmesi gerekmektedir.
+- Yabancılar ve Uluslararası Koruma Kanunu’nun ikinci bölümünde ikamet iznine ilişkin şartlar düzenlenmiş olup başvuru yapmadan önce kalış amacına uygun ikamete
+başvuru yapılması zorunlu olup kalış amacına haklı nedenlere dayandıramayanların ikamet izni başvuruları mevzuat hükümleri gereğince olumsuz değerlendirilecektir.
+- İkamet izni başvuru değerlendirmesinde İl Göç İdaresi Müdürlüklerince ek bilgi veya belge talep edilebilir.
+- Gerçek dışı bilgi veya beyanda bulunanlar hakkında ilgili mevzuat hükümleri kapsamında yaptırımlar uygulanacaktır.
+- Uzatma ve geçiş başvurularında adres bildiriminin tescili zorunlu olup, ilk başvurularda ikamet izninin onaylanmasını takiben 20 iş günü içerisinde adres tescil işlemlerinin
+gerçekleştirilmesi zorunludur.
+BİLGİLENDİRME
+10. Staj amaçlı değişim programları çerçevesinde eğitim görecekler (öğrenim amacı taşımayan programlar)
+Eğitimin/stajın görüleceği kurum veya kuruluşlardan alınacak eğitim/staj belgesi (e-imzalı/imzalı ve mühürlü/kaşeli belge)
+
+11. Tedavi görecekler
+• Tedavi görülecek kamuya bağlı ya da özel hastanelerden alınacak, tedavi göreceğine dair durum bildirir tek hekim raporu (e-rapor sisteminden doğrulabilir) ya da hekim ve
+başhekim/mesul müdür onaylı hastalığı ve tedavi süresini gösteren rapor
+• İkili sosyal güvenlik sözleşmeleri kapsamında tedavi olmak amacıyla ülkemize gelenlerin sözleşme kapsamında olduklarına dair il sosyal güvenlik birimlerince onaylanan
+belge
+
+12. Ticari bağlantı veya iş kuracaklar
+• Türkiye Cumhuriyeti dış temsilciliklerden alınmış amacına uygun vize
+• Temas kurulacak kişi veya şirketlerden alınacak noter onaylı şirket faaliyet belgesi, noter onaylı vergi levhası, noter onaylı ticaret sicil gazetesi, noter onaylı imza sirküleri
+
+13. Turizm amaçlı kalacaklar
+• Seyahat planı ve konaklama yerine ilişkin bilgi veya belge
+• Aile bağı kapsamında başvuru yapılması halinde, Türkiye’de ikamet/çalışma veya çalışma izni muafiyet olan birinci derece yakınlarına (anne, baba, eş veya çocuk) ait yasal
+kalış belgesinin fotokopisi
+• Aile bağı kapsamında başvuru yapılması durumunda; evlilik cüzdanı, Türk vatandaşı ile evlilerde “Vukuatlı Nüfus Kayıt Örneği” veya evli olunduğunu kanıtlayan onaylı
+belgenin (kimlik ve evlilik bilgilerini gösterir sayfalar) fotokopisi, (Belgenin aslı randevu gününde yanınızda bulunmalıdır.)
+(Türk makamlarından (İl/İlçe Nüfus Müdürlüklerinden de alınabilir) alınmışsa e- imzalı/imzalı ve mühürlü/kaşeli olmalı, yurt dışından temin edilmesi halinde noter onaylı
+Türkçe tercümesi ve Apostil şerhi olması gerekmektedir. Apostil anlaşmasına taraf olmayan ülke vatandaşı olunması veya taraf olunsa dahi belgede Apostil şerhi olmaması
+halinde söz konusu belgelerin ilgili ülke makamları tarafından onaylanması (konsolosluk/elçilik onayı ve Dışişleri Bakanlığı/bu konuda yetkilendirilmiş Türk Makamları) ve
+noter onaylı Türkçe tercümesi gerekmektedir.)
+• Yeterli ve düzenli gelirini gösteren belge (Aşağıdaki belgelerden birinin ibraz edilmesi gerekmektedir: Emekli tanıtım kartı ve emekli aylığı tahsis belgesi, son üç aylık hesap
+hareketlerini gösterir banka hesap cüzdanı, kaşeli imzalı şirket yazısı, son üç aylık banka mevduat gelirini gösteren belge, kira geliri söz konusu ise gayrimenkulün tapusu ve
+kira kontratı/sözleşmesi,)
+(Yeterli gelir; yabancının bireysel başvuruda bulunması durumunda başvuru tarihinde geçerli olan net asgari ücretin en az bir buçuk katını, aile bireyleriyle birlikte başvuru
+yapılması durumunda her bir aile üyesi için en az asgari ücret düzeyinde geliri (örneğin; başvuru yapanla birlikte 4 kişilik aile için 4 asgari ücret miktarında gelir), düzenli gelir;
+en az son üç ay içinde yeterli gelir tutarının elde edildiğinin tespite esas belgelerle ispat edilmesini ifade eder.)
+
+14. Türkçe öğrenme kurslarına katılacaklar
+• Türkiye Cumhuriyeti dış temsilciliklerden alınmış amacına uygun vize (Türkçe dil kursu)
+• Türkçe dil kursu vermeye yetkili kurum veya kuruluştan alınacak eğitim süresini de gösteren belge (e- imzalı/imzalı ve mühürlü/kaşeli belge)
+
+15. Türkiye’de taşınmaz malı bulunanlar
+• Konutun başvuru yapan yabancıya ait olduğunu, gösterir resmi, e-imzalı/imzalı ve mühürlü/kaşeli belge (Tapu senedi fotokopisi) (Konutun edinim tarihi itibariyle değerinin en
+az 200 bin ABD Doları karşılığı Türk Lirası olması gerekmektedir.)
+(Taşınmazın konut olması ve yabancı tarafından bu amaçla kullanılması gerekmektedir. Konut, kira ve benzeri gelir getirici amaçlarla kullanılamaz.)
+• Aile üyelerinin paylı veya elbirliği ile mülkiyet hakkına sahip olunması halinde tapu belgesinde bilgileri bulunan kişiler ile aile bağlarını gösterir belge
+• Miras ve bağış yoluyla edinilen konut için güncel taşınmaz değerleme raporu
+• İlk başvurularda taşınmazın bulunduğu belediyeden alınacak adres bilgilerini gösterir imzalı/e-imzalı ve mühürlü/kaşeli numarataj belgesi
+
+16. Yükseköğrenimini tamamlayıp 6 ay içinde müracaat edenler
+• Diploma veya geçici mezuniyet belgesinin fotokopisi ya da e-Devlet üzerinden alınmış belge (Belgenin aslı randevu gününde yanınızda bulunmalıdır.)
+
+17. Kuzey Kıbrıs Türk Cumhuriyeti Vatandaşları
+• K.K.T.C. Kimlik Belgesi Fotokopisi
+(Belgenin aslı randevu gününde yanınızda bulunmalıdır.)
+
+REQUESTED DOCUMENTS (COMMON)
+1. Residence Permit Application Form
+Must be signed by foreigner and/or his/her legal representative or his/her lawyer with power of attorney.
+2. Photocopy of Passport or Passport Substitute Document and Visa, if any
+Photocopy of the pages containing identity information and photo, and photocopy of the pages showing visa information, if any
+(The original document must be with you on the appointment day.)
+3. Two (2) Pcs Biometric Photos
+Must have been taken within the last 6 months, against a white background, biometric and comply with ICAO standards.
+4. Documents/Receipts showing that the Residence Permit Fee and Document Fee have been paid
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+5 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:24
+GöçNet Sürüm No :
+2026/5
+
+Citizens of countries who are exempt from residence permit fee does not have to pay the residence permit fee but they have to pay the document fee.
+5. Document/Receipt showing that the Single Entry Visa Fee has been paid*
+Those who come to Türkiye with visa exemption, and apply for a residence permit for the first time within the legal period and those who violate the legal period of stay are
+required to pay single entry visa fee for their residence permit applications. Single entry visa fee exempt country groups and foreigners exempt from single entry visa fee are
+excluded.
+6. Valid Health Insurance
+Insurance period must cover the duration of the intended residence permit. One of the following document is considered sufficient:
+• E-signed/signed and stamped/sealed document to be obtained from provincial social security units which states that the foreigner is benefiting from the health services in
+Türkiye within the scope of bilateral social security agreements
+• E-signed/signed and stamped/sealed provision document to be obtained from the Social Security Institution-SGK
+• E-signed/signed and stamped/sealed document regarding the application made to the Social Security Institution to become a general health insurance holder
+• Private health insurance policy
+(Please submit the first page of your insurance policy which includes the policy number during application.)
+7. Document/Statement on Having Sufficient and Regular Financial Means Throughout the Stay
+8. Document Showing The Place of Residence
+One of the following document is considered sufficient:
+• If you are staying in your own home, a photocopy of the title deed and house numbering document;
+• If you are staying in a rental house on a rental agreement, a notarized copy of your rental agreement containing the information of the lessor;
+• If you are staying in accommodation places such as hotels proof that you will be staying in these places and a receipt for the payment of the accommodation during the
+period of the residence permit request;
+• If you are staying in a student dormitory, e-signed/signed and sealed/stamped document showing that you are staying in the dormitory;
+• If you are staying in a third person’s residence, the notarized undertaking of the host. If the host is married, also the notarized undertaking of the spouse.
+(For those who are staying with third persons, one of the current dated electricity, water, gas or landline telephone bills or a subscription agreement for new subscribers must
+be submitted in the name of the person who gives a notarized undertaking to them).
+
+* For application made on behalf of the child,
+• If the mother and/or father could not be determined from passport or passport substitute document or national identity card, a certified birth certificate of the child
+• In case of divorce, a certified custody document of the child, or in case of a joint child custody or if the other parent has the right to see the child, a certified deed of consent
+by the other parent
+• In case of death of one of the parents, a certified death certificate
+• If one of the parents has been declared absent, a certified certificate of absence
+• Single parent certificate showing that the other parent has custody of the child born outside the union of marriage
+(These documents must be e-signed/signed and sealed/stamped if obtained from Turkish authorities; they must have a notarized Turkish translation and an Apostille if
+obtained from abroad. If the applicant is a citizen of a country that is not a party to the Apostille Convention or if the document does not have an Apostille, even if the applicant
+is a citizen of a country that is a party to the Apostille Convention; the documents in question are required to be approved by the relevant country authorities [approval by the
+consulate/embassy and Ministry of Foreign Affairs/ Turkish Authorities authorized on this issue] and notarized Turkish translation of these documents is required.)
+(If available, a photocopy of the mother and/or father's residence permit, work permit or work permit exemption card or residence permit application document is requested.)
+(If the person is under the age of eighteen, a certified deed of consent to be given by his/her mother/father or legal representative abroad and a notarized undertaking to be
+given by real or legal persons in Türkiye, with the condition to be specified in the deed of consent, are required).
+SHORT TERM RESIDENCE PERMIT REASON OF STAY
+1. Decisions of judicial authorities
+E-signed/stamped signed/sealed document to be obtained from the judicial authorities stating that the foreigner in question must remain in T rkiye
+(stay must be specified in a way not to exceed the time period in the Law No. 6458)
+
+2. Request of judicial authorities
+E-signed/stamped signed/sealed document to be obtained from the judicial authorities stating that the foreigner in qestion must remain in T rkiye
+(stay must be specified in a way not to exceed the time period in the Law No. 6458)
+
+3. Those transfering from family residence permit to short term residence permit
+Photocopy of the previous residence permit document (The original document shall be submitted to the administration on the appointment day).
+Court decision regarding divorce (court decision in case of divorce from a Turkish citizen at the end of 3 years or more, or court decision proving that he/she is a victim of
+domestic violence without the requirement of being married for 3 years)
+Death certificate of the sponsor (It must be e-signed/signed and sealed/stamped if obtained from Turkish authorities; it must have a notarized Turkish translation and an
+apostille if obtained from abroad. If the applicant is a citizen of a country that is not a party to the Apostille Convention or if the document does not have an Apostille, even if
+the applicant is a citizen of a country that is a party to the Apostille Convention; the documents in question are required to be approved by the relevant country authorities and
+notarized translation of these documents must be made [approval by the consulate/embassy and Ministry of Foreign Affairs/Turkish Authorities authorized on this issue].)
+
+4. Those arriving to attend educational or similar programmes as part of student exchange programmes or agreements to which the Republic of T rkiye is a part
+Education document to be obtained from the institutions or organizations where the training will be held (e-signed/signed and sealed/stamped document)
+Students who come as a student within the scope of Erasmus Programme or other international exchange programmes (Mevlana etc.):
+e-signed/signed and stamped/sealed document from the institution where the student will study, indicating that it is within the scope of the  exchange programme  for
+educational purposes
+
+5. Those arriving to conduct scientific research
+Visa conforming to the reason of stay and obtained from the foreign representations of the Republic of T rkiye
+(for those who will carry out archaeological excavations and surface research)
+Official, e-signed/signed and sealed/stamped document showing the duration and place of the research to be conducted.
+
+6. Those participating in on-the-job training programmes
+Document showing the duration and place of the training to be received from public institutions or organizations where on-the-job training will be held (e-signed/signed and
+sealed/stamped document)
+
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+6 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:27
+GöçNet Sürüm No :
+2026/5
+
+7. Decisions of administrative authorities
+E-signed/stamped signed/sealed document to be obtained from the administrative authorities stating that the foreigner in question must remain in T rkiye
+(stay must be specified in a way not to exceed the time period in the Law No. 6458)
+
+8. Request of administrative authorities
+E-signed/stamped and signed/sealed document to be obtained from the administrative authorities stating that the foreigner in question must remain in T rkiye
+(stay must be specified in a way not to exceed the time period in the Law No. 6458)
+
+9. Those attending an education programme, research, internship or, a course by way of public institutions
+Document showing the duration and place of the program to be obtained from the public institutions or organizations where the training, research, internship or course will be
+held (e-signed/signed and sealed/stamped) or temporary graduation certificate obtained from egovernment
+
+10. Foreigners who will receive training within the frame of internship purposed exchange programs (Non-education programs)
+Education/internship document to be obtained from institutions or organizations where education/internship will be received(e-signed/signed and stamped/sealed document)
+
+11. Those receiving medical treatment
+A single physician's report stating that the person will receive treatment (can be verified from the e-report system) or a report showing the disease and duration of treatment
+approved by the physician and the chief physician/ responsible manager, to be obtained from public or private hospitals where treatment will be received
+A document approved by the provincial social security units stating that those who come to our country for treatment within the scope of bilateral social security agreements
+are covered by the agreement.
+
+12. Those establishing business or commercial connections
+Visa conforming to the reason of stay and obtained from the foreign representations of the Republic of T rkiye
+Notarized company activity certificate, notarized tax registration certificate, notarized trade registry gazette, notarized list of authorized signatures to be obtained from the
+persons or companies to be contacted.
+
+13. Those wishing to stay for tourism purposes
+Information or document regarding the travel plan and accommodation place
+In case of application within the scope of family ties; a photocopy of the legal stay document of the first-degree relatives (mother, father, spouse or child) who have
+residence/work permit or work permit exemption in T rkiye
+In case of application within the scope of family ties; a photocopy of the marriage certificate,  Certificate of Identity Register Copy  for those married to a Turkish citizen or a
+photocopy of the approved document proving marriage (the pages showing identity and marriage information), (The original document must be with you on the appointment
+day).
+(It must be e-signed/signed and sealed/stamped if obtained from Turkish authorities [could be obtained from Provincial/District Directorates of Registry]; it must have a
+notarized Turkish translation and an apostille if obtained from abroad. If the applicant is a citizen of a country that is not a party to the Apostille Convention or if the document
+does not have an Apostille, even if the applicant is a citizen of a country that is a party to the Apostille Convention; the documents in question are required to be approved by
+the relevant country authorities and notarized translation of these documents must be made [approval by the consulate/embassy and Ministry of Foreign Affairs/Turkish
+Authorities authorized on this issue].)
+Document showing sufficient and regular income (One of the following documents must be submitted: Pensioner identification card and pension allocation certificate, bank
+passbook showing the last three months of account movements, stamped and signed company letter, document showing the last three months of bank deposit income, if
+rental income is in question, title deed of the real estate and rental contract / agreement,)
+(Sufficient income means at least one and a half times of the net minimum wage valid on the date of application in case the foreigner applies individually, at least minimum
+wage level income for each family member in case of application together with family members (for example; income of 4 minimum wages for a family of 4 persons including
+the applicant), regular income means proving that sufficient income amount has been obtained at least in the last three months with the documents that are essential for the
+determination).
+
+14. Those attending a Turkish language course
+Visa conforming to the reason of stay to be obtained from the foreign representations of the Republic of T rkiye (Turkish language course)
+Document of education to be obtained from the institution or organization authorized to provide Turkish language course, including the duration of the education (e-
+signed/signed and sealed/stamped document)
+
+15. Those owning immovable property in Turkey
+Official, e-signed/signed and sealed/stamped document showing that the residence belongs to the applicant foreigner (Photocopy of the title deed) (The value of the house
+must be at least 200 thousand US Dollars equivalent to Turkish Lira as of the date of acquisition).
+(The immovable property must be a residence and must be used by the foreigner for this purpose. The residence cannot be used for rent and similar income generating
+purposes.)
+In case family members have a shared or joint ownership right, a document showing the family ties with the persons whose information is included in the title deed document
+Current valuation report of immovable property for the residence acquired by inheritance and donation
+In the first applications, a signed/e-signed and stamped/sealed numbering document showing the address information to be obtained from the municipality where the
+immovable property is located.
+
+16. Those applying within six months upon graduation from a higher education programme
+Photocopy of diploma or temporary graduation certificate, or document obtained from e-government
+(The original document must be with you on the appointment day.)
+
+17. Citizens of Turkish Republic of Northern Cyprus
+Photocopy of Turkish.Republic of Nothern Cyprus Identity Document
+(The original document must be with you on the appointment day.)
+
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+7 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:29
+GöçNet Sürüm No :
+2026/5
+
+INFORMATION
+- Foreigners who will stay in Türkiye longer than visa or visa exemption or who will extend their existing residence permits must apply for one of the residence permits
+specified in Article 30 of the Law No. 6458 on Foreigners and International Protection.
+- Foreigners who will work in Türkiye must apply for a work permit within the scope of the International Labour Force Law No. 6735, and those who are granted work
+exemption must apply for the work permit exemption specified in Article 48 of the Regulation on the Implementation of the aforementioned Law. Residence permit does not
+provide the right to work in Türkiye.
+- Residence permit appointments are made free of charge through the official website at https://e-ikamet.goc.gov.tr/ and third institutions or parties who demand a fee should
+not be trusted.
+- In residence permit applications, the contact information of the foreigner must be submitted completely and accurately. In order for the residence permit applications to be
+evaluated, the documents related to the application must be submitted completely on the appointment day and time.
+- In the second part of the Law on Foreigners and International Protection, the conditions regarding the residence permit are regulated and it is mandatory to apply for a
+residence permit suitable for the purpose of stay, and the residence permit applications of those who cannot justify the purpose of stay will be evaluated negatively in
+accordance with the provisions of the legislation.
+- Additional information or documents may be requested by Provincial Directorates of Migration Management in the evaluation of residence permit applications.
+- Sanctions will be imposed on those who provide false information or statements within the scope of the relevant legislation provisions.
+- Address registration is mandatory in extension and transfer applications, and address registration transactions must be carried out within 20 working days following the
+approval of the residence permit in the first applications.
+İKAMET İZNİ KISA DÖNEM KAYIT FORMU
+Declaration for Short Term Residence Permit Registration Form
+İŞBU BELGE PASAPORT YA DA PASAPORT YERİNE GEÇEN SEYAHAT BELGESİ OLMAKSIZIN TEK BAŞINA KULLANILAMAZ
+THIS DOCUMENT CANNOT BE USED ALONE WITHOUT A PASSPORT OR A TRAVEL DOCUMENT THAT IS A PASSPORT SUBSTITUTE
+8 / 8
+Bu belgenin doğruluğu https://www.turkiye.gov.tr/belge-dogrulama adresinden Barkod: GCGM03-91000000000000,
+Referans No: 9000000000000 ile
+ve ya
+Mobil cihazınıza yükleyebileceğiniz e-Devlet Kapısı'na ait Barkodlu Belge Doğrulama
+uygulaması vasıtası ile yandaki karekod okutularak kontrol edilebilir.
+19.11.2026 13:49:31
+GöçNet Sürüm No :
+2026/5

@@ -39,7 +39,9 @@ def respond(state):
     if state.get("validation_errors"):
         lines = [status] + [f"[{e.code}] {e.message}" for e in state["validation_errors"]]
     elif state.get("event") and state["event"].kind in {"analyze_document", "confirm_information", "resolve_conflict", "record_progress", "reevaluate", "delete_document", "replace_document", "cancel_document", "reprocess_document", "remove_correction"}:
-        lines = [status, "Review document information, then select Generate / Update Plan when ready."]
+        message = ("Review the outstanding document information." if status == "INFORMATION_NEEDS_CONFIRMATION"
+                   else "Your saved information has been checked.")
+        lines = [status, message]
     else:
         lines = [status, state.get("plan_summary") or "Proposed next actions (no official action executed):"]
         lines += [f"{i}. {step.action}" for i,step in enumerate(state.get("candidate_plan") or [], 1)]

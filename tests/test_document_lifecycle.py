@@ -182,6 +182,37 @@ def test_manual_reclassification_uses_same_grounded_pipeline(tmp_path):
     assert state["documents"][0].doc_type=="card_fee_receipt" and state["residence_permit_context"].fee_receipt_present is True
 
 
+def test_reprocess_retains_same_type_confirmations_across_failure_and_new_observation(tmp_path):
+    from src.evaluation.scenarios import extract_synthetic
+
+    graph = build_graph()
+    config = {"configurable": {"thread_id": "entry-reprocess"}}
+    path = tmp_path / "stamp.txt"
+    path.write_text(SAMPLES["turkiye_entry_stamp"], encoding="utf-8")
+    original = extract_synthetic("turkiye_entry_stamp")
+    with patch("src.workers.document_analyzer.process_document", return_value=original):
+        state = run(graph, config, "analyze_document", file_path=str(path))
+    doc_id = state["documents"][0].doc_id
+    state = run(graph, config, "confirm_information", document_id=doc_id,
+                confirmed_fields={"latest_entry_date": "2026-09-16", "entry_stamp_present": True})
+    entry = state["verification_records"][doc_id]["latest_entry_date"]
+
+    with patch("src.workers.document_analyzer.process_document", side_effect=RuntimeError("Synthetic read failure")):
+        failed = run(graph, config, "reprocess_document", document_id=doc_id, document_type_hint="turkiye_entry_stamp")
+    assert failed["documents"][0].status == "rejected"
+    assert failed["verification_records"][doc_id]["latest_entry_date"] == entry
+    assert failed["residence_permit_context"].latest_entry_date is None
+    assert failed["residence_permit_context"].entry_stamp_present is None
+
+    reread = extract_synthetic("turkiye_entry_stamp", text="TURKIYE ENTRY STAMP\nEntry date: 2026-09-18")
+    with patch("src.workers.document_analyzer.process_document", return_value=reread):
+        recovered = run(graph, config, "reprocess_document", document_id=doc_id, document_type_hint="turkiye_entry_stamp")
+    assert recovered["documents"][0].status == "analyzed"
+    assert recovered["documents"][0].info.latest_entry_date == date(2026, 9, 18)
+    assert recovered["verification_records"][doc_id]["latest_entry_date"] == entry
+    assert recovered["residence_permit_context"].latest_entry_date == date(2026, 9, 16)
+
+
 def test_reset_deletes_only_current_thread_checkpoints(tmp_path):
     db=tmp_path/"reset.db"
     with sqlite_checkpointer(db) as saver:

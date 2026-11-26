@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from src.document_processing.schemas import (
     DocumentInfo, ExtractedDocument, StudentCertificate, HealthInsurance,
     IkametApplicationForm, UnknownDocument, PassportIdentity, EntryStamp, DeclarationControl, CardFeeReceipt, UtilityBill, AddressForm,
+    TaxIDCertificate,
 )
 
 
@@ -43,12 +44,16 @@ class Document(BaseModel):
     doc_type: Literal["declaration_control_document", "address_proof", "passport_copy",
                       "biometric_photo", "student_certificate", "signed_online_application_form",
                       "card_fee_receipt", "fingerprint_gi_evidence", "health_insurance",
-                      "ikamet_application_form", "turkiye_entry_stamp", "utility_bill", "address_form", "unknown"] | None = None
+                      "ikamet_application_form", "turkiye_entry_stamp", "utility_bill", "address_form",
+                      "dorm_certificate", "rental_agreement", "notarized_commitment", "host_support",
+                      "utility_subscription", "tax_id_certificate", "unknown"] | None = None
     issue_date: date | None = None
     expiry_date: date | None = None
     info: ExtractedDocument | None = None
     processing_error: str | None = None
     original_filename: str | None = None
+    analysis_diagnostics: dict[str, Any] = Field(default_factory=dict)
+    prior_observations: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("doc_type", mode="before")
     @classmethod
@@ -72,6 +77,7 @@ class VerifiedInput(BaseModel):
     source_page: int | None = None
     source_snippet: str | None = None
     confirmed_by: str | None = None
+    identifier_role: Literal["passport_number", "foreigner_id", "untyped"] | None = None
     trace_id: str
     derived_from: list[str] = Field(default_factory=list)
     derivation_policy: str | None = None
@@ -193,6 +199,7 @@ class ResidencePermitContext(BaseModel):
     insurance_insurer: str | None = None
     insurance_policy_number: str | None = None
     passport_or_foreign_id: str | None = None
+    foreigner_id: str | None = None
     application_number: str | None = None
     exchange_student: bool | None = None
     is_in_turkiye: bool | None = None
@@ -408,7 +415,7 @@ class ProcedureState(BaseModel):
 # Pydantic classes stored by the in-memory and SQLite checkpointers.
 CHECKPOINT_TYPES = [(cls.__module__, cls.__name__) for cls in
                     (UserEvent, Document, VerifiedInput, DocumentInfo, StudentCertificate, HealthInsurance,
-                     IkametApplicationForm, UnknownDocument, PassportIdentity, EntryStamp, DeclarationControl, CardFeeReceipt, UtilityBill, AddressForm, Requirement, PlanStep,
+                     IkametApplicationForm, UnknownDocument, PassportIdentity, EntryStamp, DeclarationControl, CardFeeReceipt, UtilityBill, AddressForm, TaxIDCertificate, Requirement, PlanStep,
                      ActionPlan, ValidationIssue, ResidencePermitContext, StageHistoryEntry, ProcedureState, EIkametFieldState, EIkametPreparationState, ProcedureEntryIntent)]
 
 

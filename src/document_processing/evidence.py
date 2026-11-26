@@ -507,6 +507,198 @@ def administrative_candidates(chunks):
 
 
 
+# A tax-office payment receipt needs its own purpose signal. A taxpayer ID is
+# an account identifier and never a payment reference or a fee code.
+_TAX_OFFICE_RECEIPT = re.compile(
+    r"(?:t\.c\.\s*)?(?:vergi dairesi (?:e[- ]?)?alindi(?:si)?|(?:vergi )?tahsilat alindisi|tax office (?:payment )?receipt)"
+)
+_CARD_FEE_PURPOSE = re.compile(
+    r"\b(?:ikametgah\s+tezkeresi\s+defter\s+satis\s+bedeli|ikamet(?:\s+izin)?\s+(?:kart|belge)\s+bedeli"
+    r"|ikametg?\.?\s*tezk\.?\s*(?:defter|dft)\.?\s*(?:satis|sat\.?)?\s*bed(?:eli|\.)?"
+    r"|residence (?:permit )?(?:card|document) fee)\b"
+)
+_TAX_ASSIGNMENT = re.compile(
+    r"(?:turkish |potential )?tax (?:id|identification number) (?:assignment(?: certificate)?|certificate)"
+    r"|(?:potansiyel |yabancilar icin )?vergi kimlik numarasi (?:tahsis(?:i| belgesi)?|belgesi)"
+    r"|(?:potansiyel|yabancilar icin) vergi kimlik numarasi"
+)
+_FEE_CODE_LABEL = r"vergi (?:kodu|turu|cinsi)|(?:odeme|tahsilat|gelir) kodu|payment code"
+_LABELED_FEE_CODE = re.compile(rf"^(?:{_FEE_CODE_LABEL})\s*[:：]?\s*9207(?=$|[\s\-–—:])")
+_FEE_CODE_ROW = re.compile(r"^9207(?:\s*[-–—:]\s*|\s+)(?=[a-z])")
+_PASSPORT_LABEL = r"(?:passport|pasaport)(?:\s+(?:number|numarasi|no\.?|nr\.?))?"
+_TAXPAYER_LABEL = r"(?:vergi (?:kimlik )?(?:numarasi|no\.?)|vkn|tax (?:id|identification number)|taxpayer id)"
+_RECEIPT_FIELDS = {
+    "payment_date": r"(?:odeme|tahsilat|tahsil) tarihi|payment date|collection date",
+    "reference_number": r"(?:alindi|makbuz|dekont|tahsilat|islem) (?:no\.?|numarasi)|seri\s*(?:/|ve)?\s*sira no\.?|receipt (?:no\.?|number)|reference (?:no\.?|number)",
+    "amount": r"toplam(?: tutar[i]?)?|(?:odenen|tahsil edilen) tutar[i]?|tutar[i]?|(?:paid )?amount|total(?: paid)?",
+    "taxpayer_id": rf"(?:tckn\s*/\s*)?{_TAXPAYER_LABEL}",
+    "holder_name": r"(?:mukellef(?:in)? )?ad[i]?\s*(?:/|ve)?\s*soyad[i]?(?:\s*/\s*unvan[i]?)?|taxpayer name|payer name",
+}
+_ASSIGNMENT_FIELDS = {
+    "tax_identification_number": _TAXPAYER_LABEL,
+    "holder_name": _RECEIPT_FIELDS["holder_name"] + r"|holder name|full name",
+    "passport_number": _PASSPORT_LABEL,
+    "issuing_authority": r"verg[iı] dairesi(?: adi)?|issuing authority|tax office|duzenleyen kurum",
+    "issue_date": r"(?:tahsis|duzenleme|kayit) tarihi|issue date|(?:registration|assignment) date",
+    "document_reference": r"belge (?:no\.?|numarasi)|basvuru (?:no\.?|numarasi)|document (?:reference|no\.?|number)|reference (?:no\.?|number)",
+}
+
+
+def _passport_token(text):
+    return bool(re.fullmatch(r"[A-Za-z0-9]{5,20}", text) and any(char.isdigit() for char in text))
+
+
+def _fee_code_line(lines, index):
+    line = label_text(lines[index])
+    if _LABELED_FEE_CODE.match(line) or _FEE_CODE_ROW.match(line):
+        return True
+    return index > 0 and line == "9207" and bool(
+        re.fullmatch(rf"(?:{_FEE_CODE_LABEL})\s*[:：]?", label_text(lines[index - 1]))
+    )
+
+
+def tax_document_type(pages):
+    """Return a supported tax profile, or an unsupported purpose for a tax-office receipt."""
+    lines = [line for page in pages for line in page.text.splitlines()]
+    if any(_TAX_OFFICE_RECEIPT.fullmatch(label_text(line).strip(" :-–")) for line in lines):
+        return "card_fee_receipt" if (_CARD_FEE_PURPOSE.search(label_text(" ".join(lines)))
+                                      or any(_fee_code_line(lines, i) for i in range(len(lines)))) else "unknown"
+    if any(_TAX_ASSIGNMENT.fullmatch(label_text(line).strip(" :-–")) for line in lines):
+        return "tax_id_certificate"
+    return None
+
+
+def _same_ocr_row(first, second):
+    top, bottom = max(first[1], second[1]), min(first[3], second[3])
+    return bottom - top >= min(first[3] - first[1], second[3] - second[1]) * 0.35
+
+
+def _receipt_cell(page, lines, index, field, label):
+    bounds = page.ocr_bounds
+    if page.extraction_method != "rapidocr" or not bounds or len(bounds) != len(lines):
+        return None
+    anchor = bounds[index]
+    right = [i for i, box in enumerate(bounds) if box[0] >= anchor[2] and _same_ocr_row(anchor, box)]
+    if field == "amount" and label in {"tutar", "tutari"}:
+        # The table column contains several charges. Keep the cell on the 9207
+        # row below this heading and before the next column heading.
+        edge = min((bounds[i][0] for i in right), default=anchor[0] + 4 * (anchor[2] - anchor[0]))
+        by_code = [
+            (i, j) for i, code in enumerate(bounds)
+            if code[1] > anchor[1] and not _same_ocr_row(anchor, code) and _fee_code_line(lines, i)
+            for j, value in enumerate(bounds) if anchor[0] <= value[0] < edge and _same_ocr_row(code, value)
+            and _tax_value("amount", lines[j].strip()) is not None
+        ]
+        if len(by_code) == 1:
+            code, cell = by_code[0]
+            return lines[cell].strip(), "\n".join((lines[index], lines[code], lines[cell]))
+    elif right:
+        cell = min(right, key=lambda i: bounds[i][0])
+        return lines[cell].strip(), lines[index] + "\n" + lines[cell]
+    return None
+
+
+def _tax_labeled_values(page, lines, labels, *, receipt):
+    for index, line in enumerate(lines):
+        parts = re.split(r"[:：]", line, maxsplit=1)
+        label = label_text(parts[0])
+        for field, pattern in labels.items():
+            if not re.fullmatch(pattern, label):
+                continue
+            raw = parts[1].strip() if len(parts) == 2 else ""
+            quote = line
+            if not raw:
+                cell = _receipt_cell(page, lines, index, field, label) if receipt else None
+                if cell:
+                    raw, quote = cell
+                elif index + 1 < len(lines) and not re.search(r"[:：]", lines[index + 1]):
+                    raw = lines[index + 1].strip()
+                    quote += "\n" + lines[index + 1]
+            if raw:
+                yield field, raw, quote, index + 1
+
+
+def _tax_value(field, raw):
+    if field.endswith("_date"):
+        text = re.sub(r"\s*[/.-]\s*", "/", raw)
+        if re.fullmatch(r"\d{4}/\d{2}/\d{2}", text):
+            return normalized_date(text.replace("/", "-"))
+        return source_date(raw, "dmy")
+    if field in {"reference_number", "document_reference"}:
+        number = re.sub(r"\s*([./-])\s*", r"\1", raw)
+        return raw if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9./-]{2,39}", number) and any(c.isdigit() for c in number) else None
+    if field in {"taxpayer_id", "tax_identification_number"}:
+        digits = "".join(raw.split())
+        return digits if re.fullmatch(r"[0-9]{10,11}" if field == "taxpayer_id" else r"[0-9]{10}", digits) else None
+    if field == "passport_number":
+        return raw if _passport_token(raw) else None
+    if field == "amount":
+        amount = raw[1:-1].strip() if raw.startswith("#") and raw.endswith("#") else raw
+        number = r"(?:\d{1,3}(?:[. ]\d{3})+(?:,\d{2})?|\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+(?:[.,]\d{2})?)"
+        return amount if re.fullmatch(rf"₺?\s*{number}(?:\s*(?:TL|TRY|₺|EUR|USD))?", amount, re.I) else None
+    if field == "holder_name":
+        return raw if _person_row(raw) else None
+    return raw if any(char.isalpha() for char in raw) and not re.search(r"\[(?:unreadable|illegible|unclear)\]", raw, re.I) else None
+
+
+def read_tax_document(pages, kind):
+    from src.document_processing.schemas import DOCUMENT_SCHEMAS
+
+    receipt = kind == "card_fee_receipt"
+    schema = DOCUMENT_SCHEMAS[kind]
+    candidates, receipt_headings = [], []
+    for page in pages:
+        lines = page.text.splitlines()
+        method = {"multimodal_fallback": "openai_vision"}.get(page.extraction_method, page.extraction_method)
+
+        def add(field, raw, normalized_value, quote, index):
+            record = _record("name" if field == "holder_name" else field, field, raw, normalized_value,
+                             quote, page.number, index)
+            candidates.append({**record, "profile": schema.__name__, "method": method})
+
+        labels = _RECEIPT_FIELDS if receipt else _ASSIGNMENT_FIELDS
+        for field, raw, quote, index in _tax_labeled_values(page, lines, labels, receipt=receipt):
+            add(field, raw, _tax_value(field, raw), quote, index)
+        for index, line in enumerate(lines):
+            folded = label_text(line)
+            if receipt and _TAX_OFFICE_RECEIPT.fullmatch(folded.strip(" :-–")):
+                receipt_headings.append((page.number, index + 1, line, method))
+            if receipt and _fee_code_line(lines, index):
+                quote = ("\n".join(lines[index - 1:index + 1])
+                         if index and folded == "9207" else line)
+                add("payment_code", "9207", "9207", quote, index + 1)
+            if not receipt and folded.strip(" :-–") in {"gelir idaresi baskanligi", "revenue administration"}:
+                add("issuing_authority", line.strip(), line.strip(), line, index + 1)
+    # The amount on the 9207 line represents the fee even if the receipt
+    # includes other charges or an unreadable printed total elsewhere.
+    fee_amounts = [candidate for candidate in candidates if candidate["field"] == "amount"
+                   and len(lines := candidate["snippet"].splitlines()) == 3 and _fee_code_line(lines, 1)]
+    if fee_amounts:
+        candidates = [candidate for candidate in candidates if candidate["field"] != "amount"] + fee_amounts
+    # A fee category and a payer ID on their own do not show a transaction.
+    low_confidence = {page.number: page.low_confidence_lines or () for page in pages if page.extraction_method == "rapidocr"}
+    transaction = False
+    for field in ("payment_date", "reference_number", "amount"):
+        readings = [candidate for candidate in candidates if candidate["field"] == field]
+        values = {candidate["normalized_value"] for candidate in readings}
+        if len(values) == 1 and None not in values and any(
+            not any(line in candidate["snippet"] for line in low_confidence.get(candidate["page"], ()))
+            for candidate in readings
+        ):
+            transaction = True
+            break
+    if receipt and transaction:
+        candidates.extend(
+            {**_record("receipt_present", "receipt_present", quote, "true", quote, number, index),
+             "profile": schema.__name__, "method": method}
+            for number, index, quote, method in receipt_headings
+        )
+    return _labelled_document(schema, pages, candidates)
+
+
+LATEST_ENTRY_LABEL = r"latest (?:(?:turkiye|turkey) )?entry date|son giris tarihi"
+
+
 def preparation_candidates(chunks):
     """Conservative profiles: printed labels/headings, never visual signature inference."""
     output=[]
@@ -531,7 +723,7 @@ def preparation_candidates(chunks):
                     labels={'passport_number':r'(?:passport (?:number|no)|pasaport no)', 'nationality':r'(?:nationality|uyrugu|uyruk)'}
                 elif profile=='EntryStamp':
                     if any(title in folded for title in ('turkiye entry stamp','turkey entry stamp','turkiye giris')) or folded in {'entry','entry stamp','giris'}: add('entry_stamp_present',line,'true')
-                    labels={'latest_entry_date':r'(?:latest (?:turkey|turkiye) entry date|(?:turkey |turkiye )?entry date|giris tarihi)'}
+                    labels={'latest_entry_date':rf'(?:{LATEST_ENTRY_LABEL}|(?:turkey |turkiye )?entry date|giris tarihi)'}
                 elif profile=='DeclarationControl':
                     if 'declaration control' in folded or 'beyan kontrol' in folded or 'beyan/kontrol' in folded: add('document_present',line,'true')
                     labels={'signed':r'(?:signed|signature status|signed status|imzali)','passport_number':r'(?:passport number|pasaport no)','foreigner_id':r'(?:foreigner id|foreign id|yabanci kimlik no)','nationality':r'(?:nationality|uyrugu)','application_number':r'(?:application number|basvuru no)'}
@@ -616,6 +808,71 @@ def mrz_candidates(chunks):
     return evidence
 
 
+_ADDRESS_HEADINGS = {
+    "dorm_certificate": r"(?:dorm(?:itory)? (?:residence )?certificate|(?:ogrenci )?yurt (?:ikamet |barinma )?belgesi|yurtta kaldigina dair belge)",
+    "rental_agreement": r"(?:(?:notarized )?rental (?:agreement|contract)|(?:noter onayli )?kira (?:sozlesmesi|kontrati))",
+    "notarized_commitment": r"(?:(?:notarized )?(?:(?:host )?undertaking|letter of commitment)|(?:noter onayli )?taahhutname)",
+    "host_support": r"(?:host supporting (?:documents|evidence)|ev sahibi destekleyici belgeleri)",
+    "utility_subscription": r"(?:(?:new )?utility subscription (?:agreement|contract)|(?:elektrik |su |dogalgaz |sabit telefon )?abonelik sozlesmesi)",
+}
+_ADDRESS_LABELS = {
+    "declared_address": r"(?:(?:residence|rental|dormitory|property|host|supporting) address|address|adres(?:i)?|ikamet adresi|kiralananin adresi|yurt adresi)",
+    "service_address": r"(?:service address|subscription address|address|adres(?:i)?|abonelik adresi)",
+    "host_name": r"(?:host(?: name)?|guarantor(?: name)?|taahhut eden(?:in adi soyadi)?|ev sahibi adi soyadi)",
+    "landlord_name": r"(?:landlord(?: name)?|lessor(?: name)?|kiraya veren(?:in adi soyadi)?)",
+    "provider": r"(?:utility provider|provider|service provider|hizmet saglayici)",
+}
+_ADDRESS_HOLDER_LABELS = {
+    "dorm_certificate": r"(?:student(?: name)?|resident(?: name)?|ogrenci(?:nin adi soyadi)?|ad soyad(?:i)?)",
+    "rental_agreement": r"(?:tenant(?: name)?|lessee(?: name)?|kiraci(?:nin adi soyadi)?)",
+    "notarized_commitment": r"(?:guest(?: name)?|student(?: name)?|misafir(?:in adi soyadi)?|ogrenci(?:nin adi soyadi)?)",
+    "utility_subscription": r"(?:customer(?: name)?|subscriber(?: name)?|abone(?:nin adi soyadi)?|musteri adi soyadi)",
+}
+
+
+def address_evidence_type(text):
+    """Recognize an accommodation document heading before any model classification."""
+    for line in text.splitlines()[:18]:
+        heading = " ".join(normalized(line).strip(" :–—-").split())
+        for kind, pattern in _ADDRESS_HEADINGS.items():
+            if re.fullmatch(pattern, heading):
+                return kind
+    return None
+
+
+def read_address_evidence(pages, kind):
+    """Read unambiguous labels with original-page provenance. Review is explicit."""
+    from src.document_processing.schemas import ADDRESS_EVIDENCE_SCHEMAS, SourceEvidence
+
+    schema = ADDRESS_EVIDENCE_SCHEMAS[kind]
+    labels = {**_ADDRESS_LABELS, "holder_name": _ADDRESS_HOLDER_LABELS.get(kind, r"(?!)")}
+    observations = {}
+    fields = sorted(schema.observation_fields() & labels.keys())
+    for page in pages:
+        for number, line in enumerate(page.text.splitlines(), 1):
+            label, separator, value = line.partition(":")
+            if not separator or not value.strip():
+                continue
+            for field in fields:
+                if re.fullmatch(labels[field], " ".join(normalized(label).split())):
+                    item = SourceEvidence(field=field, original_value=value.strip(), normalized_value=value.strip(),
+                                          snippet=line.strip(), page_number=page.number, line_number=number)
+                    observations.setdefault(field, []).append(item)
+    values, sources, ambiguous = {}, {}, []
+    for field, items in observations.items():
+        if len({" ".join(item.normalized_value.casefold().split()) for item in items}) != 1:
+            ambiguous.append(field)
+            continue
+        sources[field] = items[0]
+        values[field] = sources[field].normalized_value
+    return schema(
+        **values, ambiguous_fields=ambiguous, selected_pages=sorted({page.number for page in pages}),
+        source_pages={field: item.page_number for field, item in sources.items()},
+        source_snippets={field: item.snippet for field, item in sources.items()},
+        source_evidence=list(sources.values()),
+    )
+
+
 def address_form_signal(text):
     """Heading or explicit address-declaration body, never a policy mention."""
     full=normalized(text)
@@ -624,54 +881,165 @@ def address_form_signal(text):
     return headings or declaration
 
 
+_ADDRESS_FORM_LABELS = {
+    "nationality": r"nationality|citizenship|uyruk|uyrugu",
+    "passport_number": _PASSPORT_LABEL,
+    "first_name": r"first name|given name|name|ad|adi",
+    "last_name": r"last name|last\s*/\s*family name|family name|surname|soyad|soyadi",
+    "phone": r"(?:mobile|phone|telephone|telefon)(?: number| numarasi| no\.?)?",
+    "declared_address": r"(?:(?:declared|residence|residential) address|address(?: in [\w ]+)?|adres|(?:ikamet|adres) bilgileri|ikamet adresi)",
+    "birth_date": r"birth date|date of birth|dogum tarihi",
+    "form_date": r"form date|date|tarih",
+    "signature_present": r"signature present|signed|imzali",
+}
+
+
+def _address_form_field(label):
+    # Compare whole labels and their bilingual counterparts.
+    folded = label_text(label)
+    if all(re.fullmatch(_PASSPORT_LABEL, part.strip()) for part in folded.split("/")):
+        return "passport_number"
+    for part in re.split(r"[()]", folded):
+        part = part.strip()
+        for field, labels in _ADDRESS_FORM_LABELS.items():
+            if re.fullmatch(labels, part):
+                return field
+    return None
+
+
+def _address_form_rows(page, text, method):
+    lines = text.splitlines()
+    order = date_order(text)
+    for index, line in enumerate(lines):
+        parts = re.split(r"[:：]", line, maxsplit=1)
+        if len(parts) == 1:
+            # Some scans read the filled box immediately before the standalone
+            # bilingual passport caption. Bind only a complete isolated token.
+            if (re.fullmatch(r"\(\s*(?:passport|pasaport)\s+(?:number|numarasi|no\.?)\s*\)", label_text(line))
+                    and index > 0 and _passport_token(lines[index - 1].strip())
+                    and (index < 2 or not re.search(r"\b(?:foreign(?:er)? id|yabanci kimlik|vergi kimlik|tax id|vkn|tckn)\b",
+                                                  label_text(lines[index - 2])))):
+                raw = lines[index - 1].strip()
+                record = _record("passport_number", "passport_number", raw, raw,
+                                 lines[index - 1] + "\n" + line, page.number, index)
+                yield {**record, "profile": "AddressForm", "method": method}
+            continue
+        if not (field := _address_form_field(parts[0])):
+            continue
+        label, value = parts
+        raw, quote = value.strip(), line
+        if not raw and method != "pdf_form" and field != "signature_present":
+            # Some bilingual scans place the printed given name above its label.
+            previous = lines[index - 1].strip() if index else ""
+            if (field == "first_name" and label_text(label).startswith(("ad ", "adi "))
+                    and previous.isupper() and previous.isalpha()):
+                raw, quote = previous, lines[index - 1] + "\n" + line
+            else:
+                limit = 3 if field == "declared_address" else 1
+                following = []
+                for candidate in lines[index + 1:index + 1 + limit]:
+                    if not candidate.strip() or re.search(r"[:：]", candidate) or _address_form_field(candidate):
+                        break
+                    following.append(candidate)
+                raw = " ".join(row.strip() for row in following)
+                quote = "\n".join([line, *following])
+        if not raw:
+            continue
+        value = raw
+        if re.search(r"\[(?:unreadable|unclear|illegible)\]|\ufffd", raw, re.IGNORECASE):
+            value = None
+        elif field.endswith("_date"):
+            value = source_date(raw, "dmy" if "tarih" in label_text(label) else order)
+        elif field == "signature_present":
+            value = {"yes": "true", "true": "true", "evet": "true",
+                     "no": "false", "false": "false", "hayir": "false"}.get(normalized(raw))
+        elif field == "passport_number" and not _passport_token(raw):
+            value = None
+        elif field == "phone" and not (re.fullmatch(r"[+()0-9 .-]{7,25}", raw)
+                                       and 7 <= sum(char.isdigit() for char in raw) <= 18):
+            value = None
+        elif field in {"first_name", "last_name", "nationality"} and (
+            len(raw.split()) > 5 or not all(c.isalpha() or c.isspace() or c in "'’-" for c in raw)
+        ):
+            value = None
+        elif field == "declared_address" and not any(c.isalpha() for c in raw):
+            value = None
+        record = _record("date" if field.endswith("_date") else field, field, raw, value, quote, page.number, index + 1)
+        yield {**record, "profile": "AddressForm", "method": method}
+
+
+def read_address_form(pages):
+    """Project all explicit fields, retaining differing or unreadable source evidence."""
+    from src.document_processing.schemas import AddressForm
+
+    if not any(address_form_signal(text) for page in pages for text in (page.text, page.native_text or "")):
+        return AddressForm(validation_issues=["Address Form heading or declaration could not be verified. Review the original."])
+    # Prefer independently readable PDF fields/text when they corroborate a
+    # visual reading, while retaining conflicting candidates for review.
+    candidates = []
+    for page in pages:
+        for label, value in page.form_fields:
+            if _address_form_field(label):
+                row = f"{label}: {' '.join(value.splitlines())}"
+                candidates.extend(_address_form_rows(page, row, "pdf_form"))
+        native_text = page.native_text if page.native_text is not None else (
+            page.text if page.extraction_method == "native_text" else ""
+        )
+        if native_text:
+            candidates.extend(_address_form_rows(page, native_text, "native_text"))
+    for page in pages:
+        if page.extraction_method in {"rapidocr", "multimodal_fallback"} and page.text != page.native_text:
+            method = "openai_vision" if page.extraction_method == "multimodal_fallback" else "rapidocr"
+            candidates.extend(_address_form_rows(page, page.text, method))
+    return _labelled_document(AddressForm, pages, candidates)
+
+
+def _labelled_document(schema, pages, candidates):
+    payload, issues = {}, []
+    ground_fields(payload, schema, candidates, issues, pages)
+    field_methods = {}
+    for candidate in candidates:
+        field = candidate["field"]
+        if (payload.get("source_pages", {}).get(field) == candidate["page_number"]
+                and payload.get("source_snippets", {}).get(field) == candidate["snippet"]):
+            field_methods.setdefault(field, candidate["method"])
+    tracked = schema.observation_fields() if schema.__name__ != "AddressForm" else schema.observation_fields() - {"holder_name"}
+    diagnostics = {
+        "field_read_methods": field_methods,
+        "fields_not_found_in_processed_source": sorted(tracked - {candidate["field"] for candidate in candidates}),
+    }
+    payload.update(validation_issues=issues, selected_pages=sorted(page.number for page in pages if page.text or page.form_fields),
+                   extraction_diagnostics=diagnostics)
+    return schema.model_validate(payload)
+
+
 def address_candidates(chunks):
     """Explicit utility/form labels only; handwritten signatures are never inferred."""
     out=[]
     utility_labels={"holder_name":r"(?:holder name|account holder|customer name|ad[i]? soyad[i]?)", "service_address":r"(?:service address|supply address|hizmet adresi|kullanim yeri adresi|tesisat adresi|adres|address)", "provider":r"(?:provider|utility company|service provider|tedarikci|hizmet saglayici)"}
-    form_labels={"nationality":r"(?:nationality|uyruk|uyrugu)","passport_number":r"(?:passport(?: number| no)?|pasaport(?: numarasi| no)?)", "first_name":r"(?:first name|given name|name|ad|adi)","last_name":r"(?:last name|surname|soyad|soyadi)","phone":r"(?:phone(?: number)?|telephone|telefon|telefon no)","declared_address":r"(?:declared address|residence address|address|adres|ikamet adresi)","birth_date":r"(?:birth date|date of birth|dogum tarihi)","form_date":r"(?:form date|date|tarih)","signature_present":r"(?:signature present|signed|imzali)"}
+    form = address_form_signal("\n".join(c.text for c in chunks))
     for chunk in chunks:
         lines=chunk.text.splitlines()
         text=normalized(chunk.text)
         bill=any(w in text for w in ("utility bill","electricity bill","gas bill","water bill")) or "fatura" in text and any(w in text for w in ("elektrik","dogalgaz","su faturasi","internet"))
-        form=address_form_signal("\n".join(c.text for c in chunks))
+        if form:
+            out.extend(_address_form_rows(chunk, chunk.text, chunk.extraction_method))
+        if not bill:
+            continue
         for index,line in enumerate(lines):
-            row=line.strip();folded=normalized(row)
-            if form:
-                # Bilingual printed labels can accompany handwriting. Recover only
-                # clean values; corrupt letters/IDs/signatures stay unresolved.
-                roles={"first_name":r"^adi?\s*\(first name\)\s*:","last_name":r"^soyadi?\s*\(last/family name\)\s*:","birth_date":r"^dogum tarihi\s*\(date of birth\)\s*:","phone":r"^telefon\s*\(mobile number\)\s*:","declared_address":r"^adres bilgileri\s*\(address in.*\)\s*:"}
-                for field,label in roles.items():
-                    if not re.match(label,folded):continue
-                    raw=row.split(":",1)[1].strip();quote=line
-                    if not raw and field=="first_name" and index>0:
-                        raw=lines[index-1].strip();quote=lines[index-1]+"\n"+line
-                    elif not raw and field=="declared_address":
-                        rows=[]
-                        for following in lines[index+1:index+4]:
-                            if len(following.strip())<8 or ":" in following:break
-                            rows.append(following.strip())
-                        raw=" ".join(rows);quote="\n".join(lines[index:index+1+len(rows)])
-                    value=raw or None
-                    if field in {"first_name","last_name"} and (not raw or len(raw.split())>4 or not all(c.isalpha() or c.isspace() or c in "'-" for c in raw)):value=None
-                    if field=="birth_date":value=source_date(raw,"dmy")
-                    if field=="phone" and not re.fullmatch(r'[+()0-9 .-]{7,25}',raw):value=None
-                    c=_record('date' if field=='birth_date' else field,field,raw,value,quote,chunk.number,index+1);c['profile']='AddressForm';out.append(c)
-            for profile,labels,enabled in (("UtilityBill",utility_labels,bill),("AddressForm",form_labels,form)):
-                if not enabled:continue
-                for field,label in labels.items():
-                    match=re.match(r"^(?:"+label+r")\s*[:\uff1a]\s*(.*)$",folded)
-                    if not match:continue
-                    raw=row.split(":",1)[1].strip() if ":" in row else row.split("\uff1a",1)[1].strip()
-                    quote=line
-                    if not raw and index+1<len(lines):raw=lines[index+1].strip();quote+='\n'+lines[index+1]
-                    value=raw or None
-                    if field.endswith('_date'):value=source_date(raw,'dmy' if 'tarih' in folded or 'dogum' in folded else date_order(chunk.text))
-                    if field=='signature_present':value={'yes':'true','true':'true','evet':'true','no':'false','false':'false','hayir':'false'}.get(normalized(raw))
-                    if field=='passport_number' and not re.fullmatch(r'[A-Za-z0-9]{5,20}',raw):value=None
-                    if field=='phone' and not re.fullmatch(r'[+()0-9 .-]{7,25}',raw):value=None
-                    if field in {'first_name','last_name','nationality'} and (not raw or len(raw.split())>5 or not all(c.isalpha() or c.isspace() or c in "'-" for c in raw)):value=None
-                    if field=='holder_name' and not _person_row(raw):value=None
-                    c=_record('date' if field.endswith('_date') else 'name' if field=='holder_name' else field,field,raw,value,quote,chunk.number,index+1);c['profile']=profile;out.append(c)
+            row=line.strip()
+            folded=normalized(row)
+            for field,label in utility_labels.items():
+                if not re.match(r"^(?:"+label+r")\s*[:\uff1a]",folded):
+                    continue
+                raw = re.split(r"[:\uff1a]", row, maxsplit=1)[1].strip()
+                quote = line
+                if not raw and index + 1 < len(lines):
+                    raw = lines[index + 1].strip()
+                    quote += "\n" + lines[index + 1]
+                value = raw if raw and (field != "holder_name" or _person_row(raw)) else None
+                record = _record("name" if field == "holder_name" else field, field, raw, value, quote, chunk.number, index + 1)
+                out.append({**record, "profile": "UtilityBill"})
             if bill and re.match(r'^(?:billing date|invoice date|fatura (?:donemi/)?tarihi(?:/saati)?)\s*:',folded):
                 dates=list(EVIDENCE_DATE_PATTERN.finditer(row))
                 if len(dates)==1:
@@ -797,7 +1165,7 @@ def candidate_hint(candidates, limit):
 
 def field_candidates(field, schema, candidates):
     candidates=[c for c in candidates if not c.get("profile") or c["profile"]==schema.__name__]
-    if schema.__name__ in {"UtilityBill","AddressForm"}:
+    if schema.__name__ in {"UtilityBill","AddressForm","TaxIDCertificate"}:
         choices=[c for c in candidates if c.get("profile")==schema.__name__ and c.get("field")==field]
         if field=="provider" and choices:
             key=lambda c:" ".join(normalized(c["normalized_value"] or "").split())
@@ -884,8 +1252,8 @@ def ground_fields(payload, schema, candidates, issues, chunks=()):
     for field in schema.observation_fields():
         value = payload.get(field)
         selected = field_candidates(field, schema, candidates)
-        auto = insurance or schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt","UtilityBill","AddressForm"} or field in {"exchange_student", "program_start_date", "program_end_date", "permit_type"} or any(c.get("administrative") for c in selected) or any(c.get("field")==field and c.get("kind")==field for c in selected) and field in {"institution", "issue_date", "requested_start_date", "requested_end_date"}
-        known_kind = schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt","UtilityBill","AddressForm"} or field in schema.DATES or field in {"exchange_student", "permit_type","holder_name", "applicant_name", "insurer", "institution", "insurance_evidence_type", "residence_permit_purpose", *IDENTIFIER_LABELS}
+        auto = insurance or schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt","UtilityBill","AddressForm","TaxIDCertificate"} or field in {"exchange_student", "program_start_date", "program_end_date", "permit_type"} or any(c.get("administrative") for c in selected) or any(c.get("field")==field and c.get("kind")==field for c in selected) and field in {"institution", "issue_date", "requested_start_date", "requested_end_date"}
+        known_kind = schema.__name__ in {"PassportIdentity","EntryStamp","DeclarationControl","CardFeeReceipt","UtilityBill","AddressForm","TaxIDCertificate"} or field in schema.DATES or field in {"exchange_student", "permit_type","holder_name", "applicant_name", "insurer", "institution", "insurance_evidence_type", "residence_permit_purpose", *IDENTIFIER_LABELS}
         if not known_kind:
             continue
         # Literal whole-line support for company/institution names interpreted

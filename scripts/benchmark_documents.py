@@ -56,7 +56,8 @@ def _private_output(path):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode",choices=list(MODE_MAP),default="auto")
+    parser.add_argument("--mode",choices=list(MODE_MAP),default="local",
+                        help="Selecting auto or openai authorizes sending selected document text/pages to OpenAI.")
     parser.add_argument("--manifest",type=Path,help="Private JSON case list; optional gold values remain outside version control")
     parser.add_argument("--output",type=Path,help="Private report path; defaults to ignored .local/document_benchmark_<mode>.json")
     parser.add_argument("--include-values",action="store_true",help="Store structured private field values only in the private report, never console")

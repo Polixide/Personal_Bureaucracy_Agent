@@ -177,8 +177,10 @@ def execute_tool(state, call, *, approved=False, adapters=None):
             data = MissingDocumentsResult(ready=assessment.ready, prerequisites=assessment.prerequisites, blockers=assessment.blockers).model_dump(mode="json")
         elif call.name=="search_official_sources":
             from src.rag.retriever import search_official_sources
+            details = {}
+            rows = search_official_sources(args.query, limit=args.limit, details=details)
             data = SearchResult(results=[item.model_dump(mode="json") if hasattr(item,"model_dump") else item
-                for item in search_official_sources(args.query, limit=args.limit)]).model_dump(mode="json")
+                                         for item in rows], retrieval=details).model_dump(mode="json")
         elif call.name=="read_eikamet_sandbox":
             data = validate_form(state).model_dump(mode="json")
         elif call.name=="validate_form_field":
@@ -244,8 +246,10 @@ def execute_tool(state, call, *, approved=False, adapters=None):
             draft = EmailResult.model_validate(raw)
             if draft.purpose=='package_review':
                 from src.core.procedure import iro_package_readiness
-                package=iro_package_readiness(state)
-                if not package['ready'] or any(item['document_id'] not in package['attachment_ids'] for item in draft.attachments):raise ValueError('The IRO package changed; prepare a fresh package-review draft')
+                from src.tools.email import package_attachments_current
+                package = iro_package_readiness(state)
+                if not package_attachments_current(package, (item["document_id"] for item in draft.attachments)):
+                    raise ValueError("The IRO package changed. Prepare a fresh package-review draft.")
             if not draft.recipient:
                 raise ValueError("Confirm an exact recipient before sending")
             if draft.status != "DRAFT":

@@ -121,6 +121,32 @@ def _dump_exact(adapter: TypeAdapter, value: Any, what: str) -> str:
     return text
 
 
+def _decode_document_info(text: str | None) -> dict:
+    if text is None:
+        return {"info": None}
+    data = json.loads(text)
+    if "observation" not in data:
+        return {"info": _INFO_ADAPTER.validate_python(data)}
+    return {
+        "info": _INFO_ADAPTER.validate_python(data["observation"]),
+        "analysis_diagnostics": data["analysis_diagnostics"],
+        "prior_observations": data["prior_observations"],
+    }
+
+
+def _encode_document_info(document: Document) -> str | None:
+    """Keep legacy observation JSON readable and use the same column for analysis metadata."""
+    info = (_dump_exact(_INFO_ADAPTER, document.info, f"document {document.doc_id} info")
+            if document.info is not None else None)
+    if not (document.analysis_diagnostics or document.prior_observations):
+        return info
+    return json.dumps({
+        "observation": json.loads(info) if info is not None else None,
+        "analysis_diagnostics": document.analysis_diagnostics,
+        "prior_observations": document.prior_observations,
+    }, allow_nan=False)
+
+
 def _encode_verified_value(value: Any) -> tuple[str, str | None]:
     value_type, text = encode_fact(value)
     if value_type not in ("null", "bool", "int", "str"):
@@ -207,8 +233,7 @@ class TwinStore:
             Document(doc_id=r["doc_id"], file_path=r["file_path"], status=r["status"], original_filename=r["original_filename"],
                      doc_type=r["doc_type"], issue_date=decode_date(r["issue_date"]),
                      expiry_date=decode_date(r["expiry_date"]),
-                     processing_error=r["processing_error"],
-                     info=_INFO_ADAPTER.validate_json(r["info_json"]) if r["info_json"] else None)
+                     processing_error=r["processing_error"], **_decode_document_info(r["info_json"]))
             for r in conn.execute("SELECT * FROM documents WHERE user_id = ? ORDER BY position",
                                   (user_id,))]
         twin["extracted_facts"] = {
@@ -259,8 +284,7 @@ class TwinStore:
             docs = list(state["documents"] or [])
             self._keep_only(conn, "documents", "doc_id", user_id, [d.doc_id for d in docs])
             for position, doc in enumerate(docs):
-                info = (_dump_exact(_INFO_ADAPTER, doc.info, f"document {doc.doc_id} info")
-                        if doc.info is not None else None)
+                info = _encode_document_info(doc)
                 conn.execute(
                     """INSERT INTO documents (user_id, doc_id, position, file_path, status,
                            doc_type, issue_date, expiry_date, processing_error, info_json,

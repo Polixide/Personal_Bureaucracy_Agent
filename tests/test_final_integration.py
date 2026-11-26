@@ -34,7 +34,8 @@ def observation(kind,text):
 def address_state(kinds=("utility_bill","address_form")):
     state={**new_run(UserEvent(kind="reevaluate"),"synthetic"),"procedure":ProcedureState()}
     state["documents"]=[Document(doc_id=kind,file_path="synthetic.txt",status="analyzed",doc_type=kind,info=observation(kind,BILL if kind=="utility_bill" else FORM)) for kind in kinds]
-    return {**state,**verification_updates(state)}
+    from src.evaluation.scenarios import confirm
+    return confirm(state, "__declarations__", {"address_proof_type": "utility_bill_and_address_form"})
 
 def req(state,rid):return next(r for r in evaluate_requirements(state) if r.rule_id==rid)
 
@@ -65,7 +66,7 @@ def test_address_profiles_and_combination_preserve_source_observations():
 @pytest.mark.parametrize("kind",["utility_bill","address_form"])
 def test_one_address_piece_is_incomplete_not_pass(kind):
     result=req(address_state((kind,)),"R017")
-    assert result.status=="missing_information" and "INCOMPLETE" in result.message
+    assert result.status=="missing_information" and "Address evidence still needed" in result.message
 
 def test_blank_signature_is_not_inferred_from_model_or_label():
     info=observation("address_form",FORM.replace("Signature present: yes","Signature: ______"))
@@ -227,7 +228,8 @@ def test_incomplete_address_pair_proposes_review_not_confirmation_of_derived_fla
     candidate=next(row for row in canonical_candidates(state) if row["candidate_id"]=="R017")
     assert candidate["action_type"]=="REVIEW_DOCUMENT"
     assert candidate["target_document"]=="address_form"
-    assert candidate["fields"]==[]
+    assert candidate["fields"] == ["signature_present"]
+    assert candidate["documents"] == ["address_form"]
     assert req(state,"R017").passed is None
 
 

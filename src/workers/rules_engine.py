@@ -1,8 +1,9 @@
 """Active V2 checks with three-valued, short-circuit-safe logic."""
+from src.core.address_proof import RESIDENCE_DOCUMENTS, address_proof_status
 from src.core.state import AgentState, ResidencePermitContext, Requirement
 from src.workers.rule_loader import load_rules
 
-ACCEPTED_ADDRESS_PROOF_TYPES = ("dorm_certificate", "rental_agreement", "notarized_commitment")
+ACCEPTED_ADDRESS_PROOF_TYPES = RESIDENCE_DOCUMENTS
 
 
 def all_of(*values):
@@ -50,13 +51,17 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
         if category in {None,"bilateral_social_security","sgk_provision","sgk_application","other_official"}:
             missing.add("insurance_evidence_type");return None
         return False
-    def address_proof():
-        if c.address_proof_type in ACCEPTED_ADDRESS_PROOF_TYPES:return True
-        combined=all_of(value("utility_bill_accepted"),value("address_form_accepted"))
-        if combined is True:return True
-        if c.address_proof_type=="utility_bill_and_address_form" or c.utility_bill_accepted is True or c.address_form_accepted is True:
-            return combined
-        return within("address_proof_type",ACCEPTED_ADDRESS_PROOF_TYPES)
+    address = address_proof_status(state)
+
+    def address_check():
+        if address["ready"]:
+            return True
+        if address["route"] is None:
+            missing.add("address_proof_type")
+        elif not address["supported"]:
+            return False
+        return None
+
     checks = {
         "R001": lambda: all_of(eq("exchange_student", True), number("planned_stay_months", lambda v: v >= 3)),
         "R002": lambda: eq("permit_type", "short_term"),
@@ -73,7 +78,7 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
         "R014": lambda: eq("student_certificate_present", True),
         "R015": scoped_insurance,
         "R016": insurance_category,
-        "R017": address_proof,
+        "R017": address_check,
         "R018": lambda: yes("turkey_address_present", "phone_present", "email_present"),
         "R019": lambda: yes("declaration_control_document_present", "declaration_control_document_signed"),
         "R020": lambda: eq("all_core_documents_present", True),
@@ -87,9 +92,13 @@ def evaluate_requirements(state: AgentState) -> list[Requirement]:
     for rule in load_rules(state.get("knowledge_snapshot")):
         missing.clear()
         passed = checks[rule["rule_id"]]()
+        address_message = address["message"]
+        if rule["rule_id"] == "R017" and passed is None and address["parts"]:
+            outstanding = ", ".join(part["label"] for part in address["parts"] if part["status"] != "complete")
+            address_message = f"Address evidence still needed: {outstanding}. {address_message}"
         results.append(Requirement(rule_id=rule["rule_id"], description=rule["description"],
             passed=passed, status="missing_information" if passed is None else "passed" if passed else "failed",
-            message=("Manual review: unsupported insurance alternative" if rule["rule_id"]=="R016" and c.insurance_evidence_type is not None and passed is None else "INCOMPLETE: both accepted utility bill and completed Address Form are required" if rule["rule_id"]=="R017" and passed is None and (c.utility_bill_accepted or c.address_form_accepted) else "Missing information: " + ", ".join(sorted(missing)) if passed is None else rule["description"]),
+            message=("Manual review: unsupported insurance alternative" if rule["rule_id"]=="R016" and c.insurance_evidence_type is not None and passed is None else address_message if rule["rule_id"]=="R017" and passed is not True else "Missing information: " + ", ".join(sorted(missing)) if passed is None else rule["description"]),
             missing_fields=sorted(missing) if passed is None else [],
             error_code=rule["rule_id"] + "_FAILED" if passed is False else None,
             source_ids=rule["source_ids"], severity=rule["severity"],

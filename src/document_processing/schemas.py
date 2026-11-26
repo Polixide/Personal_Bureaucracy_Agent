@@ -5,7 +5,9 @@ from typing import Annotated, Any, ClassVar, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DocumentType = Literal["student_enrollment_certificate", "health_insurance_certificate",
-                       "ikamet_application_form", "passport_identity_page", "turkiye_entry_stamp", "declaration_control_document", "card_fee_receipt", "utility_bill", "address_form", "unknown"]
+                       "ikamet_application_form", "passport_identity_page", "turkiye_entry_stamp", "declaration_control_document", "card_fee_receipt", "utility_bill", "address_form",
+                       "dorm_certificate", "rental_agreement", "notarized_commitment", "host_support",
+                       "utility_subscription", "tax_id_certificate", "unknown"]
 
 
 class DocumentClassification(BaseModel):
@@ -195,8 +197,21 @@ class CardFeeReceipt(DocumentInfo):
     payment_date: date | None = None
     reference_number: str | None = None
     amount: str | None = None
+    taxpayer_id: str | None = None
+    payment_code: str | None = None
     REQUIRED = ("receipt_present",)
     DATES = ("payment_date",)
+
+
+class TaxIDCertificate(DocumentInfo):
+    document_type: Literal["tax_id_certificate"] = "tax_id_certificate"
+    tax_identification_number: str | None = None
+    passport_number: str | None = None
+    issuing_authority: str | None = None
+    issue_date: date | None = None
+    document_reference: str | None = None
+    REQUIRED = ("tax_identification_number", "holder_name")
+    DATES = ("issue_date",)
 
 
 class UtilityBill(DocumentInfo):
@@ -223,12 +238,59 @@ class AddressForm(DocumentInfo):
     DATES = ("birth_date","form_date")
 
 
+class AccommodationDocument(DocumentInfo):
+    declared_address: str | None = None
+    REQUIRED = ("holder_name", "declared_address")
+
+
+class DormitoryCertificate(AccommodationDocument):
+    document_type: Literal["dorm_certificate"] = "dorm_certificate"
+    REQUIRED = ("holder_name",)
+
+
+class RentalAgreement(AccommodationDocument):
+    document_type: Literal["rental_agreement"] = "rental_agreement"
+    landlord_name: str | None = None
+    REQUIRED = (*AccommodationDocument.REQUIRED, "landlord_name")
+
+
+class NotarizedCommitment(AccommodationDocument):
+    document_type: Literal["notarized_commitment"] = "notarized_commitment"
+    host_name: str | None = None
+    REQUIRED = (*AccommodationDocument.REQUIRED, "host_name")
+
+
+class HostSupportingEvidence(DocumentInfo):
+    document_type: Literal["host_support"] = "host_support"
+    host_name: str | None = None
+    declared_address: str | None = None
+    REQUIRED = ("host_name", "declared_address")
+
+
+class UtilitySubscriptionAgreement(DocumentInfo):
+    document_type: Literal["utility_subscription"] = "utility_subscription"
+    service_address: str | None = None
+    provider: str | None = None
+    REQUIRED = ("holder_name", "service_address", "provider")
+
+
+ADDRESS_EVIDENCE_SCHEMAS = {
+    "dorm_certificate": DormitoryCertificate,
+    "rental_agreement": RentalAgreement,
+    "notarized_commitment": NotarizedCommitment,
+    "host_support": HostSupportingEvidence,
+    "utility_subscription": UtilitySubscriptionAgreement,
+}
+
+
 class UnknownDocument(DocumentInfo):
     document_type: Literal["unknown"] = "unknown"
 
 
 ExtractedDocument = Annotated[
-    StudentCertificate | HealthInsurance | IkametApplicationForm | PassportIdentity | EntryStamp | DeclarationControl | CardFeeReceipt | UtilityBill | AddressForm | UnknownDocument,
+    StudentCertificate | HealthInsurance | IkametApplicationForm | PassportIdentity | EntryStamp | DeclarationControl | CardFeeReceipt | UtilityBill | AddressForm
+    | DormitoryCertificate | RentalAgreement | NotarizedCommitment | HostSupportingEvidence | UtilitySubscriptionAgreement
+    | TaxIDCertificate | UnknownDocument,
     Field(discriminator="document_type"),
 ]
 DOCUMENT_SCHEMAS = {
@@ -239,7 +301,9 @@ DOCUMENT_SCHEMAS = {
     "turkiye_entry_stamp": EntryStamp,
     "declaration_control_document": DeclarationControl,
     "card_fee_receipt": CardFeeReceipt,
+    "tax_id_certificate": TaxIDCertificate,
     "utility_bill": UtilityBill,
     "address_form": AddressForm,
+    **ADDRESS_EVIDENCE_SCHEMAS,
     "unknown": UnknownDocument,
 }

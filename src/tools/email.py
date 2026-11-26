@@ -11,13 +11,19 @@ from src.core.procedure import assess_document_collection
 from src.tools.schemas import EmailDraftInput, EmailResult
 
 
+def package_attachments_current(package, attachment_ids):
+    selected = set(attachment_ids)
+    return package["ready"] and set(package["address_attachment_ids"]) <= selected <= set(package["attachment_ids"])
+
+
 def prepare_draft(state, args, call_id):
     package=None
     if args.purpose=='package_review':
         from src.core.procedure import iro_package_readiness
         package=iro_package_readiness(state)
         if not package['ready']:raise ValueError('Complete the IRO package and fingerprint/GI progress before preparing a package-review email')
-        if set(args.attachment_ids)-set(package['attachment_ids']):raise ValueError('Select only accepted package attachments')
+        if not package_attachments_current(package, args.attachment_ids):
+            raise ValueError("Include the active address evidence and select only accepted package attachments")
     recipient = args.recipient or os.getenv("IRO_EMAIL") or "irolegal@sabanciuniv.edu"
     # Validate operator configuration by the same input boundary as user intent.
     if recipient:

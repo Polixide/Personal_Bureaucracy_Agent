@@ -1,0 +1,8 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Health Insurance Certificate
+Holder: Morgan Example
+Insurer: Example Mutual
+Policy number: DEMO-P1
+Issue date: 2028-09-18
+Coverage start date: 2028-09-20
+Coverage end date: 2029-06-30

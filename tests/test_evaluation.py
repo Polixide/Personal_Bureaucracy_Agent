@@ -123,6 +123,10 @@ def test_curated_end_to_end_scenario(tmp_path, scenario):
     context = {} if scenario.get("empty_context") else READY_CONTEXT
     request = new_run(UserEvent(kind="upload", file_path=str(tmp_path / "synthetic.txt")), scenario["id"])
     request["residence_permit_context"] = ResidencePermitContext(**{**context, **scenario["changes"]})
+    if request["residence_permit_context"].address_proof_type == "dorm_certificate":
+        from src.evaluation.scenarios import synthetic_dormitory_evidence
+        document, reviews = synthetic_dormitory_evidence("Alex Example")
+        request.update(documents=[document], verification_records=reviews)
     path = tmp_path / "synthetic.txt"
     if scenario.get("unknown_document"):
         path.write_text("ciao sono marco", encoding="utf-8")
@@ -173,7 +177,7 @@ def test_curated_end_to_end_scenario(tmp_path, scenario):
             assert [not output["validation_errors"] for output in gate_results] == scenario["gates"]
             if scenario.get("error"):
                 assert scenario["error"] in {error.code for error in gate_results[0]["validation_errors"]}
-            document = result["documents"][0]
+            document = next(item for item in result["documents"] if item.file_path == str(path))
             assert document.status == "analyzed"
             if scenario.get("unknown_document"):
                 assert document.doc_type == "unknown"

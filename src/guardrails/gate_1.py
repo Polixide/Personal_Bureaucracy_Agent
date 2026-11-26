@@ -1,5 +1,6 @@
 """Deterministic acceptance gate: no model calls or state mutation."""
 import re
+from collections import Counter
 from pydantic import ValidationError
 from src.core.state import ActionPlan, ValidationIssue, ResidencePermitContext
 from src.workers.rule_loader import load_dependencies
@@ -35,6 +36,7 @@ def validate_plan(state, plan):
     dependencies = load_dependencies(state.get("knowledge_snapshot"))
     ids = [a.step_id for a in plan.actions]
     if len(ids) != len(set(ids)): add("DUPLICATE_STEP_ID", "Step IDs must be unique")
+    grounding_counts = Counter(key for action in plan.actions for key in action.grounding_ids)
     priorities = [a.priority for a in plan.actions]
     if priorities != sorted(set(priorities)): add("AMBIGUOUS_ORDER", "Use unique increasing priorities")
     completed = set(state.get("completed_steps", []))
@@ -96,6 +98,8 @@ def validate_plan(state, plan):
         for field in action.requested_fields:
             if field not in type(context).model_fields:add("UNKNOWN_FIELD","Use canonical fields",action.step_id)
         if action.grounding_ids:
+            if any(grounding_counts[key] > 1 for key in action.grounding_ids):
+                add("DUPLICATE_CANDIDATE_REFERENCE", "Select each canonical candidate once", action.step_id)
             from src.agents.planner import canonical_candidates
             allowed={c["candidate_id"]:c for c in canonical_candidates(state)}
             selected=[allowed[key] for key in action.grounding_ids if key in allowed]

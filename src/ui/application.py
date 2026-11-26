@@ -19,140 +19,260 @@ def application_upload(snapshot,graph,config,thread_key):
     with st.form(f'actual_form_upload_{thread_key}',border=True):
         uploaded=st.file_uploader('Generated application form (PDF or TXT)',type=['pdf','txt'],disabled=bool(snapshot.next),key=f'actual_file_{thread_key}')
         analyze=st.form_submit_button('Analyze application form',disabled=bool(snapshot.next))
-    if analyze:
-        if uploaded is None:st.warning('Choose your generated application form first.')
-        else:
-            path=save_upload(uploaded.name,uploaded.getvalue(),config['configurable']['thread_id'])
-            run_event(graph,config,UserEvent(kind='analyze_document',file_path=str(path),original_filename=uploaded.name))
+    if analyze and submit_document_upload(uploaded, snapshot.values, graph, config, save_file=save_upload):
+        st.rerun()
 
 
-def render_uploaded_application(snapshot,graph,config,thread_key):
+def render_uploaded_application(snapshot, graph, config, thread_key):
     from src.ui.documents import review_form
-    state=snapshot.values
-    application_upload(snapshot,graph,config,thread_key)
-    review=application_form_review(state)
-    doc=next((d for d in state.get('documents',[]) if field(d,'doc_id')==review['document_id']),None)
+    state = snapshot.values
+    review = application_form_review(state)
+    doc = next((item for item in state.get("documents", []) if field(item, "doc_id") == review["document_id"]), None)
     if doc is None:
-        st.info('Upload a readable real application form to review its information.');return
-    st.caption('Reviewing: '+(field(doc,'original_filename') or document_label(field(doc,'doc_type'))))
-    st.markdown('**Matched information**')
-    if review['matched']:
-        for name in review['matched']:st.write(field_label(name)+' matches your other accepted information.')
-    else:st.caption('No independent matching document values are available yet; the information below comes from this form.')
-    for item in review['accepted']:st.write(field_label(item['field'])+': '+user_value(item['field'],item['value']))
-    st.markdown('**Missing information**')
-    if review['missing']:
-        for name in review['missing']:st.write('Please review '+field_label(name).lower()+'.')
-    else:st.caption('The supported application fields are available.')
-    if review['conflicts']:
-        st.markdown('**Conflicts**')
-        for item in conflict_messages(state):st.warning(item['message'])
-        results={field(r,'rule_id'):r for r in state.get('relevant_requirements',[]) or []}
-        for code in review['conflicts']:
-            if code=='pending_application_version':st.warning('A replacement application form is waiting for your decision. Choose the current version in Documents.')
-            elif code in results:st.warning(user_text(field(results[code],'description','Review the accepted information.')))
-        if st.button('Review conflicting documents',key=f'form_conflict_{thread_key}'):request_view(thread_key,'documents');st.rerun()
-    if review['confirmations'] or review['missing']:
-        st.caption('Confirm real completion and signing only if they have actually occurred. Clear document fields do not need to be re-entered.')
-        review_form(document_card(state,doc),doc,graph,config,thread_key,bool(snapshot.next))
-    if review['ready']:
-        st.success('Uploaded application form reviewed')
-        if st.button('Continue to Payment & Fingerprint',type='primary',disabled=bool(snapshot.next),key=f'form_continue_{thread_key}'):
-            if persist_procedure_choice(graph,config,lambda latest:continue_after_application_review(latest,recorded_at=utc_now())):st.rerun()
+        if "select_current_application_form" in review["missing"] or "pending_application_version" in review["conflicts"]:
+            st.warning("Choose which uploaded application form belongs to this case.")
+            st.button("Choose application version in Documents", key=f"choose_form_version_{thread_key}",
+                      on_click=request_view, args=(thread_key, "documents"),
+                      kwargs={"document_type": "ikamet_application_form"})
+        else:
+            application_upload(snapshot, graph, config, thread_key)
+        return
+    st.caption("Reviewing " + (field(doc, "original_filename") or document_label(field(doc, "doc_type"))))
+    if review["ready"]:
+        st.success("Uploaded application form reviewed")
+        if st.button("Continue to Payment & Fingerprint", type="primary", disabled=bool(snapshot.next),
+                     key=f"form_continue_{thread_key}"):
+            if persist_procedure_choice(graph, config, lambda latest: continue_after_application_review(latest, recorded_at=utc_now())):
+                st.rerun()
+    if review["conflicts"]:
+        for item in conflict_messages(state):
+            st.warning(item["message"])
+        results = {field(item, "rule_id"): item for item in state.get("relevant_requirements") or []}
+        for code in review["conflicts"]:
+            if code == "pending_application_version":
+                st.warning("Choose the current application form in Documents.")
+            elif code in results:
+                st.warning(user_text(field(results[code], "description", "Review the accepted information.")))
+        st.button("Review conflicting documents", key=f"form_conflict_{thread_key}",
+                  on_click=request_view, args=(thread_key, "documents", doc.doc_id))
+    if review["confirmations"] or review["missing"] or editor_draft(f"{thread_key}_document_{doc.doc_id}"):
+        st.markdown("**Missing information**" if review["confirmations"] or review["missing"] else "**Information to review**")
+        st.caption("Confirm completion and signing after doing them. Review any unclear fields from your original form.")
+        review_form(document_card(state, doc), doc, graph, config, thread_key, bool(snapshot.next),
+                    state=state, checkpoint=checkpoint_id(snapshot))
+    if review["accepted"]:
+        with st.expander("Fields read from the application"):
+            st.markdown("**Matched information**")
+            if review["matched"]:
+                st.caption("Also found in your accepted evidence: " + ", ".join(field_label(name) for name in review["matched"]))
+            else:
+                st.caption("These values come from the uploaded application form.")
+            for item in review["accepted"]:
+                st.write(f"{field_label(item['field'])}: {user_value(item['field'], item['value'])}")
+    if st.toggle("Upload a newer copy", key=f"newer_form_{thread_key}"):
+        application_upload(snapshot, graph, config, thread_key)
 
 
-def render_simulated_pdf(state,thread_key):
-    from src.tools.sandbox import read_simulated_pdf
-    data=read_simulated_pdf(state)
-    if data is None:return False
-    st.success('Simulation complete. You still need to complete the real e-Ikamet application externally.')
-    st.download_button('Download simulated application PDF',data=data,file_name='simulated-e-ikamet-application.pdf',mime='application/pdf',key=f'simulated_pdf_{thread_key}')
-    st.caption('Educational sandbox artifact. NOT AN OFFICIAL GOVERNMENT FORM. NOT SUBMITTED.')
-    st.markdown('[Open the official e-Ikamet website yourself](https://e-ikamet.goc.gov.tr/)')
-    return True
+def render_simulated_pdf(data, thread_key):
+    st.success("Simulation complete. Complete the real e-Ikamet application separately.")
+    st.download_button("Download simulated application PDF", data=data, file_name="simulated-e-ikamet-application.pdf",
+                       mime="application/pdf", key=f"simulated_pdf_{thread_key}", on_click="ignore")
+    st.caption("Educational sandbox artifact. NOT AN OFFICIAL GOVERNMENT FORM. NOT SUBMITTED.")
+    st.markdown("[Open the official e-Ikamet website yourself](https://e-ikamet.goc.gov.tr/)")
 
 
-def render_assisted_application(snapshot,graph,config,thread_key):
-    from src.tools.sandbox import needs_prefill,read_form
-    state=snapshot.values
-    st.subheader('Simulated e-Ikamet application')
-    st.caption('A local preparation exercise. Accepted information is filled automatically; enter only missing information. The official portal is not accessed.')
-    if not snapshot.next and needs_prefill(state):
-        if dispatch_tool(graph,config,'prefill_eikamet_sandbox',{}):st.rerun()
-    preparation=build_eikamet_preparation(state)
-    form=read_form(state)
-    definitions={item.field_id:item for item in EIKAMET_FIELD_CATALOGUE}
-    problems={item.partition(':')[2] for item in form.validation_issues}
-    edit=st.checkbox('Edit my previously confirmed form answers',key=f'edit_form_{thread_key}',disabled=bool(snapshot.next))
+def render_assisted_application(snapshot, graph, config, thread_key, *, inputs=None):
+    from src.core.procedure import EIKAMET_GUIDE_URL, conflicting_eikamet_answers
+    from src.tools.sandbox import needs_prefill, read_form, read_simulated_pdf
+
+    state = snapshot.values
+    busy = bool(snapshot.next)
+    preparation, accepted_values = inputs if inputs is not None else eikamet_preparation_inputs(state)
+    st.subheader("Simulated e-Ikamet application")
+    st.caption("Review the preparation fields here. Complete the real application separately on the official portal.")
+    if not busy and needs_prefill(state, inputs=(preparation, accepted_values)):
+        if dispatch_tool(graph, config, "prefill_eikamet_sandbox", {}):
+            st.rerun()
+    scope = f"{thread_key}_assisted_form"
+    draft = editor_draft(scope)
+    pdf_panel = st.container()
+    if st.button("I now have the real application form", disabled=busy, key=f"now_actual_{thread_key}"):
+        if persist_procedure_choice(graph, config, lambda latest: choose_eikamet_path(latest, "UPLOADED_FORM")):
+            st.rerun()
+    form = read_form(state)
+    definitions = {item.field_id: item for item in EIKAMET_FIELD_CATALOGUE}
+    documents = {field(doc, "doc_id"): doc for doc in state.get("documents") or []}
+    sources = {}
+    for key in accepted_values:
+        item = preparation.fields[key]
+        owner = item.source_ref.split("/")[2].replace("~1", "/").replace("~0", "~")
+        document = documents.get(owner)
+        if document is None:
+            sources[key] = "Confirmed by you"
+        elif item.status == "USER_CONFIRMED":
+            sources[key] = "Confirmed by you in " + document_label(field(document, "doc_type"))
+        else:
+            sources[key] = "From " + document_label(field(document, "doc_type"))
+    st.caption("Review the filled values and complete the blank fields.")
     if preparation.conflict_field_ids:
-        st.warning('Conflicting information must be reviewed in Documents before the affected fields can be filled.')
-        if st.button('Review document conflict',key=f'sandbox_conflict_{thread_key}'):request_view(thread_key,'documents');st.rerun()
-    with st.form(f'simulated_form_{thread_key}'):
-        answers={}
-        for group,names in FORM_GROUPS.items():
-            st.markdown('##### '+group)
-            if group=='Contact':st.caption('Choose your preferred method and provide that contact. The other contact can remain empty for this educational exercise.')
-            for key in names:
-                definition=definitions[key];prepared=preparation.fields[key]
-                accepted=prepared.status in {'VERIFIED','USER_CONFIRMED'}
-                value=eikamet_field_value(state,prepared) if accepted else form.draft_answers.get(definition.context_field)
-                locked=accepted and (prepared.status=='VERIFIED' or not edit) and not (key=='declaration_acknowledged' and value not in (True,'True'))
-                disabled=bool(snapshot.next) or locked or prepared.status=='CONFLICT'
-                label=definition.label
-                if key in problems:st.caption('Needs your attention: '+label)
-                if key in {'gender','passport_type','insurance_category','contact_method','marital_status'}:
-                    options={'gender':['Not provided','female','male','unspecified'],'passport_type':['Not provided','ordinary','diplomatic','service','other'],'insurance_category':['Not provided','private_health_insurance','sgk_provision','sgk_application','bilateral_social_security'],'contact_method':['Not provided','email','turkish_phone'],'marital_status':['Not provided','single','married','divorced','widowed']}[key]
-                    readable={'Not provided':'Not provided','private_health_insurance':'Private health insurance','sgk_provision':'SGK - manual review','sgk_application':'SGK application - manual review','bilateral_social_security':'Bilateral cover - manual review','ordinary':'Ordinary','diplomatic':'Diplomatic','service':'Service','other':'Other','female':'Female','male':'Male','unspecified':'Unspecified','email':'Email','turkish_phone':'Turkish phone','single':'Single','married':'Married','divorced':'Divorced','widowed':'Widowed'}
-                    chosen=st.selectbox(label,options,index=options.index(value) if value in options else 0,format_func=readable.get,disabled=disabled,key=f'input_{thread_key}_{key}')
-                    entered=None if chosen=='Not provided' else chosen
-                elif key=='reason_of_stay' and not locked:
-                    choice=st.selectbox(label,['Not provided','exchange_student_education'],index=1 if value else 0,format_func=lambda value:'Education within student exchange programmes' if value=='exchange_student_education' else value,disabled=disabled,key=f'input_{thread_key}_{key}')
-                    entered=None if choice=='Not provided' else choice
-                elif key=='declaration_acknowledged':
-                    entered=st.checkbox('I have reviewed the guide declarations for this educational simulation',value=value is True or value=='True',disabled=disabled,key=f'input_{thread_key}_{key}')
+        labels = [definitions[key].label for key in preparation.conflict_field_ids]
+        st.warning("Compare the saved sources before using these values: " + ", ".join(labels) + ".")
+        st.button("Review conflicting evidence", key=f"sandbox_conflict_{thread_key}", on_click=request_view,
+                  args=(thread_key, "documents"))
+    if form.draft_answers:
+        st.caption("Your unconfirmed edits are saved as a draft. Review them before creating the PDF.")
+    if draft:
+        st.caption("New edits stay in this browser session until you save.")
+
+    choices = {
+        "gender": ["female", "male", "unspecified"],
+        "passport_type": ["ordinary", "diplomatic", "service", "other"],
+        "insurance_category": list(INSURANCE_TYPES),
+        "contact_method": ["email", "turkish_phone"],
+        "marital_status": ["single", "married", "divorced", "widowed"],
+        "reason_of_stay": ["exchange_student_education"],
+    }
+    readable = {"email": "Email", "turkish_phone": "Turkish phone",
+                "exchange_student_education": "Education within student exchange programmes"}
+    problems = {item.partition(":")[2] for item in form.validation_issues}
+    answers = {}
+    draft_changes = {}
+    for group, names in FORM_GROUPS.items():
+        st.markdown("##### " + group)
+        if group == "Contact":
+            st.caption("Choose your preferred method and enter its contact details.")
+        for key in names:
+            definition = definitions[key]
+            context_field = definition.context_field
+            accepted = accepted_values.get(key)
+            value = form.draft_answers.get(context_field, accepted)
+            conflict = preparation.fields[key].status == "CONFLICT"
+            disabled = busy or conflict
+            if key in sources:
+                st.caption(sources[key])
+                if key in draft or context_field in form.draft_answers:
+                    st.caption("Accepted value · " + user_value(key, accepted))
+            if conflict:
+                st.caption("Resolve the conflicting evidence to use this field.")
+            elif key in problems:
+                st.caption(f"Review {definition.label.lower()}.")
+            if key in choices:
+                options = ["Not provided", *choices[key]]
+                for existing in (value, draft.get(key)):
+                    if existing is not None and existing not in options:
+                        options.append(existing)
+                widget = draft_widget(scope, draft, key, value if value is not None else options[0])
+                chosen = st.selectbox(definition.label, options, index=None,
+                                      format_func=lambda item: readable.get(item, user_value(key, item).replace("_", " ").capitalize()),
+                                      disabled=disabled, **widget)
+                entered = None if chosen == "Not provided" else chosen
+            elif key == "declaration_acknowledged":
+                widget = draft_widget(scope, draft, key, value is True)
+                acknowledged = st.checkbox("I have reviewed the guide declarations for this educational simulation",
+                                            disabled=disabled, **widget)
+                entered = acknowledged if acknowledged or value is not None else None
+            else:
+                widget = draft_widget(scope, draft, key, "" if value is None else str(value))
+                entered = st.text_input(definition.label, value=None,
+                                        placeholder="YYYY-MM-DD" if "date" in context_field else "Not provided yet",
+                                        disabled=disabled, **widget)
+                entered = (entered or "").strip() or None
+            if not conflict:
+                if entered == value:
+                    draft.pop(key, None)
+                if entered != accepted:
+                    answers[context_field] = entered
+                if entered != value:
+                    draft_changes[context_field] = entered
+    st.markdown("[Sabanci short-term application guide](" + EIKAMET_GUIDE_URL + ")")
+    if not draft and not answers and not draft_changes:
+        saved_pdf = read_simulated_pdf(state)
+        if saved_pdf is not None:
+            with pdf_panel:
+                render_simulated_pdf(saved_pdf, thread_key)
+            return
+    st.caption("Saving confirms the preparation answers you changed. You’ll review the PDF before approving its creation.")
+    submit = st.button("Save and review simulated PDF", key=f"save_simulated_form_{thread_key}", type="primary", disabled=busy)
+    validated = form.validated_revision == form.revision and form.status in {"VALIDATED", "SIMULATED_SUBMISSION"}
+    if not submit:
+        if form.validation_issues:
+            st.info("Review the marked inputs before continuing.")
+        return
+    def store_edits(changes):
+        if not changes:
+            return True
+        if not dispatch_tool(graph, config, "prefill_eikamet_sandbox", {"answers": changes}):
+            return False
+        current = graph.get_state(config)
+        outcome = current.values.get("last_tool_outcome")
+        if current.next or field(outcome, "name") != "prefill_eikamet_sandbox" or field(outcome, "status") != "SUCCEEDED":
+            return False
+        saved = read_form(current.values)
+        for key, definition in definitions.items():
+            name = definition.context_field
+            if name in changes:
+                value = changes[name]
+                item = saved.fields.get(key)
+                if name in saved.draft_answers:
+                    stored = saved.draft_answers[name] == value
                 else:
-                    entered=st.text_input(label,value=str(value) if value is not None else '',placeholder='YYYY-MM-DD' if definition.context_field in {'birth_date','passport_issue_date','passport_expiry_date','latest_entry_date','requested_start_date','requested_permit_end_date','insurance_end_date','form_current_date'} else None,disabled=disabled,key=f'input_{thread_key}_{key}').strip() or None
-                if accepted:
-                    ref=(prepared.source_ref or '').split('/')
-                    owner=ref[2] if len(ref)>2 else ''
-                    doc=next((d for d in state.get('documents',[]) if field(d,'doc_id')==owner),None)
-                    st.caption('Confirmed by you' if prepared.status=='USER_CONFIRMED' else 'From '+document_label(field(doc,'doc_type')))
-                elif prepared.status=='CONFLICT':st.caption('Review the conflicting documents before choosing this value.')
-                if not disabled and definition.context_field:answers[definition.context_field]=entered
-        from src.core.procedure import EDUCATIONAL_CHOICES,EIKAMET_GUIDE_URL
-        st.caption('Guide settings: '+'. '.join(EDUCATIONAL_CHOICES.values())+'. These are educational settings, not verified financial facts.')
-        st.caption('Reason of stay: use the student-exchange education choice. Student-information page and grey guide fields are skipped. Private insurance uses your accepted category.')
-        st.markdown('[Sabanci short-term application guide]('+EIKAMET_GUIDE_URL+')')
-        st.caption('Entered values are saved as your confirmed statements, separately from original document observations.')
-        acknowledged=st.checkbox('I confirm the information I entered',disabled=bool(snapshot.next))
-        validate=st.form_submit_button('Review application',type='primary',disabled=bool(snapshot.next))
-    if validate:
-        # Save every draft first, including invalid/empty values. Only the next
-        # explicit confirmation may project validated values into legal context.
-        if not dispatch_tool(graph,config,'prefill_eikamet_sandbox',{'answers':answers}):return
-        if answers and not acknowledged:st.warning('Confirm your entered answers before reviewing the application.');return
-        if answers:
-            try:answers=checked_form_answers(state,answers)
-            except ValueError as error:
-                text=str(error)
-                st.warning('Check the dates: use YYYY-MM-DD and an end date after the start.' if 'date' in text.lower() else 'The entered first name and surname do not match your accepted holder identity. Check your source documents.' if 'identity' in text.lower() else 'Check your entered values, including email and phone format.');return
-            if not invoke(graph,ui_run(UserEvent(kind='confirm_information',document_id='__declarations__',confirmed_fields=answers),config['configurable']['thread_id']),config):return
-        if not dispatch_tool(graph,config,'prefill_eikamet_sandbox',{}):return
-        if dispatch_tool(graph,config,'simulate_application_validation',{}):st.rerun()
-    if form.validated_revision==form.revision and form.status in {'VALIDATED','SIMULATED_SUBMISSION'}:
-        st.success('The required simulation fields passed validation.')
-        if st.button('Generate simulated application form',disabled=bool(snapshot.next),key=f'generate_simulated_{thread_key}'):
-            if dispatch_tool(graph,config,'generate_simulated_application',{}):st.rerun()
-    elif form.validation_issues:st.info('Some required values still need attention. The affected inputs are marked above.')
-    render_simulated_pdf(state,thread_key)
-    if st.button('I now have the real application form',disabled=bool(snapshot.next),key=f'now_actual_{thread_key}'):
-        if persist_procedure_choice(graph,config,lambda latest:choose_eikamet_path(latest,'UPLOADED_FORM')):st.rerun()
+                    stored = item.value == str(value) if item is not None else value is None
+                if stored:
+                    draft.pop(key, None)
+        return True
+
+    checked = {}
+    if answers:
+        try:
+            checked = checked_form_answers(state, answers)
+            conflicts = conflicting_eikamet_answers(state, checked)
+        except ValueError as error:
+            if not store_edits(draft_changes):
+                return
+            detail = str(error).lower()
+            if "date" in detail:
+                st.warning("Check the dates. Use YYYY-MM-DD and make sure the end date follows the start.")
+            elif "identity" in detail:
+                st.warning("The name differs from your accepted identity. Compare the original in Documents.")
+            else:
+                st.warning("Check the format of your answers, including email and phone.")
+            return
+        if conflicts:
+            if not store_edits(draft_changes):
+                return
+            labels = [item.label for item in EIKAMET_FIELD_CATALOGUE if item.context_field in conflicts]
+            st.warning("Your draft differs from accepted evidence for " + ", ".join(labels) +
+                       ". Compare the source in Documents or restore the accepted value here.")
+            return
+        event = UserEvent(kind="confirm_information", document_id="__declarations__", confirmed_fields=checked)
+        payload = ui_run(event, config["configurable"]["thread_id"])
+        if not invoke(graph, payload, config, expected_checkpoint=checkpoint_id(snapshot)):
+            return
+        latest = graph.get_state(config)
+        if latest.next or latest.values.get("trace_id") != payload["trace_id"] or latest.values.get("validation_errors"):
+            st.rerun()
+    if not store_edits({**draft_changes, **checked}):
+        return
+    if checked or draft_changes or not validated:
+        if not dispatch_tool(graph, config, "simulate_application_validation", {}):
+            return
+        current = graph.get_state(config)
+        verified = read_form(current.values)
+        outcome = current.values.get("last_tool_outcome")
+        if (current.next or field(outcome, "name") != "simulate_application_validation"
+                or field(outcome, "status") != "SUCCEEDED"
+                or verified.validated_revision != verified.revision
+                or verified.status not in {"VALIDATED", "SIMULATED_SUBMISSION"}):
+            st.rerun()
+    if dispatch_tool(graph, config, "generate_simulated_application", {}):
+        st.rerun()
 
 
-def render_application(snapshot,graph,config,thread_key):
+def render_application(snapshot,graph,config,thread_key,*,summary=None):
+    summary = summary or {}
     state=snapshot.values;stage=field(state.get('procedure'),'current_stage')
     if stage not in {'DOCUMENT_COLLECTION','EIKAMET_PREPARATION','EIKAMET_READY'}:
-        render_stage_controls(snapshot,graph,config,thread_key);return
+        render_stage_controls(snapshot,graph,config,thread_key,package=summary.get('package'));return
     st.header('Prepare your e-Ikamet application')
     mode=field(state.get('procedure_entry_intent'),'mode')
     if stage=='DOCUMENT_COLLECTION' and mode!='EIKAMET_COMPLETED':
@@ -172,107 +292,210 @@ def render_application(snapshot,graph,config,thread_key):
         if no.button('No - Help me prepare it',type='primary',disabled=bool(snapshot.next),key=f'choose_assisted_{thread_key}'):
             if persist_procedure_choice(graph,config,lambda latest:choose_eikamet_path(latest,'ASSISTED')):st.rerun()
     elif path=='UPLOADED_FORM':render_uploaded_application(snapshot,graph,config,thread_key)
-    else:render_assisted_application(snapshot,graph,config,thread_key)
+    else:
+        render_assisted_application(snapshot, graph, config, thread_key, inputs=summary.get("preparation_inputs"))
 
 
-def render_stage_controls(snapshot,graph,config,thread_key):
+def render_stage_controls(snapshot,graph,config,thread_key,*,package=None):
     state=snapshot.values;stage=field(state.get('procedure'),'current_stage');c=state.get('residence_permit_context');disabled=bool(snapshot.next)
     if stage=='PAYMENT':
         st.header('Payment & Fingerprint')
         from src.core.procedure import payment_readiness,real_application_ready
         payment=payment_readiness(state)
         if payment['receipt_ready']:
-            source=next((d for d in state.get('documents',[]) if field(d,'doc_type')=='card_fee_receipt' and field(d,'status')=='analyzed'),None)
             st.success('Card fee payment receipt received. Payment evidence ready.')
-            st.caption('No duplicate payment confirmation is needed. Keep the receipt for your IRO package.')
         else:
             receipt=next((doc for doc in state.get('documents',[]) if field(doc,'doc_type')=='card_fee_receipt' and field(doc,'status')=='analyzed'),None)
             st.info('Review your uploaded card-fee payment receipt; its evidence is not clear yet.' if receipt else 'Upload your card-fee payment receipt.')
-            if st.button('Review payment receipt' if receipt else 'Upload payment receipt',key=f'payment_upload_{thread_key}'):request_view(thread_key,'documents',field(receipt,'doc_id'));st.rerun()
+            st.button("Review payment receipt" if receipt else "Upload payment receipt",
+                      key=f"payment_upload_{thread_key}", on_click=request_view,
+                      args=(thread_key, "documents", field(receipt, "doc_id")),
+                      kwargs={"document_type": "card_fee_receipt"})
         if payment['additional_fee_required']:
             st.info('Your saved case records a specific additional visa-fee condition. Confirm its evidence with IRO.')
             with st.form(f'payment_answers_{thread_key}'):
-                received=st.checkbox('I have the additional required fee receipt',disabled=disabled)
-                confirm=st.checkbox('I confirm this additional receipt',disabled=disabled)
-                save=st.form_submit_button('Save additional fee evidence',disabled=disabled)
-            if save and confirm:_save_statements(graph,config,{'single_entry_visa_fee_receipt_present':received})
+                received=_reported_answer('Do you have the additional fee receipt?',field(c,'single_entry_visa_fee_receipt_present'),disabled)
+                save=st.form_submit_button('Save and confirm fee evidence',disabled=disabled)
+            if save:
+                _save_changed_statements(state,graph,config,{'single_entry_visa_fee_receipt_present':received})
         if not real_application_ready(state):
             st.warning('Upload and review the real e-Ikamet application form before continuing to fingerprinting.')
-            if st.button('Review real application evidence',key=f'payment_actual_{thread_key}'):request_view(thread_key,'documents');st.rerun()
+            st.button("Review real application evidence", key=f"payment_actual_{thread_key}",
+                      on_click=request_view, args=(thread_key, "documents"),
+                      kwargs={"document_type": "ikamet_application_form"})
     elif stage=='FINGERPRINT':
         st.header('Fingerprint / GI')
         from src.core.procedure import real_application_ready
         if not real_application_ready(state):
             st.warning('The real e-Ikamet application form must be available and reviewed before this step can be completed.')
-            if st.button('Upload or review the real application form',key=f'fingerprint_actual_{thread_key}'):request_view(thread_key,'documents');st.rerun()
+            st.button("Upload or review the real application form", key=f"fingerprint_actual_{thread_key}",
+                      on_click=request_view, args=(thread_key, "documents"),
+                      kwargs={"document_type": "ikamet_application_form"})
             return
         render_fingerprint_answers(state,graph,config,thread_key,disabled)
     elif stage=='IRO_REVIEW':
         st.header('Prepare your IRO package')
-        from src.ui.documents import render_checklist,collection_declarations
-        from src.core.procedure import iro_package_readiness
-        package=iro_package_readiness(state)
-        st.write(f"IRO package: {package['ready_count']} of {package['total']} ready")
-        for item in package['missing']:st.warning(item['label']+' - still required or needs review')
+        from src.core.legal_stay import insurance_explanation
+        from src.ui.actions import latest_email_draft, open_optional_tools, render_email_form, render_email_result
+
+        if package is None:
+            from src.core.procedure import iro_package_readiness
+
+            package = iro_package_readiness(state)
+        if package["ready"]:
+            st.success("Your package is ready to request university review.")
+        else:
+            st.warning("Complete the remaining preparation before requesting IRO package review.")
+        if package["missing"]:
+            st.markdown("**Still needed**")
+            for item in package["missing"]:
+                st.write(item["label"])
+                for part in item.get("parts", []):
+                    if part["status"] == "complete":
+                        continue
+                    action = address_evidence_action(part)
+                    st.button(action["label"], key=f"iro_address_document_{thread_key}_{part['key']}",
+                              on_click=request_view, args=(thread_key, "documents", action["document_id"]),
+                              kwargs={"document_type": action["document_type"]})
+            if any(item.get("key") in {"biometric_photo", "address_proof"} for item in package["missing"]):
+                st.button("Review address and photo answers", key=f"iro_details_{thread_key}", on_click=request_view,
+                          args=(thread_key, "details"), kwargs={"detail_section": "address"})
+        insurance_warning = insurance_explanation(state)
+        if insurance_warning:
+            st.warning(insurance_warning)
         if 'confirmation:fingerprint_gi' in package['blockers']:
             st.info('Confirm actual fingerprint completion and GI progress before requesting package review.')
             from src.core.procedure import real_application_ready
             if real_application_ready(state):
                 with st.expander('Record fingerprint / GI progress',expanded=True):render_fingerprint_answers(state,graph,config,thread_key,disabled)
-        if 'evidence:real_application_form' in package['blockers']:st.info('The real application form still needs review.')
-        render_checklist(state);collection_declarations(state,graph,config,thread_key,disabled)
-        from src.ui.actions import render_actions,render_results
-        render_actions(snapshot,graph,config,thread_key,show_approval=False,show_results=False,email_only=True,email_purpose='package_review')
-        if st.button('Build checklist',disabled=disabled,key=f'iro_checklist_{thread_key}') and dispatch_tool(graph,config,'build_checklist',{}):st.rerun()
-        render_results(state,thread_key)
+        if "evidence:real_application_form" in package["blockers"]:
+            st.info("The real application form still needs review.")
+        for conflict in conflict_messages(state):
+            st.warning(conflict["message"])
+        draft = latest_email_draft(state, "package_review")
+        draft_visible = draft and render_email_result(draft, state, thread_key, package=package)
+        if package["ready"]:
+            if not draft_visible or st.toggle("Prepare another package email", key=f"new_iro_draft_{thread_key}"):
+                st.markdown("##### Prepare your review email")
+                render_email_form(state, snapshot, graph, config, thread_key, purpose="package_review", package=package)
+        else:
+            st.button("Ask IRO a support question", key=f"iro_help_{thread_key}", on_click=open_optional_tools,
+                      args=(thread_key, "Ask IRO a question"))
+        st.markdown("##### Record your university review progress")
+        if field(c, "scans_sent_to_iro") is True and field(c, "iro_preverification_confirmed") is not True:
+            st.info("Waiting for IRO review. Record their response here when it arrives.")
         with st.form(f'iro_confirm_{thread_key}'):
-            sent=st.checkbox('I sent the document scans to IRO',value=field(c,'scans_sent_to_iro') is True,disabled=disabled)
-            response=st.checkbox('IRO confirmed its review of my package',value=field(c,'iro_preverification_confirmed') is True,disabled=disabled)
-            confirm=st.checkbox('I confirm these actual IRO outcomes',disabled=disabled)
-            save=st.form_submit_button('Save IRO review progress',disabled=disabled)
-        if save and confirm:_save_statements(graph,config,{'scans_sent_to_iro':sent,'iro_preverification_confirmed':response})
-    elif stage in {'SUBMISSION','TRACKING','COMPLETE'}:
-        st.header('Submission / Tracking')
-        st.caption('Only the authority decides the residence-permit outcome. Record actual updates you have received.')
-        if stage=='COMPLETE':st.success('Your reported official decision is recorded: '+str(field(c,'approval_status','unknown')).capitalize());return
-        with st.form(f'tracking_{thread_key}_{stage}'):
-            if stage=='SUBMISSION':
-                observed=st.checkbox('I physically submitted the package to IRO',value=field(c,'submitted_to_iro') is True,disabled=disabled)
-                answers={'submitted_to_iro':observed}
+            st.caption("Record what happened. When both answers and the package are ready, continue to Submission.")
+            sent = _reported_answer("Have you sent your scans to IRO?", field(c, "scans_sent_to_iro"), disabled)
+            response = _reported_answer("Has IRO confirmed its review?", field(c, "iro_preverification_confirmed"), disabled)
+            save = st.form_submit_button("Save IRO progress and continue", disabled=disabled)
+        if save:
+            _save_changed_statements(
+                state, graph, config, {"scans_sent_to_iro": sent, "iro_preverification_confirmed": response},
+                continue_stage=sent is True and response is True,
+            )
+    elif stage in {"SUBMISSION", "TRACKING", "COMPLETE"}:
+        st.header("Submission / Tracking")
+        st.caption("Record your own updates here. Only the authority decides the residence-permit outcome.")
+        if stage == "COMPLETE":
+            st.success("Your reported official decision is recorded: " + str(field(c, "approval_status", "unknown")).capitalize())
+            return
+        with st.form(f"tracking_{thread_key}_{stage}"):
+            if stage == "SUBMISSION":
+                submitted = _reported_answer(
+                    "Have you physically submitted the package to IRO?", field(c, "submitted_to_iro"), disabled
+                )
+                answers = {"submitted_to_iro": submitted}
+                continue_stage = submitted is True
+                save = st.form_submit_button("Save submission and continue", type="primary", disabled=disabled)
             else:
-                observed=st.checkbox('I received an official decision',value=field(c,'official_decision_received') is True,disabled=disabled)
-                decision=st.selectbox('Decision reported by you',['Not confirmed','approved','rejected'],disabled=disabled)
-                answers={'official_decision_received':observed}
-                if decision!='Not confirmed':answers['approval_status']=decision
-            confirmed=st.checkbox('I confirm this real-world update',disabled=disabled)
-            save=st.form_submit_button('Save progress',disabled=disabled)
-        if save and confirmed:_save_statements(graph,config,answers)
-        st.markdown('[Open official e-Ikamet tracking](https://e-ikamet.goc.gov.tr/)')
+                choices = {
+                    "unrecorded": "No update recorded",
+                    "waiting": "I am still waiting for a decision",
+                    "received": "I received a decision and will record the outcome later",
+                    "approved": "I received an approval",
+                    "rejected": "I received a rejection",
+                }
+                received = field(c, "official_decision_received")
+                status = field(c, "approval_status")
+                if received is True:
+                    saved = status if status in {"approved", "rejected"} else "received"
+                else:
+                    saved = "waiting" if received is False else "unrecorded"
+                decision = st.selectbox("What decision have you received?", list(choices),
+                                        index=list(choices).index(saved), format_func=choices.get, disabled=disabled)
+                answers = {"official_decision_received": None if decision == "unrecorded" else decision != "waiting"}
+                continue_stage = decision in {"approved", "rejected"}
+                if continue_stage:
+                    answers["approval_status"] = decision
+                st.caption("An approval or rejection closes this case when its checks are complete.")
+                save = st.form_submit_button("Save tracking update", type="primary", disabled=disabled)
+        if save:
+            _save_changed_statements(state, graph, config, answers, continue_stage=continue_stage)
+        st.markdown("[Open official e-Ikamet tracking](https://e-ikamet.goc.gov.tr/)")
     else:return
     assessment=assess_current_stage(state)
-    if assessment['next_stage']:
-        labels={'FINGERPRINT':'Fingerprint / GI','IRO_REVIEW':'IRO Review','SUBMISSION':'Submission','TRACKING':'Tracking','COMPLETE':'Close this procedure'}
-        if st.button('Continue to '+labels.get(assessment['next_stage'],'the next step'),type='primary',disabled=disabled or not assessment['ready'],key=f'continue_stage_{thread_key}_{stage}'):
-            if persist_procedure_choice(graph,config,lambda latest:advance_current_stage(latest,recorded_at=utc_now())):st.rerun()
+    if stage == "PAYMENT" and st.button(
+        "Continue to Fingerprint / GI", type="primary", disabled=disabled or not assessment["ready"],
+        key=f"continue_stage_{thread_key}_{stage}",
+    ):
+        if persist_procedure_choice(graph, config, lambda latest: advance_current_stage(latest, recorded_at=utc_now())):
+            st.rerun()
     if not assessment['ready']:st.caption('Complete the current-step information above before continuing. Later or advisory checks are separate.')
 
 
-def _save_statements(graph,config,answers):
-    if invoke(graph,ui_run(UserEvent(kind='confirm_information',document_id='__declarations__',confirmed_fields=answers),config['configurable']['thread_id']),config):st.rerun()
+def _reported_answer(label, value, disabled):
+    options = ["Not recorded", "Yes", "Not yet"]
+    choice = st.selectbox(label, options, index=0 if value is None else 1 if value else 2, disabled=disabled)
+    return {"Yes": True, "Not yet": False}.get(choice)
 
 
-def render_fingerprint_answers(state,graph,config,thread_key,disabled):
-    c=state.get('residence_permit_context')
-    with st.form(f'fingerprint_answers_{thread_key}'):
-        known=field(c,'fingerprint_step_completed')
-        choice=st.selectbox('Have you completed fingerprinting?',['Not yet','Yes'],index=1 if known is True else 0,disabled=disabled)
-        number=st.text_input('GI number (optional if available)',value=field(c,'gi_number') or '',disabled=disabled)
-        has=st.selectbox('Have you received a GI number?',['Not confirmed','Yes','Not yet'],index=1 if field(c,'gi_number_present') is True else 2 if field(c,'gi_number_present') is False else 0,disabled=disabled)
-        confirm=st.checkbox('I confirm this fingerprint / GI progress',disabled=disabled)
-        save=st.form_submit_button('Save fingerprint / GI progress',disabled=disabled)
-    if save and confirm:
-        answers={'fingerprint_step_completed':choice=='Yes'}
-        if number.strip():answers.update(gi_number=number.strip(),gi_number_present=True)
-        elif has!='Not confirmed':answers['gi_number_present']=has=='Yes'
-        _save_statements(graph,config,answers)
-    st.caption('No additional fingerprint document is required by this prototype. Record actual progress; obtain IRO guidance if the GI number is still pending.')
+def _save_changed_statements(state, graph, config, answers, *, continue_stage=False):
+    context = state.get("residence_permit_context")
+    changes = {name: value for name, value in answers.items() if value is not None and value != field(context, name)}
+    trace = state.get("trace_id")
+    if changes:
+        event = UserEvent(kind="confirm_information", document_id="__declarations__", confirmed_fields=changes)
+        payload = ui_run(event, config["configurable"]["thread_id"])
+        if not invoke(graph, payload, config):
+            return
+        trace = payload["trace_id"]
+    if continue_stage:
+        stage = field(state.get("procedure"), "current_stage")
+
+        def advance(latest):
+            if (field(latest.get("procedure"), "current_stage") != stage or latest.get("trace_id") != trace
+                    or (changes and latest.get("validation_errors"))):
+                return {}
+            return advance_current_stage(latest, recorded_at=utc_now())
+
+        if persist_procedure_choice(graph, config, advance):
+            st.rerun()
+    if changes:
+        st.rerun()
+    if continue_stage:
+        st.info("Your update is saved. Resolve the remaining checks before continuing.")
+    else:
+        st.info("Select or change an answer before saving.")
+
+
+def render_fingerprint_answers(state, graph, config, thread_key, disabled):
+    context = state.get("residence_permit_context")
+    fingerprint_stage = field(state.get("procedure"), "current_stage") == "FINGERPRINT"
+    with st.form(f"fingerprint_answers_{thread_key}"):
+        fingerprints = _reported_answer("Have you completed fingerprinting?", field(context, "fingerprint_step_completed"), disabled)
+        number = st.text_input("GI number (if available)", value=field(context, "gi_number") or "", disabled=disabled)
+        has_number = _reported_answer("Have you received a GI number?", field(context, "gi_number_present"), disabled)
+        if fingerprint_stage:
+            st.caption("Continue to IRO Review after you confirm fingerprinting and receipt of your GI number.")
+        label = "Save fingerprint / GI and continue" if fingerprint_stage else "Save fingerprint / GI progress"
+        save = st.form_submit_button(label, disabled=disabled)
+    if save:
+        answers = {"fingerprint_step_completed": fingerprints, "gi_number_present": has_number}
+        if number.strip():
+            answers.update(gi_number=number.strip(), gi_number_present=True)
+        _save_changed_statements(
+            state, graph, config, answers,
+            continue_stage=fingerprint_stage and fingerprints is True and answers["gi_number_present"] is True,
+        )
+    st.caption("No additional fingerprint document is required. Ask IRO if your GI number is still pending.")

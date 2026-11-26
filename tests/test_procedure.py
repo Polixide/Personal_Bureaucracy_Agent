@@ -39,8 +39,13 @@ def ready_bundle(tmp_path):
     graph.update_state(config, {"procedure": ProcedureState()})
     for kind in ("passport_identity_page", "turkiye_entry_stamp", "student_enrollment_certificate", "health_insurance_certificate"):
         state = analyze(graph, config, tmp_path, kind)
+    from src.evaluation.scenarios import SYNTHETIC
     stamp = next(d for d in state["documents"] if d.doc_type == "turkiye_entry_stamp")
     confirm(graph, config, stamp.doc_id, {"latest_entry_date": "2026-09-15"})
+    state = analyze(graph, config, tmp_path, "dorm_certificate",
+                    text=SYNTHETIC["dorm_certificate"].replace("Evaluation Student", "Alex Example"))
+    certificate = next(d for d in state["documents"] if d.doc_type == "dorm_certificate")
+    confirm(graph, config, certificate.doc_id, {"dorm_certificate_format": True})
     state = confirm(graph, config, "__declarations__", {
         "address_proof_type": "dorm_certificate", "biometric_photo": True,
         "insurance_evidence_type": "private_health_insurance",
@@ -101,10 +106,10 @@ def test_missing_confirmed_prerequisite_blocks(ready_bundle, field, blocker):
     assert blocker in assess(state).blockers
 
 
-@pytest.mark.parametrize("proof", ["dorm_certificate", "rental_agreement", "notarized_commitment"])
-def test_reuses_accepted_address_categories(ready_bundle, proof):
+@pytest.mark.parametrize("proof,ready", [("dorm_certificate", True), ("rental_agreement", False), ("notarized_commitment", False)])
+def test_reuses_accepted_address_evidence_only_for_its_method(ready_bundle, proof, ready):
     state = override(ready_bundle[2], "__declarations__", "address_proof_type", proof)
-    assert assess(state).ready
+    assert assess(state).ready is ready
 
 
 def test_invalid_address_is_not_accepted(ready_bundle):
@@ -470,6 +475,61 @@ def test_preparation_maps_grounded_passport_fields(ready_bundle, field_id, expec
     assert field.source_ref.startswith("/verification_records/")
     assert eikamet_field_value(state, field) == expected
     assert state == before
+
+
+def test_preparation_reuses_the_verified_passport_name_parts_and_birth_date():
+    from src.core.procedure import eikamet_preparation_inputs
+    from src.core.state import Document
+    from src.evaluation.scenarios import extract_synthetic
+    from test_document_layouts_v2 import _checked_passport_mrz
+
+    top, bottom = _checked_passport_mrz("ITA")
+    doc = Document(doc_id="passport", doc_type="passport_copy", file_path="synthetic-passport.txt", status="analyzed",
+                   info=extract_synthetic("passport_identity_page", text=top + "\n" + bottom))
+    state = {**new_run(UserEvent(kind="reevaluate"), "synthetic", scope=MILESTONE_SCOPE),
+             "procedure": ProcedureState(), "documents": [doc]}
+    state.update(verification_updates(state))
+    preparation, values = eikamet_preparation_inputs(state)
+    assert {key: values[key] for key in ("first_name", "surname", "birth_date", "nationality", "passport_number")} == {
+        "first_name": "TAYLOR", "surname": "EXAMPLE", "birth_date": "2000-01-01", "nationality": "ITA",
+        "passport_number": "P1234567",
+    }
+    assert preparation.fields["first_name"].source_ref == "/verification_records/passport/first_name"
+    assert preparation.fields["first_name"].status == "VERIFIED"
+    assert "passport_issue_date" not in values
+
+
+@pytest.mark.parametrize("signed", [True, False])
+def test_address_prefill_requires_signed_source_or_explicit_confirmation(signed):
+    from src.core.procedure import eikamet_preparation_inputs
+    from src.core.state import Document
+    from src.evaluation.scenarios import SYNTHETIC, extract_synthetic
+
+    address = SYNTHETIC["address_form"] if signed else SYNTHETIC["address_form"].replace("yes", "no")
+    documents = [
+        Document(doc_id=kind, doc_type=kind, file_path="synthetic.txt", status="analyzed",
+                 info=extract_synthetic(kind, text=address if kind == "address_form" else None))
+        for kind in ("address_form", "utility_bill")
+    ]
+    state = {**new_run(UserEvent(kind="reevaluate"), "synthetic", scope=MILESTONE_SCOPE),
+             "procedure": ProcedureState(current_stage="EIKAMET_PREPARATION"), "documents": documents}
+    state.update(verification_updates(state))
+    preparation, values = eikamet_preparation_inputs(state)
+    assert values.get("turkiye_address") == ("Example Street 12" if signed else None)
+    assert "address_province" not in values
+    assert "address_district" not in values and "address_locality" not in values
+    if signed:
+        assert preparation.fields["turkiye_address"].source_ref == "/verification_records/address_form/declared_address"
+        state = override(state, "__declarations__", "address_province", "Istanbul")
+        state = override(state, "__declarations__", "residential_address", "Other Synthetic Street 10")
+        preparation, values = eikamet_preparation_inputs(state)
+        assert preparation.fields["turkiye_address"].status == preparation.fields["address_province"].status == "CONFLICT"
+        assert "turkiye_address" not in values and "address_province" not in values
+    else:
+        state = override(state, "address_form", "declared_address", "Example Street 12")
+        preparation, values = eikamet_preparation_inputs(state)
+        assert values["turkiye_address"] == "Example Street 12"
+        assert preparation.fields["turkiye_address"].status == "USER_CONFIRMED"
 
 
 def test_preparation_maps_user_confirmation_without_copying_observations(ready_bundle):

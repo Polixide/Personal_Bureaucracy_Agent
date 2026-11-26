@@ -31,12 +31,16 @@ def _chunks(text, size=1400, overlap=180):
         offset = max(offset + 1, end - overlap)
 
 
-def _chunk(source, text, kind, *, rule_ids=(), verified_at=None):
-    digest = hashlib.sha256((source["source_id"] + text).encode()).hexdigest()[:20]
+def _chunk(source, text, kind, *, rule_ids=(), record=None, version=None):
+    metadata = {"section": record.section, "page": record.page,
+                "source_version": record.source_version, "verified_at": record.verified_at} if record else {"source_version": version}
+    # Repeated passages within the same source can share a vector. Changes to
+    # content or provenance invalidate the corresponding persisted key.
+    identity = json.dumps([source, text, kind, list(rule_ids), metadata], sort_keys=True)
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
     return SourceChunk(chunk_id=digest, source_id=source["source_id"], title=source["title"],
         url=source["url"], authority=source["authority_level"], content=text,
-        content_kind=kind, retrieved_at=source.get("retrieved_at"), verified_at=verified_at,
-        rule_ids=list(rule_ids))
+        content_kind=kind, retrieved_at=source.get("retrieved_at"), rule_ids=list(rule_ids), **metadata)
 
 
 def ingest_guidance(records, path=GUIDANCE_CACHE):
@@ -46,14 +50,14 @@ def ingest_guidance(records, path=GUIDANCE_CACHE):
     if any(record.source_id not in catalogue for record in checked):
         raise ValueError("Guidance must reference a canonical government or Sabanci source")
     target = Path(path).resolve()
-    if not target.is_relative_to(PROJECT_ROOT):
-        raise ValueError("Guidance cache must stay inside the project")
+    if not target.is_relative_to(PROJECT_ROOT) or target.is_relative_to(KNOWLEDGE_DIR.resolve()):
+        raise ValueError("Use a local guidance snapshot path outside the active knowledge directory")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps([record.model_dump(mode="json") for record in checked], ensure_ascii=False, indent=2), encoding="utf-8")
     return len(checked)
 
 
-def build_corpus(cache_path=GUIDANCE_CACHE):
+def build_corpus(cache_path=None):
     """Build small inspectable chunks without embeddings or a second rule engine."""
     catalogue = source_catalogue()
     rule_data = json.loads((KNOWLEDGE_DIR / "rules.json").read_text(encoding="utf-8"))
@@ -64,14 +68,15 @@ def build_corpus(cache_path=GUIDANCE_CACHE):
         sources.sort(key=lambda s: (s["authority_level"] != "government_primary", s["source_id"]))
         if rule["rule_id"]=="R017":sources.sort(key=lambda s:s["authority_level"]!="sabanci_direct_instruction")
         content = rule["description"] + (" " + rule["notes"] if rule.get("notes") else "")
-        corpus.append(_chunk(sources[0], content, "project_operational_policy" if sources[0]["authority_level"]=="sabanci_direct_instruction" else "project_rule_excerpt", rule_ids=[rule["rule_id"]]))
-    cache = Path(cache_path)
+        corpus.append(_chunk(sources[0], content, "project_operational_policy" if sources[0]["authority_level"]=="sabanci_direct_instruction" else "project_rule_excerpt", rule_ids=[rule["rule_id"]], version=rule_data.get("dataset_version")))
+    cache = GUIDANCE_CACHE if cache_path is None else Path(cache_path)
     if cache.is_file():
         records = json.loads(cache.read_text(encoding="utf-8"))
         if not isinstance(records, list): raise ValueError("Guidance cache must contain a list")
         for raw in records:
             record = GuidanceInput.model_validate(raw)
             if record.source_id not in catalogue: raise ValueError("Unapproved source in guidance cache")
-            corpus.extend(_chunk(catalogue[record.source_id], text, "official_guidance", verified_at=record.verified_at)
-                          for text in _chunks(record.content))
+            source = catalogue[record.source_id]
+            kind = "project_operational_policy" if source["authority_level"] == "sabanci_direct_instruction" else "official_guidance"
+            corpus.extend(_chunk(source, text, kind, record=record) for text in _chunks(record.content))
     return corpus

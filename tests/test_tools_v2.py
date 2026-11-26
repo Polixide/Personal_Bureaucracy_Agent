@@ -352,6 +352,31 @@ def test_simulated_pdf_requires_review_and_approval_and_never_establishes_comple
         info=process_document(tmp_path/'simulation.pdf',document_type_hint='ikamet_application_form')
     assert info.document_type=='unknown';client.assert_not_called()
 
+    # Use an accepted correction for each case source after a PDF already exists.
+    passport = next(doc for doc in state["documents"] if doc.doc_type == "passport_copy")
+    new_passport = passport.model_copy(deep=True, update={"doc_id": "replacement-passport"})
+    state["documents"] = [new_passport if doc.doc_id == passport.doc_id else doc for doc in state["documents"]]
+    state = override(state, new_passport.doc_id, "passport_number", "P7654321")
+    state = override(state, "__declarations__", "residential_address", "Updated Example Street 20")
+    assert read_simulated_pdf(state) is None
+    state, _ = observed(state, ToolCall(name="prefill_eikamet_sandbox"))
+    form = state["sandbox_form"]
+    assert form["fields"]["passport_number"] == {
+        "value": "P7654321", "source_ref": "/verification_records/replacement-passport/passport_number",
+        "source_status": "USER_CONFIRMED",
+    }
+    assert form["fields"]["turkiye_address"]["value"] == "Updated Example Street 20"
+    assert form["validated_revision"] is None and not form["simulated_application_ready"]
+    replacement = ToolCall(name="generate_simulated_application")
+    assert execute_tool(state, replacement).status == "FAILED"
+    state, refreshed = observed(state, ToolCall(name="simulate_application_validation"))
+    assert refreshed.data["valid"]
+    assert execute_tool(state, replacement).status == "APPROVAL_REQUIRED"
+    state, _ = observed(state, replacement, approved=True)
+    with pymupdf.open(stream=read_simulated_pdf(state), filetype="pdf") as pdf:
+        updated = "\n".join(page.get_text() for page in pdf)
+    assert "P7654321" in updated and "Updated Example Street 20" in updated
+    assert "P1234567" not in updated and "Example Street 12" not in updated
 
 
 def test_form_drafts_survive_failed_review_and_sqlite_recreation_without_legal_fact_writes(ready_bundle,tmp_path):

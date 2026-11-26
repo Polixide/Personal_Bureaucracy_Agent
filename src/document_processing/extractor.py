@@ -27,6 +27,10 @@ class TextPage:
     ocr_confidence: float | None = None
     rotation_degrees: int = 0
     quality_issues: tuple[str, ...] = ()
+    native_text: str | None = None
+    form_fields: tuple[tuple[str, str], ...] = ()
+    low_confidence_lines: tuple[str, ...] | None = None
+    ocr_bounds: tuple[tuple[float, float, float, float], ...] = ()
 
 
 def text_quality_issues(text):
@@ -91,18 +95,39 @@ def ocr_page(page, number, *, metadata=None):
     """OCR one scanned page; returned text is still untrusted document input."""
     try:
         engine = get_ocr_engine()
-        best_text="";best_quality=-1;best_confidence=None;best_angle=0
-        for angle in (0,90,180,270):
-            result=engine(render_page(page,angle))
-            candidate="\n".join(line.strip() for line in (result.txts or ()) if line.strip())
-            scores=getattr(result,"scores",None)
-            confidence=sum(float(v) for v in scores)/len(scores) if scores is not None and len(scores) else (1.0 if candidate else 0.0)
-            quality=confidence*max(1,sum(c.isalnum() for c in candidate))**0.5
-            if candidate and quality>best_quality:
-                best_text,best_quality,best_angle=candidate,quality,angle
-                best_confidence=confidence if scores is not None and len(scores) else None
-            if angle==0 and candidate and confidence>=0.85: break
-        if metadata is not None:metadata.update(ocr_confidence=best_confidence,rotation_degrees=best_angle)
+        best_text = ""
+        best_quality, best_confidence, best_angle, best_low_lines = -1, None, 0, None
+        best_bounds = ()
+        for angle in (0, 90, 180, 270):
+            result = engine(render_page(page, angle))
+            lines = result.txts if result.txts is not None else ()
+            candidate = "\n".join(line.strip() for line in lines if line.strip())
+            scores = getattr(result, "scores", None)
+            confidence = (sum(float(score) for score in scores) / len(scores) if scores is not None and len(scores)
+                          else 1.0 if candidate else 0.0)
+            quality = confidence * max(1, sum(char.isalnum() for char in candidate)) ** 0.5
+            if candidate and quality > best_quality:
+                best_text, best_quality, best_angle = candidate, quality, angle
+                best_confidence = confidence if scores is not None and len(scores) else None
+                best_low_lines = (
+                    tuple(line.strip() for line, score in zip(lines, scores)
+                          if line.strip() and float(score) < DOCUMENT_OCR_MIN_CONFIDENCE)
+                    if scores is not None and len(lines) == len(scores) else None
+                )
+                boxes = getattr(result, "boxes", None)
+                best_bounds = ()
+                if boxes is not None and len(boxes) == len(lines):
+                    bounds = []
+                    for line, box in zip(lines, boxes):
+                        if line.strip():
+                            x, y = zip(*box)
+                            bounds.append((min(map(float, x)), min(map(float, y)), max(map(float, x)), max(map(float, y))))
+                    best_bounds = tuple(bounds)
+            if angle == 0 and candidate and confidence >= 0.85:
+                break
+        if metadata is not None:
+            metadata.update(ocr_confidence=best_confidence, rotation_degrees=best_angle,
+                            low_confidence_lines=best_low_lines, ocr_bounds=best_bounds)
         text=best_text
         if not text:
             raise DocumentExtractionError(f"RapidOCR found no readable text on page {number}. Try a clearer scan.")
@@ -118,7 +143,8 @@ def ocr_page(page, number, *, metadata=None):
         ) from error
 
 
-def extract_pages(file_path: str | Path, *, allow_ocr_failure: bool = False) -> list[TextPage]:
+def extract_pages(file_path: str | Path, *, allow_ocr_failure: bool = False,
+                  local_ocr: bool = True) -> list[TextPage]:
     """Read UTF-8 TXT or PDF text, retaining original one-based page numbers.
 
     Raises FileNotFoundError for missing paths, ValueError for unsupported
@@ -145,9 +171,16 @@ def extract_pages(file_path: str | Path, *, allow_ocr_failure: bool = False) -> 
             pages = []
             for i, page in enumerate(document):
                 text = "\n".join(re.sub(r"[ \t]{2,}","  ",line).strip() for line in page.get_text(sort=True).splitlines())
-                native_count=len(text)
+                native_text = text
+                native_count = len(native_text)
+                form_fields = tuple(
+                    ((widget.field_label or widget.field_name or "").replace("_", " "), widget.field_value)
+                    for widget in page.widgets() or ()
+                    if widget.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT
+                    and isinstance(widget.field_value, str) and widget.field_value.strip()
+                )
                 metadata={}
-                used_ocr=bool(text_quality_issues(text)) and bool(page.get_images(full=True) or page.get_image_info())
+                used_ocr=local_ocr and bool(text_quality_issues(text)) and bool(page.get_images(full=True) or page.get_image_info())
                 duration=0.0
                 issues=[]
                 _emit(f"[DOCUMENT] native_page page={i+1} native_text_characters={native_count} ocr_triggered={used_ocr}")
@@ -164,11 +197,13 @@ def extract_pages(file_path: str | Path, *, allow_ocr_failure: bool = False) -> 
                 if metadata.get("ocr_confidence") is not None and metadata["ocr_confidence"]<DOCUMENT_OCR_MIN_CONFIDENCE:
                     issues.append("low_ocr_confidence")
                 pages.append(TextPage(i+1,text,"rapidocr" if used_ocr else "native_text",native_count,used_ocr,duration,
-                                      metadata.get("ocr_confidence"),metadata.get("rotation_degrees",0),tuple(dict.fromkeys(issues))))
+                                      metadata.get("ocr_confidence"),metadata.get("rotation_degrees",0),
+                                      tuple(dict.fromkeys(issues)), native_text, form_fields,
+                                      metadata.get("low_confidence_lines"), metadata.get("ocr_bounds", ())))
     except (pymupdf.FileDataError, RuntimeError) as error:
         raise DocumentExtractionError(f"Cannot read PDF: {path}") from error
 
-    if not allow_ocr_failure and not any(page.text.strip() for page in pages):
+    if not allow_ocr_failure and not any(page.text.strip() or page.form_fields for page in pages):
         raise DocumentExtractionError(
             f"PDF contains no extractable text: {path}. No readable text was recovered."
         )

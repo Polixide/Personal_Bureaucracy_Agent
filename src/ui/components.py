@@ -5,19 +5,25 @@ from src.memory.codec import utc_now
 from src.memory.twin_store import TwinStore
 from src.memory.twin_sync import record_after_invoke
 """Shared presentation adapters; canonical business decisions stay in core/workers."""
+from dataclasses import replace
 from datetime import date, datetime, timezone
+from time import perf_counter
 from hashlib import sha256
 from pathlib import Path
 import re
 from uuid import uuid4
 import streamlit as st
 from langgraph.types import Command
+from langsmith import tracing_context
 from pydantic import BaseModel
 from config import MAX_REFLECTION_ATTEMPTS, PROJECT_ROOT
 from src.core.state import Document, UserEvent, ProcedureState, new_run
+from src.core.llm_diagnostics import collect_model_calls
+from src.core.model_provider import ERROR_MESSAGES, use_ai_options
+from src.ui.model_settings import cloud_documents_available, last_run_metrics, remember_ai_run, ui_ai_options
 from src.core.procedure import (COLLECTION_ITEMS, EIKAMET_FIELD_CATALOGUE, assess_document_collection,
-    advance_procedure_if_ready, build_eikamet_preparation, eikamet_field_value, entry_intent_update)
-from src.workers.rules_engine import ACCEPTED_ADDRESS_PROOF_TYPES
+    advance_procedure_if_ready, build_eikamet_preparation, eikamet_field_value, eikamet_preparation_inputs, entry_intent_update)
+from src.core.address_proof import ADDRESS_PART_LABELS, REVIEW_LABELS, address_proof_status
 from src.workers.verification import (document_review, CONTEXT_QUESTIONS, CONTEXT_FIELDS, INSURANCE_TYPES,
     conflict_details, MILESTONE_SCOPE, MILESTONE_DOCUMENTS, CONTEXT_GROUPS, milestone_checklist)
 from src.document_processing.schemas import DOCUMENT_SCHEMAS
@@ -43,23 +49,56 @@ def ui_run(event, user_id):
     return new_run(event,user_id,scope=MILESTONE_SCOPE)
 
 
-def save_upload(name: str, content: bytes, thread_id: str, directory: Path = UPLOAD_DIR) -> Path:
-    """Store uploads under content/thread-derived names, never a browser-supplied path."""
+def upload_path(name: str, content: bytes, thread_id: str, directory: Path = UPLOAD_DIR) -> Path:
+    """Compute the existing content-addressed destination without touching the file."""
     extension = Path(name).suffix.lower()
     if extension not in {".pdf", ".txt"}:
         raise ValueError("Unsupported file. Choose a PDF or TXT document.")
     if not content:
-        raise ValueError("The uploaded file is empty.")
+        raise ValueError("The uploaded document is empty.")
     if not thread_id.strip():
-        raise ValueError("Enter a thread ID first.")
+        raise ValueError("Enter a profile name first.")
     directory = directory.resolve()
     if not directory.is_relative_to(PROJECT_ROOT):
         raise ValueError("Uploads must stay inside the project.")
-    directory.mkdir(parents=True, exist_ok=True)
     digest = sha256(thread_id.encode() + b"\0" + content).hexdigest()
-    path = directory / f"{digest}{extension}"
+    return directory / f"{digest}{extension}"
+
+
+def save_upload(name: str, content: bytes, thread_id: str, directory: Path = UPLOAD_DIR) -> Path:
+    """Store uploads under content- and profile-derived names."""
+    path = upload_path(name, content, thread_id, directory)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
     return path
+
+
+def _already_uploaded(state, path):
+    return any(field(document, "file_path") == str(path)
+               and field(document, "status") in {"analyzed", "pending", "replacement_pending"}
+               for document in state.get("documents") or [])
+
+
+def submit_document_upload(uploaded, state, graph, config, *, save_file, allow_document_cloud=False):
+    if uploaded is None:
+        st.warning("Choose a PDF or TXT file first.")
+        return
+    thread_id = config["configurable"]["thread_id"]
+    try:
+        content = uploaded.getvalue()
+        destination = upload_path(uploaded.name, content, thread_id)
+        if _already_uploaded(state, destination):
+            st.info("This file is already in Documents. Review the saved copy or use Reprocess if you need a fresh analysis.")
+            return
+        path = save_file(uploaded.name, content, thread_id)
+    except (OSError, ValueError) as error:
+        show_error(error, thread_id=thread_id)
+        return
+    event = UserEvent(kind="analyze_document", file_path=str(path), original_filename=uploaded.name)
+    if invoke(graph, ui_run(event, thread_id), config, check_upload=True,
+              allow_document_cloud=allow_document_cloud):
+        return path
+    return None
 
 
 def jsonable(value):
@@ -108,7 +147,8 @@ def status_label(status):
         "INFORMATION_NEEDS_CONFIRMATION":"Information needs your confirmation","REQUIREMENTS_EVALUATED":"Information reviewed",
         "PLANNING_UNAVAILABLE":"Optional planning unavailable; your case is saved","PLAN_INVALID":"Proposed next steps need review",
         "HUMAN_REVIEW_REQUIRED":"We need your help to resolve an issue.","AWAITING_TOOL_APPROVAL":"Your approval is required.",
-        "TOOL_COMPLETED":"Action prepared successfully.","TOOL_FAILED":"This action needs your attention.","ASSISTANT_RESPONDED":"Ready for your next step"}.get(str(status),str(status).replace('_',' ').capitalize())
+        "TOOL_COMPLETED":"Action prepared successfully.","TOOL_FAILED":"This action needs your attention.","ASSISTANT_RESPONDED":"Ready for your next step",
+        "INVALID_INPUT":"Information needs review"}.get(str(status),str(status).replace('_',' ').capitalize())
 
 
 def requirement_summary(requirements):
@@ -124,11 +164,13 @@ def blocking_requirement_groups(requirements):
             "missing_information": [r for r in records if r.get("status") == "missing_information"]}
 
 
-def unknown_requirement_groups(state):
+def unknown_requirement_groups(state, *, needs=None):
     """Present policy scope separately; retain every UNKNOWN rule and legal status."""
-    from src.agents.planner import actionable_needs
+    if needs is None:
+        from src.agents.planner import actionable_needs
+        needs = actionable_needs(state)
     groups={key:[] for key in ("immediate","future","outside_scope","guardrail_only","waiting","advisory")}
-    for need in actionable_needs(state):
+    for need in needs:
         if need["status"]=="missing_information":
             groups[need["category"]].append(need["rule_id"])
     return {key:sorted(set(ids)) for key,ids in groups.items()}
@@ -137,6 +179,8 @@ def unknown_requirement_groups(state):
 def friendly_error(message: str) -> str:
     """Translate transport/extraction failures for display; leave backend decisions intact."""
     text = message.lower()
+    if message in ERROR_MESSAGES.values():
+        return message
     if "openai" in text or "cloud" in text:
         return "Optional cloud processing is unavailable. Review any unresolved document fields, check the provider configuration or retry."
     if "ocr" in text and ("timed out" in text or "timeout" in text):
@@ -160,9 +204,14 @@ def friendly_error(message: str) -> str:
     return "Processing could not finish. Check the document and local model, then retry."
 
 
-def show_error(message):
+def profile_key(thread_id):
+    return sha256(thread_id.encode()).hexdigest()[:16]
+
+
+def show_error(message, *, thread_id=None):
     st.error(friendly_error(str(message)))
-    st.session_state['_last_ui_error']=str(message)  # Display diagnostics only, shown in Technical.
+    if thread_id:
+        st.session_state[f"_last_ui_error_{profile_key(thread_id)}"] = str(message)
 
 
 @st.cache_resource
@@ -172,42 +221,201 @@ def _run_locks():
     There is one local model. Overlapping runs for a profile queue on it (each
     waits for the others) and leave unfinished checkpoints, so only one runs at a time.
     """
-    return {"guard": threading.Lock(), "profiles": {}}
+    return {"guard": threading.Lock(), "profiles": {}, "planning": {}}
 
 def profile_lock(thread_id: str) -> threading.Lock:
     locks = _run_locks()
     with locks["guard"]:
         return locks["profiles"].setdefault(thread_id, threading.Lock())
 
-def invoke(graph, payload, config):
-    lock = profile_lock(config["configurable"]["thread_id"])
-    if not lock.acquire(blocking=False):
-        st.info("Still processing your last action. This page updates when it finishes.",
-                icon=":material/hourglass_top:")
-        return False
-    started = utc_now()
+def checkpoint_id(snapshot):
+    return (field(snapshot, "config", {}) or {}).get("configurable", {}).get("checkpoint_id")
+
+
+def _run_detailed_plan(config, expected_checkpoint, resume, shared, profile, lock, request, ai):
+    from src.core.graph import build_graph
+    from src.memory import checkpointer
+
+    notice = None
+    metrics = None
     try:
-        with st.spinner("Processing with the local agent..."):
-            graph.invoke(payload, config)
+        # The Streamlit render closes its connection. All execution and mirroring
+        # for this request use an independent connection owned by this worker.
+        with checkpointer.sqlite_checkpointer() as saver:
+            graph = build_graph(saver)
+            current = graph.get_state(config)
+            if checkpoint_id(current) != expected_checkpoint:
+                notice = ("info", "The case changed before planning started. Review the current case and try again.", None)
+                return
+            if resume:
+                if (not current.next or any(task.interrupts for task in current.tasks)
+                        or field(current.values.get("event"), "kind") != "generate_plan"):
+                    notice = ("info", "Review the current case before retrying the interrupted plan.", None)
+                    return
+                payload = None
+            else:
+                if current.next:
+                    notice = ("info", "Finish the pending action before preparing a new plan.", None)
+                    return
+                payload = ui_run(UserEvent(kind="generate_plan"), profile)
+            started = utc_now()
+            timer = perf_counter()
+            try:
+                with use_ai_options(ai), collect_model_calls() as calls, tracing_context(enabled=False):
+                    for update in graph.stream(payload, config, stream_mode="updates"):
+                        if "reflection" in update:
+                            with shared["guard"]:
+                                request["message"] = "Checking the plan and correcting inconsistencies..."
+            finally:
+                metrics = last_run_metrics(calls, perf_counter() - timer, operation="generate_plan")
+                try:
+                    with TwinStore(TWIN_RECORD_PATH) as store:
+                        record_after_invoke(store, graph, config, started)
+                except Exception as error:
+                    notice = ("warning", "Your case is saved. The activity log could not be updated.", str(error))
     except Exception as error:
-        # UI boundary only: checkpoints remain the source of truth after failure.
-        show_error(error)
+        notice = ("error", "Plan preparation stopped. Your saved information is available. Review your case and retry.",
+                  str(error))
+    finally:
+        with shared["guard"]:
+            request.update(message=None, notice=notice, metrics=metrics)
+            if notice is None and metrics is None:
+                shared["planning"].pop(profile, None)
+            lock.release()
+
+
+def start_detailed_plan(snapshot, config, *, resume=False):
+    profile = config["configurable"]["thread_id"]
+    expected_checkpoint = checkpoint_id(snapshot)
+    shared = _run_locks()
+    lock = profile_lock(profile)
+    if not lock.acquire(blocking=False):
+        st.info("An action is already running for this case.")
+        return False
+
+    ai = ui_ai_options(profile_key(profile))
+    request = {"message": "Preparing your detailed plan...", "notice": None}
+    with shared["guard"]:
+        shared["planning"][profile] = request
+    try:
+        threading.Thread(target=_run_detailed_plan, name="detailed-plan", daemon=True,
+                         args=(config, expected_checkpoint, resume, shared, profile, lock, request, ai)).start()
+    except Exception as error:
+        with shared["guard"]:
+            shared["planning"].pop(profile, None)
+            lock.release()
+        show_error(error, thread_id=profile)
+        return False
+
+    key = profile_key(profile)
+    st.session_state.pop(f"plan_notice_{key}", None)
+    st.session_state[f"open_plan_result_{key}"] = True
+    return True
+
+
+def planning_message(profile):
+    shared = _run_locks()
+    with shared["guard"]:
+        return shared["planning"].get(profile, {}).get("message")
+
+
+def render_plan_notice(profile, snapshot):
+    key = profile_key(profile)
+    revision = checkpoint_id(snapshot)
+    shared = _run_locks()
+    with shared["guard"]:
+        request = shared["planning"].get(profile)
+        notice = request["notice"] if request else None
+        metrics = request.get("metrics") if request else None
+        if notice or metrics:
+            shared["planning"].pop(profile)
+    if metrics:
+        remember_ai_run(key, metrics)
+    state_key = f"plan_notice_{key}"
+    if notice:
+        st.session_state[state_key] = (revision, notice)
+        if notice[2]:
+            st.session_state[f"_last_ui_error_{key}"] = notice[2]
+    if saved := st.session_state.get(state_key):
+        if len(saved) != 2 or saved[0] != revision:
+            st.session_state.pop(state_key)
+        else:
+            level, message, _ = saved[1]
+            getattr(st, level)(message)
+
+
+def invoke(graph, payload, config, *, check_upload=False, expected_checkpoint=None, allow_document_cloud=False):
+    thread_id = config["configurable"]["thread_id"]
+    lock = profile_lock(thread_id)
+    if not lock.acquire(blocking=False):
+        st.info("Still processing your last action. Wait for it to finish.", icon=":material/hourglass_top:")
+        return False
+    event = field(payload, "event")
+    progress = {
+        "analyze_document": "Reading this document locally and checking which fields need your review...",
+        "reprocess_document": "Reading this document locally again...",
+        "generate_plan": "Preparing and checking your next steps...",
+        "assistant_message": "Preparing a reply for your case...",
+        "confirm_information": "Saving your answers and checking the requirements...",
+        "reevaluate": "Checking your saved information...",
+        "run_tool": "Preparing your requested action...",
+    }
+    try:
+        key = profile_key(thread_id)
+        ai = ui_ai_options(key)
+        if allow_document_cloud:
+            kind = field(event, "kind")
+            target = field(event, "file_path") if kind == "analyze_document" else field(event, "document_id")
+            if kind not in {"analyze_document", "reprocess_document"} or not target or not cloud_documents_available(key):
+                st.warning("Cloud document analysis is unavailable. Check the OpenAI model in Case settings.")
+                return False
+            ai = replace(ai, cloud_document=(kind, target))
+        if check_upload or expected_checkpoint is not None:
+            current = graph.get_state(config)
+        if expected_checkpoint is not None and (current.next or checkpoint_id(current) != expected_checkpoint):
+            st.info("Your case changed. Review the latest saved information before saving again.")
+            st.rerun()
+        if check_upload:
+            if current.next:
+                st.info("Finish the pending action before adding a document.")
+                return False
+            if _already_uploaded(current.values, field(event, "file_path")):
+                st.info("This file is already in Documents. Review the saved copy or use Reprocess.")
+                return False
+        started = utc_now()
+        timer = perf_counter()
+        kind = field(event, "kind")
+        retrieval_calls = 0
+        message = ("Analyzing the authorized file with OpenAI…" if allow_document_cloud
+                   else progress.get(kind, "Updating your case..."))
+        with use_ai_options(ai), collect_model_calls() as calls, tracing_context(enabled=False):
+            try:
+                with st.spinner(message):
+                    result = graph.invoke(payload, config)
+                if kind == "assistant_message" and isinstance(result, dict):
+                    retrieval_calls = result.get("assistant_diagnostics", {}).get("retrieval_calls", 0)
+            finally:
+                if calls or kind in {"generate_plan", "assistant_message", "analyze_document", "reprocess_document"}:
+                    remember_ai_run(key, last_run_metrics(calls, perf_counter() - timer, operation=kind,
+                                                         retrieval_calls=retrieval_calls))
+                record_run(graph, config, started)
+    except Exception as error:
+        show_error(error, thread_id=thread_id)
         return False
     finally:
-        try:
-            record_run(graph, config, started)
-        finally:
-            lock.release()
+        lock.release()
     return True
+
 
 @st.fragment(run_every=2)
 def wait_for_run(thread_id):
-    """Shown instead of the views while another tab or device is running this profile."""
+    """Show progress while another tab is processing this profile."""
     if profile_lock(thread_id).locked():
-        st.info("Still processing your last action. This page refreshes by itself when it finishes.",
-                icon=":material/hourglass_top:")
+        message = planning_message(thread_id) or "Still processing your last action."
+        st.info(f"{message} This page refreshes when it finishes.", icon=":material/hourglass_top:")
     else:
         st.rerun()
+
 
 def record_run(graph, config, started):
     """Mirror the checkpoint into the twin record. Never blocks the UI: the
@@ -216,7 +424,9 @@ def record_run(graph, config, started):
         with TwinStore(TWIN_RECORD_PATH) as store:
             record_after_invoke(store, graph, config, started)
     except Exception as error:
-        st.warning(f"Your progress is saved, but the twin record could not be updated: {error}")
+        st.warning("Your saved case is available. The activity log could not be updated.")
+        thread_id = config["configurable"]["thread_id"]
+        st.session_state[f"_last_ui_error_{profile_key(thread_id)}"] = str(error)
 
 
 
@@ -362,14 +572,23 @@ def technical_case_view(state):
         "planner_diagnostics":state.get("planner_diagnostics",{})})
 
 
-def user_text(text):
-    """Presentation only: internal statuses, rule IDs and course wording stay Technical."""
-    value=str(text)
-    value=re.sub(r'Milestone[- ]?1 document preparation is complete','Your preparation documents are ready',value,flags=re.I)
-    value=re.sub(r'Milestone[- ]?1|\bV2\b','',value,flags=re.I)
-    for raw in ('HUMAN_REVIEW_REQUIRED','AWAITING_TOOL_APPROVAL','TOOL_COMPLETED','TOOL_FAILED','LOCAL_ICS','LOCAL_SIMULATION'):
-        value=value.replace(raw,{'LOCAL_ICS':'calendar download','LOCAL_SIMULATION':'draft for your email app'}.get(raw,status_label(raw)))
-    return re.sub(r'\s+',' ',re.sub(r'\bR\d{3}\b\s*[:,-]?','',value)).strip()
+def user_text(text, *, keep_lines=False):
+    """Present student-facing prose while keeping the saved message intact."""
+    value = str(text).replace(
+        "Use Generate a stage plan below; Gate 1 and your approval remain required.",
+        "Open Next steps to prepare a plan for you to review and approve.",
+    )
+    value = re.sub(r'Milestone[- ]?1 document preparation is complete',
+                   'Your preparation documents are ready', value, flags=re.I)
+    value = re.sub(r'Milestone[- ]?1|\bV2\b', '', value, flags=re.I)
+    for raw in ('HUMAN_REVIEW_REQUIRED', 'AWAITING_TOOL_APPROVAL', 'TOOL_COMPLETED',
+                'TOOL_FAILED', 'LOCAL_ICS', 'LOCAL_SIMULATION'):
+        value = value.replace(raw, {'LOCAL_ICS': 'calendar download',
+                                    'LOCAL_SIMULATION': 'draft for your email app'}.get(raw, status_label(raw)))
+    value = re.sub(r'\bR\d{3}\b[ \t]*[:,-]?', '', value)
+    if keep_lines:
+        return value.strip()
+    return re.sub(r'\s+', ' ', value).strip()
 
 
 def dispatch_tool(graph, config, name, arguments):
@@ -451,13 +670,14 @@ def document_display_status(state, document):
     """Current-step status from the canonical assessment, not the legacy form."""
     status=field(document,"status")
     if status!="analyzed":
-        return {"replacement_pending":"Replacement awaiting decision","rejected":"Processing needs attention","pending":"Awaiting analysis"}.get(status,str(status or "Needs review").replace("_"," ").capitalize())
+        return {"replacement_pending":"Replacement awaiting decision","rejected":"Analysis failed","pending":"Analyzing"}.get(status,str(status or "Needs review").replace("_"," ").capitalize())
     mapping={"passport_copy":"passport_identity","turkiye_entry_stamp":"latest_entry","student_certificate":"student_certificate","health_insurance":"health_insurance"}
     key=mapping.get(field(document,"doc_type"))
     if state.get("procedure") is not None and key:
         result=assess_document_collection(state).prerequisites.get(key)
         return {"READY":"Ready for this step","MISSING":"Missing information","NEEDS_CONFIRMATION":"Needs review","BLOCKED":"Needs review","CONFLICT":"Conflicting information"}.get(result,"Needs review")
-    return document_card(state,document)["status"].replace("_"," ").capitalize()
+    labels = {"complete": "Ready for this step", "needs_review": "Needs review", "conflict": "Conflicting information"}
+    return labels.get(document_card(state, document)["status"], "Needs review")
 
 def run_event(graph, config, event):
     """Send one UserEvent through the graph exactly as before, then refresh."""
@@ -471,31 +691,28 @@ def plan_steps(state):
         steps = field(approved, "actions", [])
     return steps
 
-def render_status_bar(state, snapshot):
-    """Preserve Neda's three bordered cards; show stage progress, not rule totals."""
-    summary=workflow_summary(state)
-    step,progress,status=st.columns(3,border=True)
-    step.caption('Current step');step.markdown('**'+summary['step_text']+'**')
-    progress.caption('Progress');progress.markdown('**'+summary['progress_text']+'**')
-    label=status_label(state.get('run_status','NOT_STARTED'))
-    if summary['stage']=='DOCUMENT_COLLECTION' and summary['ready_count']==len(summary['items']) and state.get('run_status') in {'HUMAN_REVIEW_REQUIRED','PLAN_INVALID','PLANNING_UNAVAILABLE'}:label='Documents ready; continue to e-Ikamet'
-    status.caption('Agent status');status.markdown('**'+label+'**')
-
-
-
-DOC_LABELS={**{key:value[0] for key,value in MILESTONE_DOCUMENTS.items()},'utility_bill':'Utility bill','address_form':'Address Form','unknown':'Unrecognized document'}
+DOC_LABELS = {**{key: value[0] for key, value in MILESTONE_DOCUMENTS.items()},
+              **ADDRESS_PART_LABELS, "tax_id_certificate": "Tax ID assignment certificate",
+              "unknown": "Unrecognized document"}
 FIELD_LABELS={'holder_name':'Holder name','applicant_name':'Applicant name','student_id':'Student ID','issue_date':'Issue date','institution':'University',
-    'passport_or_foreign_id':'Passport / foreign ID','passport_number':'Passport number','nationality':'Nationality','expiry_date':'Passport expiry date',
-    'policy_number':'Policy number','insurer':'Insurer','coverage_start_date':'Coverage start date','coverage_end_date':'Coverage end date','insurance_evidence_type':'Insurance category',
+    'passport_or_foreign_id':'Passport / foreign ID','passport_number':'Passport number','foreigner_id':'Foreigner ID (YKN)',
+    'nationality':'Nationality','expiry_date':'Passport expiry date',
+    'policy_number':'Policy number','insurer':'Insurer','coverage_start_date':'Coverage start date','coverage_end_date':'Insurance expiry date','insurance_evidence_type':'Insurance category',
     'first_name':'First name','last_name':'Surname','birth_date':'Birth date','phone':'Phone number','declared_address':'Declared address','service_address':'Service address',
     'signature_present':'Signed Address Form','form_date':'Form date','billing_date':'Billing date','provider':'Utility provider','permit_type':'Permit type',
-    'exchange_student':'Exchange student status','program_start_date':'Exchange start date','program_end_date':'Exchange end date','latest_entry_date':'Latest entry date',
+    'exchange_student':'Exchange student status','program_start_date':'Exchange start date','program_end_date':'Exchange end date','latest_entry_date':'Date of entry into Türkiye',
     'identity_page_present':'Readable passport identity page','entry_stamp_present':'Entry stamp visible','application_form_signed':'Signed application form',
     'online_application_completed':'Real online application completed','document_present':'Document available','receipt_present':'Payment receipt available','signed':'Signed document',
     'application_number':'Application number','requested_start_date':'Requested start date','requested_end_date':'Requested end date','legal_stay_expiry_date':'Legal stay expiry date',
     'passport_expiry_date':'Passport expiry date','requested_permit_end_date':'Requested permit end date','insurance_end_date':'Insurance end date','residential_address':'Residence address',
     'insurance_policy_number':'Policy number','insurance_insurer':'Insurer','passport_issue_date':'Passport issue date','passport_issuing_country':'Passport issuing country',
     'passport_issuing_authority':'Passport issuing authority','gender':'Gender','turkish_phone':'Contact phone','reason_of_stay':'Reason for stay','gi_number':'GI number'}
+
+
+FIELD_LABELS.update(REVIEW_LABELS, host_name="Host's name", landlord_name="Landlord's name",
+                    resident_name="Student's name", payer_name="Payer or taxpayer name",
+                    tax_identification_number="Tax identification number", taxpayer_id="Taxpayer identifier on receipt",
+                    payment_code="Payment code", amount="Paid amount", reference_number="Receipt reference")
 
 
 def field_label(name):return FIELD_LABELS.get(str(name),str(name).replace('_',' ').capitalize())
@@ -520,61 +737,137 @@ def persist_procedure_choice(graph,config,update_fn):
     finally:lock.release()
 
 
-def request_view(thread_key,view,document_id=None):
-    # Navigation intent only; apply before the segmented widget is instantiated.
-    st.session_state['requested_view_'+thread_key]=view
-    if document_id:st.session_state['review_document_'+thread_key]=document_id
+def editor_draft(scope):
+    """Keep pending values in session state outside Streamlit's widget cleanup."""
+    return st.session_state.setdefault(f"draft_{scope}", {})
+
+
+def draft_widget(scope, draft, name, default):
+    """Initialize a widget before rendering it and capture each committed edit."""
+    key = f"draft_input_{scope}_{name}"
+    value = draft.get(name, default)
+    if value == default:
+        draft.pop(name, None)
+    if key not in st.session_state or st.session_state[key] != value:
+        st.session_state[key] = value
+
+    def remember():
+        changed = st.session_state[key]
+        if changed == default:
+            draft.pop(name, None)
+        else:
+            draft[name] = changed
+
+    return {"key": key, "on_change": remember}
+
+
+def request_view(thread_key, view, document_id=None, *, document_type=None, detail_section=None):
+    st.session_state[f"requested_view_{thread_key}"] = view
+    if view == "documents":
+        if document_id:
+            st.session_state[f"review_document_{thread_key}"] = document_id
+        if document_type:
+            st.session_state[f"review_type_{thread_key}"] = document_type
+    if view == "details" and detail_section:
+        st.session_state[f"requested_details_{thread_key}"] = detail_section
 
 
 def workflow_summary(state):
-    from src.core.procedure import user_step,stage_document_checklist
-    step=user_step(state)
-    stage=field(state.get('procedure'),'current_stage')
-    rows=stage_document_checklist(state)
-    ready=sum(row['status']=='complete' for row in rows)
-    progress=f'{ready} of {len(rows)} prerequisites ready' if rows else 'Follow the next action below'
-    if stage=='EIKAMET_PREPARATION' and field(state.get('procedure'),'eikamet_path')=='ASSISTED':
-        preparation=build_eikamet_preparation(state)
-        progress=f'{preparation.prepared_field_count} of {len(preparation.fields)} accepted preparation values'
+    from src.core.procedure import iro_package_readiness, stage_document_checklist, user_step
+
+    step = user_step(state)
+    stage = field(state.get("procedure"), "current_stage")
+    collection = assess_document_collection(state) if stage == "DOCUMENT_COLLECTION" else None
+    package = iro_package_readiness(state) if stage == "IRO_REVIEW" else None
+    rows = package["items"] if package is not None else stage_document_checklist(state, collection=collection)
+    ready = sum(row["status"] == "complete" for row in rows)
+    fraction = ready / len(rows) if rows else None
+    progress = f"{ready} of {len(rows)} items ready for this step" if rows else None
+    if package is not None:
+        progress = f"IRO package: {ready} of {len(rows)} ready"
+    preparation_inputs = None
+    if stage in {"EIKAMET_PREPARATION", "EIKAMET_READY"} and field(state.get("procedure"), "eikamet_path") == "ASSISTED":
         from src.tools.sandbox import validate_form
-        if field(state.get('sandbox_form'),'simulated_application_ready') and validate_form(state).valid:progress='Simulation complete; real application still needed'
-    if stage=='COMPLETE':progress='Your reported procedure outcome is recorded'
-    return {**step,'stage':stage,'step_text':f"Step {step['number']} of 5 - {step['label']}",'progress_text':progress,'items':rows,'ready_count':ready}
+
+        preparation_inputs = eikamet_preparation_inputs(state)
+        preparation, _ = preparation_inputs
+        fraction = preparation.prepared_field_count / len(preparation.fields)
+        progress = f"{preparation.prepared_field_count} of {len(preparation.fields)} preparation values accepted"
+        if field(state.get("sandbox_form"), "simulated_application_ready") and validate_form(state).valid:
+            progress = "Simulation complete. The real application is still needed."
+    if stage == "COMPLETE":
+        progress = "Your reported procedure outcome is recorded"
+    return {
+        **step, "stage": stage, "step_text": f"Step {step['number']} of 5 - {step['label']}",
+        "progress_text": progress, "progress_fraction": fraction, "items": rows, "ready_count": ready,
+        "package": package, "preparation_inputs": preparation_inputs, "collection": collection,
+    }
 
 
 def conflict_messages(state):
-    """Specific readable blockers; raw IDs and provenance remain in Technical."""
-    messages=[]
-    detail=conflict_details(state).get('holder_name')
-    if detail and not detail['resolved']:
-        rows=detail['observations'];passport=next((r for r in rows if r['document_type']=='passport_copy'),None)
-        base=passport or rows[0]
-        from src.workers.verification import same_name
-        for row in rows:
-            if row is base or same_name(row['value'],base['value']):continue
-            messages.append({'field':'holder_name','document_id':row['document_id'],'label':'Review '+document_label(row['document_type']),
-                'message':f"The holder name on {document_label(row['document_type'])} does not match your {'passport identity' if passport else 'other document identity'}."})
-    for name in state.get('verification_conflicts',[]):
-        if name=='holder_name' and messages:continue
-        owners=[]
-        from src.workers.verification import MAPPINGS
-        for doc in state.get('documents',[]):
-            if any(name in targets for targets in MAPPINGS.get(field(doc,'doc_type'),{}).values()):owners.append(doc)
-        labels=', '.join(dict.fromkeys(document_label(field(d,'doc_type')) for d in owners))
-        messages.append({'field':name,'document_id':field(owners[0],'doc_id') if owners else None,'label':'Review conflicting information',
-            'message':f"The {field_label(name).lower()} differs between your accepted information"+(f" ({labels})." if labels else '.')})
+    """Describe current comparisons using the same evidence as verification."""
+    from src.workers.verification import accepted_sources, cached_conflict_fields, comparison_key
+
+    sources = accepted_sources(state)
+    current = conflict_details(state, sources=sources)
+    messages = []
+    names = sorted(set(current) | cached_conflict_fields(state, sources=sources),
+                   key=lambda name: (name != "holder_name", name))
+    for name in names:
+        detail = current.get(name, {})
+        if detail.get("resolved"):
+            continue
+        rows = detail.get("observations", [])
+        observations = [{**row, "label": document_label(row["document_type"]) if row["document_id"] else "Your details"}
+                        for row in rows]
+        label = "Passport number" if name == "passport_or_foreign_id" else field_label(name)
+        review = next((row for row in observations if row["document_id"]), None)
+        message = f"The {label.lower()} differs between your accepted answers."
+        passport = next((row for row in observations if row["document_type"] == "passport_copy"), None)
+        base = passport or review
+        other = next((row for row in observations if row is not base
+                      and comparison_key(name, row["value"]) != comparison_key(name, base["value"])), None) if base else None
+        if base and other:
+            review = other if other["document_id"] else base
+            if name == "holder_name" and other["document_id"]:
+                source = "passport identity" if passport else "other document identity"
+                message = f"The holder name on {other['label']} does not match your {source}."
+            else:
+                message = f"{label} conflict between {base['label']} and {other['label']}. Review the original values."
+        messages.append({
+            "field": name, "document_id": review["document_id"] if review else None,
+            "label": "Review " + review["label"] if review else "Review conflicting information",
+            "message": message, "observations": observations,
+            "related_document_ids": [row["document_id"] for row in observations if row["document_id"]],
+        })
     return messages
 
 
-def primary_action(state):
+def address_evidence_action(part):
+    missing = part["status"] == "missing"
+    kind = part["document_type"]
+    upload_labels = {"address_form": "signed Address Form", "utility_bill": "utility bill"}
+    label = upload_labels.get(kind, part["label"]) if missing and part["key"] == kind else part["label"]
+    return {
+        "kind": "navigate", "view": "documents", "document_type": kind,
+        "document_id": next(iter(part["document_ids"]), None),
+        "label": ("Upload " if missing else "Review ") + label,
+        "message": part.get("message") or ("Upload the evidence for your selected address method." if missing
+                                           else "Review the outstanding fields against your original document."),
+    }
+
+
+
+def primary_action(state, *, checklist=None, conflicts=None, collection=None):
     from src.core.procedure import assess_current_stage,application_form_review,stage_document_checklist
-    conflicts=conflict_messages(state)
+    if conflicts is None:
+        conflicts=conflict_messages(state)
     if conflicts:return {'kind':'navigate','view':'documents',**conflicts[0]}
     stage=field(state.get('procedure'),'current_stage')
     if stage=='DOCUMENT_COLLECTION':
         mode=field(state.get('procedure_entry_intent'),'mode')
         if mode=='EIKAMET_COMPLETED':return {'kind':'navigate','view':'application','label':'Review your e-Ikamet application form','message':'Upload the form generated by your real online application. We will reconstruct only supported information.'}
-        assessment=assess_document_collection(state)
+        assessment = assess_document_collection(state) if collection is None else collection
         if assessment.ready:return {'kind':'start_application','label':'Continue to e-Ikamet','message':'Your initial documents are ready.'}
         labels={'passport_identity':'passport identity page','latest_entry':'latest entry-stamp page','student_certificate':'student certificate','health_insurance':'health insurance','address_proof':'address proof','biometric_photo':'photo readiness'}
         for key in ('passport_identity','latest_entry','student_certificate','health_insurance','address_proof','biometric_photo'):
@@ -583,19 +876,24 @@ def primary_action(state):
             item=COLLECTION_ITEMS[key]
             doc=next((d for d in state.get('documents',[]) if field(d,'doc_type')==item.document_type and field(d,'status')=='analyzed'),None) if item.document_type else None
             if key in {'address_proof','biometric_photo'}:
-                if key=='address_proof':
-                    from src.core.procedure import address_proof_status
-                    address=address_proof_status(state)
-                    if address['route']=='address_form_and_utility_bill':
-                        missing=next((part for part in address['parts'] if part['status']!='complete'),None)
-                        if missing:return {'kind':'navigate','view':'documents','label':('Upload ' if missing['status']=='missing' else 'Review ')+missing['label'],'message':missing['label']+' is still required for your Address Form + Utility bill route.'}
-                return {'kind':'navigate','view':'documents','label':'Review '+labels[key],'message':'Complete your supported address-proof information or photo readiness confirmation.'}
+                if key == "address_proof":
+                    address = address_proof_status(state)
+                    missing = next((part for part in address["parts"] if part["status"] != "complete"), None)
+                    if missing:
+                        return address_evidence_action(missing)
+                message = ("Choose the evidence you will use to prove your address." if key == "address_proof"
+                           else "Tell us whether your biometric photo is ready.")
+                return {'kind':'navigate','view':'details','detail_section':'address','label':'Review '+labels[key],'message':message}
             if doc:
                 review=document_card(state,doc)
-                unresolved=next((r for r in review['fields'] if r['status'] not in {'source_grounded','user_confirmed'}),None)
-                extra='Confirm '+field_label(unresolved['name']).lower()+'.' if unresolved else 'Review the document and any conflicting or insufficient information.'
-                return {'kind':'navigate','view':'documents','document_id':field(doc,'doc_id'),'label':'Review '+labels[key],'message':extra}
-            return {'kind':'navigate','view':'documents','label':'Upload '+labels[key],'message':'This document is needed for your current step.'}
+                unresolved = next((row for row in review["fields"] if row["issue"]), None)
+                if unresolved:
+                    message = unresolved["message"] or f"Check {field_label(unresolved['name']).lower()}."
+                    return {"kind": "navigate", "view": "documents", "document_type": item.document_type,
+                            "document_id": field(doc, "doc_id"), "label": "Review " + labels[key], "message": message}
+                return {"kind": "navigate", "view": "checks", "label": "Check " + labels[key] + " requirements",
+                        "message": "The document has been read. Check what the procedure still requires."}
+            return {'kind':'navigate','view':'documents','document_type':item.document_type,'label':'Upload '+labels[key],'message':'Use a clear copy so we can read and check the details.'}
     if stage in {'EIKAMET_PREPARATION','EIKAMET_READY'}:
         if application_form_review(state)['ready']:return {'kind':'review_application','label':'Continue to Payment & Fingerprint','message':'Your uploaded application form is reviewed.'}
         if field(state.get('procedure'),'eikamet_path')=='ASSISTED' and field(state.get('sandbox_form'),'simulated_application_ready'):
@@ -606,9 +904,28 @@ def primary_action(state):
         if assessment['ready']:
             label={'PAYMENT':'Continue to Fingerprint / GI','FINGERPRINT':'Prepare your IRO package','IRO_REVIEW':'Continue to submission','SUBMISSION':'Continue to tracking'}[stage]
             return {'kind':'advance','label':label,'message':'The accepted prerequisites for this step are ready.'}
-        missing=next((r for r in stage_document_checklist(state) if r['status']!='complete' and r.get('document_type')),None)
-        return {'kind':'navigate','view':'documents' if missing else 'application','label':(('Upload ' if missing['status']=='missing' else 'Review ')+missing['label']) if missing else {'PAYMENT':'Review payment evidence','FINGERPRINT':'Confirm fingerprint / GI progress','IRO_REVIEW':'Review your IRO package','SUBMISSION':'Record your physical submission'}[stage],
-            'message':'Review the information needed for this step. Later checks do not prevent you from completing the current task.'}
+        rows=stage_document_checklist(state) if checklist is None else checklist
+        missing=next((r for r in rows if r['status']!='complete' and r.get('document_type')),None)
+        if not missing and stage == "IRO_REVIEW":
+            address = address_proof_status(state)
+            part = next((row for row in address["parts"] if row["status"] != "complete"), None)
+            if part:
+                return address_evidence_action(part)
+            if not address["ready"]:
+                return {"kind": "navigate", "view": "details", "detail_section": "address",
+                        "label": "Review address proof", "message": address["message"]}
+        if missing:
+            label = ("Upload " if missing["status"] == "missing" else "Review ") + missing["label"]
+        else:
+            label = {
+                "PAYMENT": "Review payment evidence", "FINGERPRINT": "Confirm fingerprint / GI progress",
+                "IRO_REVIEW": "Review your IRO package", "SUBMISSION": "Record your physical submission",
+            }[stage]
+        return {
+            "kind": "navigate", "view": "documents" if missing else "application", "label": label,
+            "document_type": missing["document_type"] if missing else None,
+            "message": "Review the information needed for this step. Later checks do not prevent you from completing the current task.",
+        }
     if stage=='TRACKING':return {'kind':'navigate','view':'application','label':'Review tracking and record an official decision','message':'Report only actual updates from the authority.'}
     return None
 
@@ -624,6 +941,13 @@ def validation_message(issue):
 def user_value(name,value):
     """Presentation labels only; identifiers, observations and state stay intact."""
     if isinstance(value,bool):return 'Yes' if value else 'No'
+    if isinstance(value,date):
+        return value.strftime('%d %b %Y')
+    if isinstance(value,str) and str(name).endswith('_date') and re.fullmatch(r'\d{4}-\d{2}-\d{2}',value):
+        try:
+            return date.fromisoformat(value).strftime('%d %b %Y')
+        except ValueError:
+            pass
     controlled={'permit_type','insurance_category','insurance_evidence_type','passport_type','gender','Permit type','Insurance category','Passport type','Gender'}
     names={'short_term':'Short-term residence permit','private_health_insurance':'Private health insurance','sgk_provision':'SGK - manual review','sgk_application':'SGK application - manual review','bilateral_social_security':'Bilateral cover - manual review'}
     if name in controlled:return names.get(value,str(value).replace('_',' ').capitalize())

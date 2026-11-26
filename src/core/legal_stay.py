@@ -97,8 +97,30 @@ def reminder_candidates(state, *, as_of=None):
     return result[:3]
 
 
+INSURANCE_PREPARATION_ADVISORY = (
+    "Preparation advisory. The recorded insurance coverage ends before the end dates used in this "
+    "preparation check. Review the coverage dates with your university office. "
+    "You can continue preparing other documents while this requirement remains open."
+)
+
+
+def insurance_preparation_advisory(state):
+    """Explain a confirmed shortfall using the branch's existing R015 result."""
+    if not any(rule.rule_id == "R015" and rule.passed is False
+               for rule in state.get("relevant_requirements") or []):
+        return None
+    context = ResidencePermitContext.model_validate(state.get("residence_permit_context") or {})
+    targets = [value for value in (context.requested_permit_end_date, context.program_end_date) if value]
+    if context.requested_permit_end_date is None and context.requested_end_date is not None:
+        if "requested_permit_end_date" not in state.get("verification_conflicts", []):
+            targets.append(context.requested_end_date)
+    if context.insurance_exempt is not True and context.insurance_end_date and targets and context.insurance_end_date < min(targets):
+        return INSURANCE_PREPARATION_ADVISORY
+    return None
+
+
 def insurance_explanation(state):
     c=ResidencePermitContext.model_validate(state.get("residence_permit_context") or {})
     if c.insurance_end_date and c.program_end_date and c.requested_permit_end_date and c.insurance_end_date>=c.program_end_date and c.insurance_end_date<c.requested_permit_end_date:
         return "Insurance satisfies the current academic-period policy, but expires before the requested permit end. Consider an insurance-expiry reminder."
-    return None
+    return insurance_preparation_advisory(state)

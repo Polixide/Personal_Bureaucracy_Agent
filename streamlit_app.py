@@ -1,108 +1,141 @@
-"""Neda UI shell over the current V2 graph, source-grounded Twin and tools."""
+"""Guided Streamlit workspace over the existing procedure graph and checkpointer."""
 from src.ui.components import *
 from src.ui.documents import *
 from src.ui.actions import *
 from src.ui.home import *
 from src.ui.application import *
 from src.ui.technical import *
-from src.memory.checkpointer import sqlite_checkpointer,reset_thread,initialize_procedure_thread
+from src.ui.model_settings import render_model_settings
+from src.ui.layout import render_case_header, render_stage_rail, render_student_navigation, render_theme
+from src.memory.checkpointer import initialize_procedure_thread, reset_thread, sqlite_checkpointer
 from src.core.graph import build_graph
 
-VIEWS={"next":":material/flag: Next steps","copilot":":material/smart_toy: AI Copilot","documents":":material/description: Documents", "details":":material/person: Your details","checks":":material/fact_check: Checks","application":":material/edit_document: e-Ikamet","technical":":material/code: Technical"}
-NAVIGATION=tuple(VIEWS)
+NAVIGATION = ("next", "copilot", "documents", "details", "checks", "application", "technical")
 
 
-def render_state(snapshot,graph,config,thread_key,thread_id=None):
-    state={**snapshot.values,"planning_scope":MILESTONE_SCOPE}
-    render_status_bar(state,snapshot)
-    render_decision(state,snapshot,graph,config,thread_key,technical=st.session_state.get("view_"+thread_key)=="technical")
-    requested=st.session_state.pop('requested_view_'+thread_key,None)
-    if requested in VIEWS:st.session_state['view_'+thread_key]=requested
-    from src.core.procedure import user_step
-    label=lambda key:(':material/edit_document: '+('e-Ikamet' if field(state.get('procedure'),'current_stage') in {'DOCUMENT_COLLECTION','EIKAMET_PREPARATION','EIKAMET_READY'} else user_step(state)['label'])) if key=='application' else VIEWS[key]
-    view_key=f"view_{thread_key}"
-    initial=None if view_key in st.session_state else "next"
-    view=st.segmented_control("View",list(VIEWS),format_func=label,default=initial,key=view_key,label_visibility="collapsed") or "next"
-    if view=="next":
-        view_next_steps(state,snapshot,graph,config,thread_key)
-        if not needs_onboarding(state):
-            render_recommendations(snapshot,graph,config,thread_key)
-            with st.expander('Prepare a reminder or email'):
-                render_actions(snapshot,graph,config,thread_key,show_approval=False,show_results=False)
-    elif view=="copilot":render_copilot(snapshot,graph,config,thread_key)
-    elif view=="documents":view_documents(state,snapshot,graph,config,thread_key,thread_id or config["configurable"]["thread_id"])
-    elif view=="details":
-        view_details(state,snapshot,graph,config,thread_key)
-        render_procedure_confirmations(snapshot,graph,config,thread_key)
-        render_legal_stay(snapshot,graph,config,thread_key)
-        render_results(state,thread_key)
-    elif view=="checks":view_checks(state,snapshot,graph,config,thread_key)
-    elif view=="application":
-        render_application(snapshot,graph,config,thread_key)
+def render_state(snapshot, graph, config, thread_key, thread_id=None, *, planning=False):
+    state = {**snapshot.values, "planning_scope": MILESTONE_SCOPE}
+    summary = workflow_summary(state)
+    view_key = f"view_{thread_key}"
+    requested = st.session_state.pop(f"requested_view_{thread_key}", None)
+    current_step_view = "documents" if summary["number"] == 1 else "application"
+    view = st.session_state.get(view_key, "next")
+    if requested == "current_step":
+        view = current_step_view
+    elif requested in NAVIGATION:
+        view = requested
+    if view not in NAVIGATION:
+        view = "next"
+    if view == "application" and current_step_view == "documents":
+        existing_form_path = (summary["stage"] == "DOCUMENT_COLLECTION"
+                              and field(state.get("procedure_entry_intent"), "mode") == "EIKAMET_COMPLETED")
+        if not existing_form_path:
+            view = "documents"
+    st.session_state[view_key] = view
+
+    render_stage_rail(state, summary)
+    render_student_navigation(view, thread_key)
+    render_case_header(summary, compact=view != "next")
+    if planning:
+        wait_for_run(config["configurable"]["thread_id"])
+        return
+    render_decision(state, snapshot, graph, config, thread_key, technical=view == "technical")
+    if state.get("run_status") == "INVALID_INPUT":
+        issue = next(iter(state.get("validation_errors") or []), None)
+        message = str(field(issue, "message", ""))
+        if message.startswith("Outside Sabanc"):
+            st.warning("This workflow supports adult Sabancı exchange students preparing a first short-term permit.")
+        else:
+            st.warning("The last change needs review. Check your answers or file and try again.")
+
+    if view == "copilot":
+        render_copilot(snapshot, graph, config, thread_key)
+    elif view == "documents":
+        view_documents(state, snapshot, graph, config, thread_key, summary=summary)
+    elif view == "details":
+        render_details_workspace(state, snapshot, graph, config, thread_key, summary=summary)
+    elif view == "checks":
+        view_checks(state, snapshot, graph, config, thread_key, summary=summary)
+    elif view == "application":
+        render_application(snapshot, graph, config, thread_key, summary=summary)
+    elif view == "technical":
+        view_technical(state, snapshot, graph, config, thread_key)
     else:
-        view_technical(state,snapshot)
-        render_source_monitor(snapshot,graph,config,thread_key)
-        with st.expander('Experimental assistant',expanded=False):
-            st.warning('Experimental: free-form answers may be unreliable. Use the guided workflow for preparation and decisions.')
-            render_chat(snapshot,graph,config,thread_key)
-        with st.expander('Experimental legal-stay calculator',expanded=False):
-            render_legal_stay_technical(snapshot,graph,config,thread_key)
-        with st.expander('Individual sandbox tools',expanded=False):
-            render_sandbox_technical(snapshot,graph,config,thread_key)
+        view_next_steps(state, snapshot, graph, config, thread_key, summary=summary)
+        if not needs_onboarding(state) or state.get("email_drafts"):
+            render_optional_tools(state, snapshot, graph, config, thread_key)
+
+
+def leave_profile():
+    st.session_state.pop("workspace_profile_id", None)
+    st.session_state.pop("procedure_help", None)
+
+
+def render_case_settings(thread_id, thread_key):
+    if not st.sidebar.toggle("Case settings", key=f"case_settings_{thread_key}"):
+        return
+    with st.sidebar:
+        render_model_settings(thread_key)
+        st.button("Advanced diagnostics", key=f"advanced_{thread_key}", on_click=request_view,
+                  args=(thread_key, "technical"))
+        with st.expander("Reset this profile", icon=":material/delete:"):
+            st.caption("Deletes this profile's saved progress and record. Uploaded files and other profiles are kept.")
+            typed = st.text_input("Type the profile name to confirm", key=f"reset_typed_{thread_key}")
+            if st.button("Reset", key=f"reset_{thread_key}",
+                         disabled=typed != thread_id or profile_lock(thread_id).locked()):
+                lock = profile_lock(thread_id)
+                if not lock.acquire(blocking=False):
+                    st.info("Wait for processing to finish before resetting.")
+                    return
+                try:
+                    reset_thread(thread_id, typed)
+                finally:
+                    lock.release()
+                for key in list(st.session_state):
+                    if thread_key in key and not key.startswith("reset_"):
+                        del st.session_state[key]
+                st.rerun()
+
 
 def main():
     st.set_page_config(page_title="Residence Permit Assistant", page_icon=":material/badge:", layout="wide")
-    active=st.session_state.get('workspace_profile_id')
-    if not active:
-        try:
-            with sqlite_checkpointer() as saver:render_landing(build_graph(saver))
-        except Exception as error:show_error(error)
-        return
-    st.sidebar.markdown("### :material/badge: Residence Permit Assistant")
-    st.sidebar.caption("Sabancı incoming exchange · first short-term residence permit")
-    thread_id = st.sidebar.text_input("Your profile name", value=active,
-                                      help="Use the same name next time to continue where you left off.").strip()
+    render_theme()
+    thread_id = st.session_state.get("workspace_profile_id")
     if not thread_id:
-        st.info("Enter a profile name to begin.")
+        try:
+            render_landing()
+        except Exception as error:
+            show_error(error)
         return
-    if st.sidebar.button('Choose another profile / procedure'):
-        st.session_state.pop('workspace_profile_id',None);st.rerun()
-    thread_key = sha256(thread_id.encode()).hexdigest()[:16]
+
+    thread_key = profile_key(thread_id)
     config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 60}
+    st.sidebar.markdown(":material/badge: **Residence Permit Assistant**")
+    st.sidebar.text(thread_id)
+    st.sidebar.button("Switch profile", key=f"switch_{thread_key}", on_click=leave_profile)
     try:
-        # A fresh connection per rerun avoids caching a closed/shared connection.
-        # No canonical state is stored in Streamlit session_state.
+        # Keep the connection scoped to this execution. The checkpoint remains the source of case state.
         with sqlite_checkpointer() as saver:
             graph = build_graph(saver)
-            snapshot = initialize_procedure_thread(graph,config)
-            st.sidebar.caption(":green[:material/cloud_done:] Saved progress restored" if snapshot.values
-                               else "New profile")
-            if st.sidebar.button("Refresh", icon=":material/refresh:"):
-                st.rerun()
-            with st.sidebar.expander("Reset this profile", icon=":material/delete:"):
-                st.caption("Deletes this profile's saved progress and record. Uploaded files and other profiles are kept.")
-                typed = st.text_input("Type the profile name to confirm", key=f"reset_typed_{thread_key}")
-                if st.button("Reset", type="primary", key=f"reset_{thread_key}",
-                             disabled=typed != thread_id or profile_lock(thread_id).locked()):
-                    lock=profile_lock(thread_id)
-                    if not lock.acquire(blocking=False):
-                        st.info("Still processing your last action. Wait before resetting.");return
-                    try:reset_thread(thread_id, typed)
-                    finally:lock.release()
-                    for key in list(st.session_state):
-                        if thread_key in key and not key.startswith("reset_"): del st.session_state[key]
-                    st.rerun()
-            st.title("Your residence permit")
-            if profile_lock(thread_id).locked():
-                # A run is in progress elsewhere: show where things stand, offer no actions.
-                render_status_bar({**snapshot.values, "planning_scope": MILESTONE_SCOPE}, snapshot)
-                wait_for_run(thread_id)
+            lock = profile_lock(thread_id)
+            was_running = lock.locked()
+            snapshot = initialize_procedure_thread(graph, config)
+            if lock.locked():
+                if planning_message(thread_id):
+                    render_state(snapshot, graph, config, thread_key, planning=True)
+                else:
+                    render_case_header(workflow_summary({**snapshot.values, "planning_scope": MILESTONE_SCOPE}))
+                    wait_for_run(thread_id)
                 return
-            render_state(snapshot, graph, config, thread_key, thread_id)
+            if was_running:
+                snapshot = graph.get_state(config)
+            render_plan_notice(thread_id, snapshot)
+            render_state(snapshot, graph, config, thread_key)
+            render_case_settings(thread_id, thread_key)
     except Exception as error:
-        show_error(error)
-        st.caption("Saved progress stays on this computer. Refresh to try again.")
+        show_error(error, thread_id=thread_id)
+        st.caption("Your progress is stored locally. Open the case again to retry.")
 
 
-
-if __name__=="__main__":main()
+if __name__ == "__main__":
+    main()

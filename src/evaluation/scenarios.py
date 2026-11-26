@@ -7,7 +7,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from functools import lru_cache
 from time import perf_counter
-from src.core.state import Document, ProcedureState, UserEvent, ValidationIssue, new_run
+from src.core.state import Document, ProcedureState, UserEvent, ValidationIssue, VerifiedInput, new_run
 from src.core.procedure import assess_document_collection, advance_procedure_if_ready, document_collection_update
 from src.document_processing.extractor import TextPage
 from src.document_processing.processor import process_document
@@ -20,6 +20,7 @@ from src.evaluation.metrics import trajectory_metrics, reliability_metrics, LOOP
 
 STAMP = datetime(2026,11,19,12,tzinfo=timezone.utc)
 SYNTHETIC = {
+    "dorm_certificate": "Dormitory Certificate\nStudent name: Evaluation Student",
     "utility_bill":"Utility Bill\nHolder name: Evaluation Landlord\nService address: Example Street 12\nBilling date: 2026-11-01\nProvider: Example Energy Ltd.",
     "address_form":"Address Form\nFirst name: Evaluation\nSurname: Student\nPassport number: X0000001\nDeclared address: Example Street 12\nSignature present: yes",
     "passport_identity_page":"Passport identity page\nHolder name: Evaluation Student\nPassport number: X0000001\nNationality: Exampleland\nExpiry date: 2030-08-30",
@@ -44,6 +45,15 @@ def extract_synthetic(kind, *, text=None, scanned=False):
     return process_document("synthetic.txt",pages=[page],provider=ScriptedDocumentProvider(kind),mode="local-only")
 
 
+def synthetic_dormitory_evidence(name="Evaluation Student"):
+    document = Document(doc_id="dorm_certificate", file_path="synthetic-dorm-certificate.txt",
+                        doc_type="dorm_certificate", status="analyzed",
+                        info=extract_synthetic("dorm_certificate", text=SYNTHETIC["dorm_certificate"].replace("Evaluation Student", name)))
+    record = VerifiedInput(document_id=document.doc_id, field_name="dorm_certificate_format", value=True,
+                           origin="user_confirmed", trace_id="synthetic-address-review", confirmed_by="evaluation-user")
+    return document, {document.doc_id: {record.field_name: record}}
+
+
 def confirm(state, document_id, fields):
     updated={**deepcopy(state),**new_run(UserEvent(kind="confirm_information",document_id=document_id,confirmed_fields=fields),"evaluation-user",scope=MILESTONE_SCOPE)}
     updated.update(verification_updates(updated))
@@ -56,6 +66,9 @@ def _ready_seed():
     state={**new_run(UserEvent(kind="reevaluate"),"evaluation-user",scope=MILESTONE_SCOPE),"procedure":ProcedureState()}
     state["documents"]=[Document(doc_id=kind,file_path="synthetic-"+kind+".txt",doc_type=TYPE_MAP[kind],status="analyzed",info=extract_synthetic(kind))
         for kind in ("passport_identity_page","turkiye_entry_stamp","student_enrollment_certificate","health_insurance_certificate")]
+    certificate, records = synthetic_dormitory_evidence()
+    state["documents"].append(certificate)
+    state["verification_records"] = records
     state.update(verification_updates(state))
     state=confirm(state,"turkiye_entry_stamp",{"latest_entry_date":"2026-09-15"})
     state=confirm(state,"health_insurance_certificate",{"insurance_valid_for_ikamet":True})
@@ -221,7 +234,7 @@ def run_scenario(name, *, assistant_model=None, rag_judge=None):
     elif name in {"utility_bill_plus_address_form","utility_bill_without_address_form"}:
         kinds=("utility_bill","address_form") if name=="utility_bill_plus_address_form" else ("utility_bill",)
         state={**new_run(UserEvent(kind="reevaluate"),"evaluation-user",scope=MILESTONE_SCOPE),"procedure":ProcedureState(),"documents":[Document(doc_id=k,file_path="synthetic.txt",doc_type=k,status="analyzed",info=extract_synthetic(k)) for k in kinds]}
-        state.update(verification_updates(state))
+        state = confirm(state, "__declarations__", {"address_proof_type": "utility_bill_and_address_form"})
         row=next(r for r in evaluate_requirements(state) if r.rule_id=="R017")
         ok=row.passed is True if len(kinds)==2 else row.status=="missing_information"
     elif name in {"legal_stay_estimate","legal_stay_reminder","insurance_reminder"}:
@@ -300,7 +313,7 @@ def copilot_benchmark_cases(directory):
     base=ready_state()
     for doc in base['documents']:
         path=directory/(doc.doc_id+'.txt');path.write_text(SYNTHETIC[doc.doc_id],encoding='utf-8');doc.file_path=str(path)
-    address=confirm(base,'__declarations__',{'address_proof_type':None})
+    address=confirm(base,'__declarations__',{'address_proof_type':'utility_bill_and_address_form'})
     address=add(address,'address_form')
     complete=add(base,'ikamet_application_form')
     complete=confirm(complete,'ikamet_application_form',{'online_application_completed':True,'application_form_signed':True})

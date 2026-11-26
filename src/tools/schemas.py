@@ -134,6 +134,7 @@ class MissingDocumentsResult(StrictModel):
 
 class SearchResult(StrictModel):
     results: list[dict[str, Any]]
+    retrieval: dict[str, Any] = Field(default_factory=dict)
 
 class CalendarResult(StrictModel):
     reminder_id: str

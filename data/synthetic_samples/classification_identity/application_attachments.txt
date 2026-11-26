@@ -1,0 +1,9 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Residence Permit Application Form
+İkamet İzni Başvuru Formu
+This form shows that the holder has made a residence application.
+Application number: DEMO-APP-310
+Passport number: DEMO-PASS-310
+Required supporting documents
+1. Private health insurance policy
+2. Student enrollment certificate

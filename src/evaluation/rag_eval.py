@@ -39,3 +39,35 @@ def ollama_rag_judge(payload):
                   {"role":"user","content":json.dumps({key:payload[key] for key in ("query","answer","sources")},default=str)}],
         format=RAGTriadScore.model_json_schema(), think=False, stream=False, options={"temperature":0,"num_predict":500})
     return RAGTriadScore.model_validate(json.loads(response.message.content)).model_dump()
+
+def labeled_guidance_metrics(message, retrieved, reference):
+    """Evaluate cited excerpt units and required facts only with explicit labels."""
+    if not reference:
+        return {key: None for key in ("answer_correct", "citation_accuracy", "grounded_claim_rate",
+                                      "unsupported_claim_rate", "faithfulness")}
+    by_chunk = {row["chunk_id"]: row for row in retrieved if row.get("chunk_id")}
+    refs = message.get("source_refs", [])
+    valid = []
+    cited = set()
+    answer = message.get("content", "").casefold()
+    for ref in refs:
+        chunk_id = ref.get("chunk_id")
+        source = by_chunk.get(chunk_id)
+        excerpt = ref.get("excerpt")
+        if (source and chunk_id not in cited and ref.get("source_id") == source.get("source_id")
+                and ref.get("url") == source.get("url") and isinstance(excerpt, str) and excerpt.strip()
+                and excerpt == str(source.get("content", ""))[:700] and excerpt.strip().casefold() in answer):
+            valid.append(ref)
+            cited.add(chunk_id)
+    grounding = len(valid) / len(refs) if refs else None
+    relevant = set(reference.get("relevant_source_ids", []))
+    if reference.get("insufficient"):
+        correct = not refs and "enough retrieved official evidence" in answer
+    else:
+        phrases = reference.get("required_phrases", [])
+        verified_relevant = [row["excerpt"].casefold() for row in valid if row["source_id"] in relevant]
+        correct = bool(verified_relevant and all(any(phrase.casefold() in excerpt for excerpt in verified_relevant)
+                                                 for phrase in phrases))
+    return {"answer_correct": correct, "citation_accuracy": grounding,
+            "grounded_claim_rate": grounding, "unsupported_claim_rate": 1 - grounding if grounding is not None else None,
+            "faithfulness": grounding}

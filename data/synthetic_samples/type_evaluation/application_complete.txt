@@ -1,0 +1,7 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Residence Permit Application Form
+Applicant name: Morgan Example
+Application number: DEMO-A1
+Passport number: DEMO-PASS1
+Application date: 2028-09-18
+Permit type: Short term

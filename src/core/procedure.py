@@ -5,15 +5,18 @@ from typing import Literal, NamedTuple
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.core.state import ProcedureState, StageHistoryEntry, StageStatus, ResidencePermitContext, UserEvent, VerifiedInput, EIkametFieldState, EIkametPreparationState
+from src.core.address_proof import RESIDENCE_DOCUMENTS, IRO_PAIR, address_proof_status
 from src.workers.rules_engine import evaluate_requirements
 from src.workers.verification import (
-    IMPORTANT_FIELDS, MAPPINGS, declaration_fields, document_review, verification_updates, milestone_checklist,
+    IMPORTANT_FIELDS, accepted_sources, cached_conflict_fields, comparison_key, conflict_details, declaration_fields,
+    document_field_targets, document_review, verification_updates, milestone_checklist,
 )
 
 V2_PRE_EIKAMET_INSURANCE_READINESS = "V2_PRE_EIKAMET_INSURANCE_READINESS"
 COLLECTION_DOCUMENTS={"passport_copy","turkiye_entry_stamp","student_certificate","health_insurance"}
 RELEVANT_FIELDS={
-    "holder_name","passport_or_foreign_id","passport_expiry_date","nationality","passport_id_page_present",
+    "holder_name","first_name","last_name","birth_date","passport_or_foreign_id","passport_expiry_date","nationality","passport_id_page_present",
+    "residential_address","utility_service_address",
     "turkey_entry_page_present","entry_stamp_present","latest_entry_date","student_id","institution",
     "student_certificate_issue_date","exchange_student","program_start_date","program_end_date",
     "insurance_policy_number","insurance_insurer","insurance_end_date","insurance_evidence_type","insurance_exempt",
@@ -34,10 +37,10 @@ class CollectionItem(NamedTuple):
 
 COLLECTION_ITEMS = {
     "passport_identity": CollectionItem("Passport identity evidence", "passport_copy",
-        ("holder_name", "passport_or_foreign_id", "passport_expiry_date", "nationality", "passport_id_page_present")),
+        ("holder_name", "first_name", "last_name", "birth_date", "passport_or_foreign_id", "passport_expiry_date", "nationality", "passport_id_page_present")),
     "latest_entry": CollectionItem("Latest Turkiye entry evidence", "turkiye_entry_stamp",
         ("turkey_entry_page_present", "entry_stamp_present", "latest_entry_date")),
-    "address_proof": CollectionItem("Address proof", None, ("address_proof_type","utility_bill_accepted","address_form_accepted")),
+    "address_proof": CollectionItem("Address proof", None, ("address_proof_type","utility_bill_accepted","address_form_accepted","residential_address","utility_service_address")),
     "student_certificate": CollectionItem("Student certificate", "student_certificate",
         ("holder_name", "student_id", "institution", "student_certificate_issue_date", "exchange_student", "program_start_date", "program_end_date")),
     "health_insurance": CollectionItem("Health insurance", "health_insurance",
@@ -84,13 +87,17 @@ def _accepted_snapshot(state):
 
 
 def _document_ready(snapshot,kind,fields=None):
-    for doc in snapshot.get("documents",[]):
-        if getattr(doc,"doc_type",None)!=kind or getattr(doc,"status",None)!="analyzed":continue
-        rows={row["name"]:row for row in document_review(snapshot,doc)["fields"]}
-        required=fields or IMPORTANT_FIELDS[kind]
-        if all(name in rows and rows[name]["value"] is not None and rows[name]["status"] in {"source_grounded","user_confirmed"} for name in required):
-            return True
-    return False
+    documents = [doc for doc in snapshot.get("documents", [])
+                 if getattr(doc, "doc_type", None) == kind and getattr(doc, "status", None) == "analyzed"]
+    if len(documents) != 1:
+        return False
+    document, = documents
+    review = document_review(snapshot, document)
+    if fields is None:
+        return review["status"] == "complete"
+    rows = {row["name"]: row for row in review["fields"]}
+    return all(name in rows and not rows[name]["issue"] and rows[name]["value"] is not None
+               and rows[name]["status"] in {"source_grounded", "user_confirmed"} for name in fields)
 
 
 def assess_document_collection(state) -> ProcedureAssessment:
@@ -113,13 +120,13 @@ def assess_document_collection(state) -> ProcedureAssessment:
 
     passport = _document_ready(snapshot, "passport_copy") and c.passport_id_page_present is True
     entry = _document_ready(snapshot, "turkiye_entry_stamp") and c.turkey_entry_page_present is True and c.latest_entry_date is not None
-    address = requirements["R017"].passed is True
+    address = address_proof_status(state)
     student = _document_ready(snapshot, "student_certificate") and requirements["R014"].passed is True
     require(passport, ["R008", "missing:passport_identity_evidence"], "R008:passport_identity_evidence")
     require(entry, ["R008", "missing:latest_turkiye_entry_evidence"], "R008:latest_turkiye_entry_evidence")
     if not entry and c.entry_stamp_present is True and c.latest_entry_date is None:
         blockers.append("confirmation:latest_entry_date")
-    require(address, ["R017", "missing:address_proof"], "R017")
+    require(address["ready"], ["R017", "missing:address_proof"], "R017")
     require(student, ["R014", "missing:student_certificate"], "R014")
     # Local V2 policy, unchanged: exemption OR end covers requested/program end.
     # Neither start date nor general R015 decides this procedure prerequisite.
@@ -143,18 +150,25 @@ def assess_document_collection(state) -> ProcedureAssessment:
                             or requirements["R016"].passed is False)
     photo = c.biometric_photo is True
     require(photo, ["missing:biometric_photo"], "confirmation:biometric_photo")
-    conflicts = (set(state.get("verification_conflicts", [])) | set(snapshot.get("verification_conflicts", []))) & RELEVANT_FIELDS
+    conflicts = (cached_conflict_fields(state) | set(snapshot.get("verification_conflicts", []))) & RELEVANT_FIELDS
     blockers.extend("conflict:" + name for name in sorted(conflicts))
     blockers = list(dict.fromkeys(blockers))
-    checks = dict(zip(COLLECTION_ITEMS, (passport, entry, address, student, insurance, photo)))
+    checks = dict(zip(COLLECTION_ITEMS, (passport, entry, address["ready"], student, insurance, photo)))
     failed = {"passport_identity": c.passport_id_page_present is False,
               "latest_entry": c.entry_stamp_present is False or c.turkey_entry_page_present is False,
-              "address_proof": requirements["R017"].passed is False,
+              "address_proof": address["route"] is not None and not address["supported"],
               "health_insurance": insurance_failed, "biometric_photo": c.biometric_photo is False}
     prerequisites = {}
     for key, item in COLLECTION_ITEMS.items():
-        has_observation = any(getattr(d, "doc_type", None) == item.document_type for d in state.get("documents", [])) if item.document_type else False
-        prerequisites[key] = ("CONFLICT" if conflicts.intersection(item.context_fields)
+        has_observation = item.document_type and any(
+            getattr(d, "doc_type", None) == item.document_type and getattr(d, "status", None) != "deleted"
+            for d in state.get("documents", [])
+        )
+        if key == "address_proof":
+            has_observation = any(part["document_ids"] for part in address["parts"])
+        relevant_conflict = bool(conflicts.intersection(item.context_fields)) or (
+            key == "address_proof" and address["status"] == "conflict")
+        prerequisites[key] = ("CONFLICT" if relevant_conflict
             else "READY" if checks[key] else "BLOCKED" if failed.get(key)
             else "NEEDS_CONFIRMATION" if has_observation else "MISSING")
     activity = any(getattr(d, "doc_type", None) in COLLECTION_DOCUMENTS for d in state.get("documents", []))
@@ -199,9 +213,19 @@ def advance_procedure_if_ready(state, *, recorded_at: datetime):
     if "DOCUMENT_COLLECTION" not in completed:completed.append("DOCUMENT_COLLECTION")
     entry=StageHistoryEntry(stage="EIKAMET_PREPARATION",status="NOT_STARTED",trace_id=state["trace_id"],
         recorded_at=recorded_at,reason_refs=["completed:DOCUMENT_COLLECTION",*assessment.reason_refs])
-    return {"procedure":procedure.model_copy(deep=True,update={"current_stage":"EIKAMET_PREPARATION","stage_status":"NOT_STARTED",
+    # A saved file can pass the current validator even if an older checkpoint
+    # did not project its readings. Persist those canonical references on transition.
+    saved = state.get("verification_records", {})
+    accepted = _accepted_snapshot(state)["verification_records"]
+    updates = {}
+    if any(record.origin == "source_grounded" and name not in saved.get(owner, {})
+           for owner, records in accepted.items() for name, record in records.items()):
+        evidence = verification_updates({**state, "event": UserEvent(kind="reevaluate")})
+        updates = {name: evidence[name] for name in ("verification_records", "verified_context_fields",
+                                                    "verification_conflicts", "residence_permit_context")}
+    return {**updates, "procedure":procedure.model_copy(deep=True,update={"current_stage":"EIKAMET_PREPARATION","stage_status":"NOT_STARTED",
         "completed_stages":completed,"stage_blockers":[ref for ref in procedure.stage_blockers if not _collection_blocker(ref)],
-        "stage_history":[*procedure.stage_history,entry], "eikamet_preparation":build_eikamet_preparation(state)})}
+        "stage_history":[*procedure.stage_history,entry], "eikamet_preparation":build_eikamet_preparation({**state, **updates})})}
 
 
 class EIkametFieldDefinition(NamedTuple):
@@ -220,7 +244,7 @@ class EIkametFieldDefinition(NamedTuple):
 EIKAMET_FIELD_CATALOGUE = (
     EIkametFieldDefinition("first_name", "First name", "first_name", ("passport_copy","address_form"), conflict_fields=("holder_name",)),
     EIkametFieldDefinition("surname", "Surname", "last_name", ("passport_copy","address_form"), conflict_fields=("holder_name",)),
-    EIkametFieldDefinition("birth_date", "Birth date", "birth_date", ("passport_copy","address_form")),
+    EIkametFieldDefinition("birth_date", "Birth date", "birth_date", ("passport_copy","address_form"), conflict_fields=("holder_name",)),
     EIkametFieldDefinition("nationality", "Nationality", "nationality", ("passport_copy",)),
     EIkametFieldDefinition("gender", "Gender", "gender"),
     EIkametFieldDefinition("passport_number", "Passport number", "passport_or_foreign_id", ("passport_copy",), ("R008",)),
@@ -231,7 +255,8 @@ EIKAMET_FIELD_CATALOGUE = (
     EIkametFieldDefinition("passport_issuing_authority", "Passport issuing authority", "passport_issuing_authority"),
     EIkametFieldDefinition("email", "Email", "email", rule_ids=("R018",)),
     EIkametFieldDefinition("turkish_phone", "Turkish phone", "turkish_phone", rule_ids=("R018",)),
-    EIkametFieldDefinition("turkiye_address", "Turkiye address", "residential_address", ("address_form",), ("R018",)),
+    EIkametFieldDefinition("turkiye_address", "Turkiye address", "residential_address",
+                            ("address_form", *RESIDENCE_DOCUMENTS), ("R018",)),
     EIkametFieldDefinition("latest_entry_date", "Latest Turkiye entry date", "latest_entry_date", ("turkiye_entry_stamp",), ("R008",)),
     EIkametFieldDefinition("requested_permit_start", "Requested permit start", "requested_start_date", ("ikamet_application_form",), ("R015",)),
     EIkametFieldDefinition("requested_permit_end", "Requested permit end", "requested_permit_end_date", ("ikamet_application_form",), ("R006", "R015")),
@@ -244,9 +269,9 @@ EIKAMET_FIELD_CATALOGUE = (
     EIkametFieldDefinition("contact_method", "Preferred contact method", "contact_method"),
     EIkametFieldDefinition("marital_status", "Marital status", "marital_status"),
     EIkametFieldDefinition("birth_country", "Country of birth", "birth_country"),
-    EIkametFieldDefinition("address_province", "Province / city", "address_province"),
-    EIkametFieldDefinition("address_district", "District", "address_district"),
-    EIkametFieldDefinition("address_locality", "Neighborhood / locality", "address_locality"),
+    EIkametFieldDefinition("address_province", "Province / city", "address_province", conflict_fields=("residential_address",)),
+    EIkametFieldDefinition("address_district", "District", "address_district", conflict_fields=("residential_address",)),
+    EIkametFieldDefinition("address_locality", "Neighborhood / locality", "address_locality", conflict_fields=("residential_address",)),
     EIkametFieldDefinition("form_current_date", "Form date", "form_current_date"),
     EIkametFieldDefinition("declaration_acknowledged", "Educational declaration acknowledged", "simulation_declaration_acknowledged"),
 )
@@ -270,8 +295,9 @@ def build_eikamet_preparation(state) -> EIkametPreparationState:
             field_id=item.field_id, reason_refs=["confirmation:review_verified_information"])
             for item in EIKAMET_FIELD_CATALOGUE})
     context = snapshot["residence_permit_context"].model_dump(mode="json")
-    conflicts = set(state.get("verification_conflicts", [])) | set(snapshot.get("verification_conflicts", []))
+    conflicts = cached_conflict_fields(state) | set(snapshot.get("verification_conflicts", []))
     docs = {d.doc_id: d for d in snapshot.get("documents", [])}
+    address = address_proof_status(state)
     fields = {}
     for item in EIKAMET_FIELD_CATALOGUE:
         reasons = ["GOV_SHORT_TERM_FORM_2026", *item.rule_ids]
@@ -287,24 +313,31 @@ def build_eikamet_preparation(state) -> EIkametPreparationState:
                 doc = docs.get(owner)
                 if doc is not None and item.document_types and doc.doc_type not in item.document_types:
                     continue
+                source_order = item.document_types.index(doc.doc_type) if doc is not None and item.document_types else 0
                 for name, entry in entries.items():
-                    targets = (name,) if owner == "__declarations__" else MAPPINGS.get(getattr(doc, "doc_type", None), {}).get(name, ())
+                    targets = (name,) if owner == "__declarations__" else document_field_targets(doc, name, entry) if doc else ()
                     if item.context_field not in targets:
                         continue
+                    if item.field_id == "turkiye_address" and doc:
+                        if doc.doc_type in RESIDENCE_DOCUMENTS and (address["route"] != doc.doc_type or not address["ready"]):
+                            continue
+                        if doc.doc_type == "address_form":
+                            if address["route"] not in {None, IRO_PAIR}:
+                                continue
+                            signature = entries.get("signature_present")
+                            if entry.origin == "source_grounded" and (signature is None or signature.value is not True):
+                                continue
                     original = state.get("verification_records", {}).get(owner, {}).get(name)
                     if original is None:
                         continue  # A reference must point to an existing canonical record.
                     original = VerifiedInput.model_validate(original)
                     if entry.value is None or original.value != entry.value or original.origin != entry.origin:
                         continue
-                    if item.context_field in {'first_name','last_name'}:
-                        from src.workers.verification import same_name
-                        matches=same_name(entry.value,context[item.context_field])
-                    else:matches=str(entry.value)==str(context[item.context_field])
-                    if not matches:continue
-                    candidates.append((entry.origin != "user_confirmed", owner, name, entry))
+                    if comparison_key(item.context_field, entry.value) != comparison_key(item.context_field, context[item.context_field]):
+                        continue
+                    candidates.append((entry.origin != "user_confirmed", source_order, owner, name, entry))
         if candidates:
-            _, owner, name, entry = sorted(candidates, key=lambda candidate: candidate[:3])[0]
+            _, _, owner, name, entry = min(candidates, key=lambda candidate: candidate[:4])
             fields[item.field_id] = EIkametFieldState(field_id=item.field_id,
                 status="USER_CONFIRMED" if entry.origin == "user_confirmed" else "VERIFIED",
                 source_type={"user_confirmed": "USER", "source_grounded": "DOCUMENT", "derived": "DERIVED"}[entry.origin],
@@ -314,15 +347,29 @@ def build_eikamet_preparation(state) -> EIkametPreparationState:
     return EIkametPreparationState(fields=fields)
 
 
+def _eikamet_input_value(state, source_ref):
+    _, _, owner, name = source_ref.split("/")
+    unescape = lambda value: value.replace("~1", "/").replace("~0", "~")
+    return VerifiedInput.model_validate(state["verification_records"][unescape(owner)][unescape(name)]).value
+
+
+def eikamet_preparation_inputs(state):
+    """Resolve accepted values and their references from the same case snapshot."""
+    preparation = build_eikamet_preparation(state)
+    values = {
+        key: _eikamet_input_value(state, item.source_ref)
+        for key, item in preparation.fields.items() if item.source_ref
+    }
+    return preparation, values
+
+
 def eikamet_field_value(state, prepared_field):
     """Resolve a still-accepted reference; never trust a stale preparation status."""
     current = build_eikamet_preparation(state).fields.get(prepared_field.field_id)
     if current is None or not current.source_ref or current.source_ref != prepared_field.source_ref:
         return None
-    _, _, owner, name = current.source_ref.split("/")
-    unescape = lambda value: value.replace("~1", "/").replace("~0", "~")
-    entry = VerifiedInput.model_validate(state["verification_records"][unescape(owner)][unescape(name)])
-    return str(entry.value) if entry.value is not None else None
+    value = _eikamet_input_value(state, current.source_ref)
+    return str(value) if value is not None else None
 
 
 def procedure_evidence_update(state):
@@ -454,20 +501,19 @@ def application_form_review(state):
         result['missing']=['application_form' if not docs else 'select_current_application_form'];return result
     doc=docs[0];result['document_id']=doc.doc_id
     rows={row['name']:row for row in document_review(snapshot,doc)['fields']}
+    sources = accepted_sources(snapshot, snapshot["verification_records"])
     for name in (*IMPORTANT_FIELDS['ikamet_application_form'],'permit_type'):
         row=rows.get(name,{})
         if row.get('value') is None or row.get('status') not in {'source_grounded','user_confirmed'}:
             result['missing'].append(name);continue
         result['accepted'].append({'field':name,'value':row['value'],'origin':row['origin']})
-        target=(MAPPINGS['ikamet_application_form'].get(name) or (name,))[0]
-        for other in snapshot.get('documents',[]):
-            if other.doc_id==doc.doc_id:continue
-            for field,targets in MAPPINGS.get(other.doc_type,{}).items():
-                entry=snapshot['verification_records'].get(other.doc_id,{}).get(field)
-                if target in targets and entry is not None:
-                    from src.workers.verification import same_name
-                    equal=same_name(entry.value,row['value']) if target=='holder_name' else str(entry.value).casefold()==str(row['value']).casefold()
-                    if equal:result['matched'].append(name)
+        entry = snapshot["verification_records"].get(doc.doc_id, {}).get(name)
+        for target in document_field_targets(doc, name, entry):
+            if any(other["document_id"] not in {None, doc.doc_id}
+                   and comparison_key(target, other["value"]) == comparison_key(target, row["value"])
+                   for other in sources.get(target, ())):
+                result["matched"].append(name)
+                break
     c=snapshot['residence_permit_context']
     for name in ('online_application_completed','application_form_signed'):
         if getattr(c,name) is not True:result['confirmations'].append(name)
@@ -500,15 +546,28 @@ def continue_after_application_review(state,*,recorded_at):
     return {'procedure':updated,'candidate_plan':None,'approved_plan':None,'plan_summary':'','plan_origin':'','validation_errors':[],'run_status':'REQUIREMENTS_EVALUATED'}
 
 
-def stage_document_checklist(state):
+def _address_checklist_row(address):
+    return {"key": "address_proof", "label": "Address proof", "document_type": None,
+            "status": address["status"], "parts": address["parts"]}
+
+
+def stage_document_checklist(state, *, collection=None):
     """Current-stage view of existing assessments, not a second requirement store."""
     procedure=_procedure(state)
-    if procedure is None:return milestone_checklist(state)
+    if procedure is None:
+        rows = milestone_checklist(state)
+        address = address_proof_status(state)
+        return [*rows, _address_checklist_row(address)] if address["route"] is not None else rows
     stage=procedure.current_stage
     if stage=='DOCUMENT_COLLECTION':
-        assessment=assess_document_collection(state)
-        codes={'READY':'complete','MISSING':'missing','NEEDS_CONFIRMATION':'needs confirmation','BLOCKED':'needs confirmation','CONFLICT':'ambiguous'}
-        return [{'key':key,'label':item.label,'document_type':item.document_type,'status':codes[assessment.prerequisites[key]]} for key,item in COLLECTION_ITEMS.items()]
+        assessment=assess_document_collection(state) if collection is None else collection
+        codes={'READY':'complete','MISSING':'missing','NEEDS_CONFIRMATION':'needs confirmation','BLOCKED':'needs confirmation','CONFLICT':'conflict'}
+        rows = [{"key": key, "label": item.label, "document_type": item.document_type,
+                 "status": codes[assessment.prerequisites[key]]} for key, item in COLLECTION_ITEMS.items()]
+        address = address_proof_status(state)
+        row = next(item for item in rows if item["key"] == "address_proof")
+        row.update(_address_checklist_row(address))
+        return rows
     if stage in {'EIKAMET_PREPARATION','EIKAMET_READY'}:
         return [row for row in milestone_checklist(state) if row['document_type']=='ikamet_application_form']
     if stage=='PAYMENT':
@@ -556,28 +615,17 @@ def checked_form_answers(state,answers):
     return {name:validated.model_dump(mode='json')[name] for name in normalized}
 
 
+def conflicting_eikamet_answers(state, answers):
+    """Check proposed declarations with the existing verifier before committing them."""
+    snapshot = _accepted_snapshot(state)
+    event = UserEvent(kind="confirm_information", document_id="__declarations__", confirmed_fields=answers)
+    checked = verification_updates({**snapshot, "event": event})
+    return sorted(set(answers) & set(checked["verification_conflicts"]))
+
+
 # Explicit educational defaults; none is a verified fact or official declaration.
 EIKAMET_GUIDE_URL='https://iro.sabanciuniv.edu/sites/iro.sabanciuniv.edu/files/2024-09/SHORT%20TERM%20PERMIT%20APPLICATION.pdf'
 EDUCATIONAL_CHOICES={'Application relationship':'I am making my own application','Income selection':'No income / Geliri Yok (educational guide choice)','Reason of stay (guide choice)':'Education within student exchange programmes / ??renci De?i?im Programlar? ?er?evesinde E?itim'}
-
-
-def address_proof_status(state):
-    """Explain the existing R017 alternatives, without creating acceptance flags."""
-    snapshot=_accepted_snapshot(state);c=snapshot['residence_permit_context']
-    accepted={'dorm_certificate':'Dorm certificate','rental_agreement':'Rental agreement','notarized_commitment':'Notarized undertaking'}
-    route=c.address_proof_type
-    docs=[d for d in snapshot.get('documents',[]) if getattr(d,'status',None)=='analyzed']
-    parts=[]
-    if route in accepted:
-        ready=next(r for r in evaluate_requirements(snapshot) if r.rule_id=='R017').passed is True
-        parts=[{'label':accepted[route],'document_type':None,'status':'complete' if ready else 'needs confirmation','document_ids':[]}]
-        return {'route':route,'label':accepted[route],'ready':ready,'parts':parts}
-    for kind,label,flag in (('address_form','Address Form','address_form_accepted'),('utility_bill','Utility bill','utility_bill_accepted')):
-        present=[d for d in docs if d.doc_type==kind]
-        parts.append({'label':label,'document_type':kind,'document_ids':[d.doc_id for d in present],
-            'status':'complete' if getattr(c,flag) is True else 'needs confirmation' if present else 'missing'})
-    return {'route':'address_form_and_utility_bill' if any(row['document_ids'] for row in parts) else None,
-        'label':'Address Form + Utility bill','ready':all(row['status']=='complete' for row in parts),'parts':parts}
 
 
 def real_application_ready(state):
@@ -602,32 +650,37 @@ def iro_package_readiness(state):
     snapshot=_accepted_snapshot(state);c=snapshot['residence_permit_context']
     items=milestone_checklist(snapshot)
     address=address_proof_status(state)
-    items += [{'key':'address_proof','label':'Address proof','document_type':None,'status':'complete' if address['ready'] else 'needs confirmation','parts':address['parts']},
+    items += [_address_checklist_row(address),
         {'key':'biometric_photo','label':'Biometric photo readiness','document_type':None,'status':'complete' if c.biometric_photo is True else 'needs confirmation'}]
     missing=[row for row in items if row['status']!='complete']
     blockers=['package:'+row.get('key',row.get('document_type','information')) for row in missing]
     if not real_application_ready(state):blockers.append('evidence:real_application_form')
     if c.fingerprint_step_completed is not True or c.gi_number_present is not True:blockers.append('confirmation:fingerprint_gi')
     if snapshot.get('verification_conflicts'):blockers.extend('conflict:'+key for key in snapshot['verification_conflicts'])
-    eligible={row['document_type'] for row in items if row.get('document_type') and row['status']=='complete'}|{part['document_type'] for part in address['parts'] if part.get('document_type') and part['status']=='complete'}
-    attachment_ids=[d.doc_id for d in snapshot.get('documents',[]) if d.status=='analyzed' and d.doc_type in eligible]
-    return {'ready':not blockers,'ready_count':len(items)-len(missing),'total':len(items),'items':items,'missing':missing,'blockers':blockers,'attachment_ids':attachment_ids}
+    address_ids = {doc_id for row in address["parts"] if row["status"] == "complete" for doc_id in row["document_ids"]}
+    eligible = address_ids | {doc_id for row in items if row["status"] == "complete"
+                              for doc_id in row.get("document_ids", [])}
+    attachment_ids = [doc.doc_id for doc in snapshot.get("documents", []) if doc.doc_id in eligible]
+    return {"ready": not blockers, "ready_count": len(items) - len(missing), "total": len(items),
+            "items": items, "missing": missing, "blockers": blockers, "attachment_ids": attachment_ids,
+            "address_attachment_ids": sorted(address_ids)}
 
 
 
 def case_summary(state):
     """Compact read observation, derived only from current accepted case state."""
-    from src.workers.verification import MILESTONE_DOCUMENTS,conflict_details
+    from src.workers.verification import MILESTONE_DOCUMENTS
     snapshot=_accepted_snapshot(state);c=snapshot['residence_permit_context']
     stage=_procedure(state);collection=assess_document_collection(state)
     package=iro_package_readiness(state)
     rows=stage_document_checklist(state)
+    address = address_proof_status(state)
     docs=[]
     for doc in snapshot.get('documents',[]):
         if doc.status!='analyzed':continue
         review=document_review(snapshot,doc)
         docs.append({'document_id':doc.doc_id,'type':doc.doc_type,'label':MILESTONE_DOCUMENTS.get(doc.doc_type,(doc.doc_type.replace('_',' ').title(),))[0],
-            'status':review['status'],'unresolved_fields':[row['name'] for row in review['fields'] if row['status'] not in {'source_grounded','user_confirmed'}]})
+            'status':review['status'],'unresolved_fields':[row['name'] for row in review['fields'] if row['issue']]})
     conflicts=[]
     detail=conflict_details(snapshot).get('holder_name')
     if detail and not detail['resolved']:
@@ -643,9 +696,12 @@ def case_summary(state):
         for row in rows:
             if row['status']=='complete':continue
             if row.get('key')=='address_proof' or row.get('label')=='Address proof':
-                address=address_proof_status(state)
-                parts=[part for part in address['parts'] if part['status']!='complete']
-                next_actions += [{'id':'address_'+str(part.get('document_type') or 'confirmation'),'label':('Upload ' if part['status']=='missing' else 'Review ')+part['label'],'kind':'document'} for part in parts]
+                parts = [part for part in address["parts"] if part["status"] != "complete"]
+                next_actions += [{"id": "address_" + part["key"],
+                                  "label": ("Upload " if part["status"] == "missing" else "Review ") + part["label"],
+                                  "kind": "document"} for part in parts]
+                if not address["parts"]:
+                    next_actions.append({"id": "review_address_method", "label": address["message"], "kind": "confirmation"})
             else:next_actions.append({'id':row.get('key') or row.get('document_type') or 'current_step','label':('Upload ' if row['status']=='missing' else 'Review ')+row['label'],'kind':'document' if row.get('document_type') else 'confirmation'})
         if not next_actions and 'confirmation:fingerprint_gi' in package['blockers'] and stage and stage.current_stage=='IRO_REVIEW':
             next_actions=[{'id':'confirm_fingerprint','label':'Record actual fingerprint / GI progress','kind':'confirmation'}]
@@ -655,10 +711,10 @@ def case_summary(state):
     return {'stage':stage.current_stage if stage else None,'user_step':user_step(state),
         'completed_stages':list(stage.completed_stages) if stage else [],'stage_readiness':current,
         'collection':{'ready':collection.ready,'ready_count':sum(value=='READY' for value in collection.prerequisites.values()),'total':len(COLLECTION_ITEMS)},
-        'current_items':rows,'documents':docs,'conflicts':conflicts,'address_proof':address_proof_status(state),
+        'current_items':rows,'documents':docs,'conflicts':conflicts,'address_proof':address,
         'insurance':{'ready':collection.prerequisites['health_insurance']=='READY','coverage_status':requirements['R015'].status,'category_status':requirements['R016'].status},
         'real_application_reviewed':real_application_ready(state),
-        'iro_package':{key:value for key,value in package.items() if key!='attachment_ids'},
+        'iro_package':{key:value for key,value in package.items() if key not in {'attachment_ids','address_attachment_ids'}},
         'verified_facts':{key:value for key,value in c.model_dump(mode='json').items() if value is not None},
         'next_actions':next_actions[:5]}
 

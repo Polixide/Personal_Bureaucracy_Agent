@@ -1,4 +1,5 @@
 """Deterministic stage/action selection; no model calls and no legal state writes."""
+from src.core.address_proof import ADDRESS_OPTIONS, address_proof_status, selected_address_method
 from src.core.state import ResidencePermitContext, ActionPlan, PlanStep
 from src.workers.rule_loader import load_dependencies
 
@@ -54,7 +55,8 @@ def prioritize(state, needs):
             need["category"]="immediate" if rid in stage_rules[phase] or int(rid[1:])<=18 and need["status"]=="failed" else "guardrail_only" if rid=="R028" else "future"
             need["stage"]=phase
             continue
-        if phase=="DOCUMENT_COLLECTION" and rid=="R017":category="immediate"
+        if rid == "R017" and selected_address_method(state) in ADDRESS_OPTIONS:
+            category = "immediate"
         elif limited and rid=="R008" and not ({"passport_id_page_present","turkey_entry_page_present"} & set(need["missing_fields"])):
             category="outside_scope"
             need["scope_note"]="Identity and entry pages are supported; visa applicability/page evidence is outside this milestone"
@@ -92,15 +94,41 @@ def fallback_plan(state, needs):
     if tool_candidates and not any(n["status"]=="failed" and n["category"]=="immediate" for n in needs):
         return fallback_tool_plan(tool_candidates[:3])
     actions=[]
-    conflicts=state.get("verification_conflicts",[])
-    if conflicts:
+    conflicts = set(state.get("verification_conflicts", []))
+    corrections = {}
+    if conflicts - {"holder_name"}:
+        for candidate in canonical_candidates(state):
+            fields = conflicts.intersection(candidate["fields"]) - {"holder_name"}
+            if candidate["action_type"] == "CORRECT_INFORMATION" and fields:
+                for rule_id in candidate["rule_ids"]:
+                    corrections.setdefault(rule_id, set()).update(fields)
+    if "holder_name" in conflicts:
         rid=next((r.rule_id for r in state.get("relevant_requirements",[]) if r.rule_id=="R014"),None)
         if rid:
             actions.append(PlanStep(step_id="resolve_identity",priority=1,action="Review the holder-name observations and explicitly resolve the identity conflict",reason="Conflicting identity observations need human review",related_rule_id=rid,request_kind="RESOLVE_CONFLICT",requested_fields=["holder_name"],available_in_prototype=True,action_type="information"))
     for need in selected:
         rid=need["rule_id"];fields=need["missing_fields"]
+        if rid == "R017" and (state.get("procedure") is not None or selected_address_method(state) is not None):
+            for item in canonical_candidates(state):
+                if item["rule_ids"] != ["R017"]:
+                    continue
+                actions.append(PlanStep(
+                    step_id="next_" + item["candidate_id"].replace(":", "_"),
+                    priority=len(actions) + 1, title=item["title"], reason=item["message"],
+                    related_rule_id=rid, grounding_ids=[item["candidate_id"]],
+                    action_type=item["action_type"], requested_fields=item["fields"],
+                    requested_documents=item["documents"], available_in_prototype=True,
+                ))
+            continue
         kind="PROVIDE_GUIDANCE";docs=[];available=False
-        if need["category"] in {"future","waiting","advisory"} and need["status"]!="failed":
+        if rid in corrections:
+            fields = sorted(corrections[rid])
+            labels = {"passport_or_foreign_id": "passport number", "foreigner_id": "foreign ID"}
+            names = ", ".join(labels.get(name, name.replace("_", " ")) for name in fields)
+            text = f"Review conflicting {names} values against the original documents"
+            kind = "RESOLVE_CONFLICT"
+            available = True
+        elif need["category"] in {"future","waiting","advisory"} and need["status"]!="failed":
             text=f"Review the prerequisites for {rid} before starting that later stage"
             fields=[]
         elif need["status"]=="failed":
@@ -138,7 +166,7 @@ def fallback_plan(state, needs):
         if any(r.rule_id=="R020" for r in state.get("relevant_requirements",[])):
             actions.append(PlanStep(step_id="review_full_file",priority=1,action="Review the remaining full-file requirements with IRO before later workflow steps",reason="Seven-document preparation does not establish full-file readiness under R020",related_rule_id="R020",request_kind="PROVIDE_GUIDANCE",action_type="information"))
     kinds={"REQUEST_DOCUMENT":"REQUEST_DOCUMENT","REQUEST_USER_CONFIRMATION":"REQUEST_USER_CONFIRMATION","REVIEW_EXTRACTED_EVIDENCE":"REVIEW_DOCUMENT","RESOLVE_CONFLICT":"CORRECT_INFORMATION"}
-    actions=[PlanStep.model_validate({**action.model_dump(),"action_type":kinds.get(action.request_kind,"PROVIDE_GUIDANCE"),"execution_type":action.execution_type or "information"}) for action in actions]
+    actions=[action if action.grounding_ids else PlanStep.model_validate({**action.model_dump(),"action_type":kinds.get(action.request_kind,"PROVIDE_GUIDANCE"),"execution_type":action.execution_type or "information"}) for action in actions]
     return ActionPlan(actions=actions,summary="Conservative next steps from current requirements; no official action executed")
 
 
@@ -171,8 +199,8 @@ def milestone_needs(state, needs):
         fields=[]
         for doc in docs:
             for field in document_review(state,doc)["fields"]:
-                if field["status"] not in {"source_grounded","user_confirmed"}:
-                    fields.extend(MAPPINGS[kind].get(field["name"],()))
+                if field["issue"]:
+                    fields.extend(MAPPINGS[kind].get(field["name"], (field["name"],)))
         need={"rule_id":rid,"status":rule.status,"description":rule.description,
             "missing_fields":list(dict.fromkeys(fields)),"questions":{},
             "documents":[row["label"]] if row["status"]=="missing" else [],
@@ -233,35 +261,81 @@ def milestone_needs(state, needs):
 
 
 
+def _address_candidates(state, need, conflicts):
+    from src.workers.verification import document_field_targets, document_review
+
+    address = address_proof_status(state)
+    if address["ready"]:
+        return []
+    base = {"candidate_id": "R017", "rule_ids": ["R017"], "status": need["status"],
+            "issue": "missing_document_or_information", "waiting_for": need.get("waiting_for", []),
+            "policy": "Sabancı exchange first-application address evidence"}
+    if not address["parts"]:
+        selected = address["route"] is not None
+        return [{**base, "action_type": "CORRECT_INFORMATION" if selected else "REQUEST_USER_CONFIRMATION",
+                 "title": "Review your address-proof method with IRO" if selected else "Choose your address-proof method",
+                 "target_document": None, "fields": ["address_proof_type"], "documents": [], "message": address["message"]}]
+    outstanding = {}
+    evidence_status = ", ".join(part["label"] + " " + part["status"] for part in address["parts"])
+    for part in address["parts"]:
+        if part["status"] != "complete":
+            outstanding.setdefault(part["document_type"], []).append(part)
+    candidates = []
+    for kind, parts in outstanding.items():
+        upload = all(part["status"] == "missing" for part in parts)
+        label = "host supporting pages" if kind == "host_support" else parts[0]["label"]
+        fields = []
+        action = "REQUEST_DOCUMENT" if upload else "REVIEW_DOCUMENT"
+        if not upload:
+            document_ids = {owner for part in parts for owner in part["document_ids"]}
+            for doc in state.get("documents", ()):
+                if doc.doc_id not in document_ids:
+                    continue
+                entries = state.get("verification_records", {}).get(doc.doc_id, {})
+                for row in document_review(state, doc, conflicts=conflicts)["fields"]:
+                    if row["issue"]:
+                        name = row["name"]
+                        fields.extend(document_field_targets(doc, name, entries.get(name)) or (name,))
+                        if row["issue"] == "conflict":
+                            action = "CORRECT_INFORMATION"
+            fields = list(dict.fromkeys(fields))
+            if not fields:
+                fields = ["utility_service_address" if kind in {"utility_bill", "utility_subscription"} else "residential_address"]
+        items = ", ".join(part["label"] for part in parts)
+        candidates.append({**base, "action_type": action,
+                           "title": ("Upload " if upload else "Review ") + label,
+                           "target_document": kind, "fields": fields, "documents": [kind],
+                           "message": f"{items}. {parts[0].get('message', address['message'])} Evidence status {evidence_status}."})
+    return candidates
+
+
 def canonical_candidates(state):
     """Determine WHAT is actionable. Never generate user-facing final prose here."""
     from src.agents.planner import actionable_needs
-    from src.core.state import ResidencePermitContext
-    from src.workers.verification import PROFILE_TYPES, MAPPINGS
-    context=ResidencePermitContext.model_validate(state.get("residence_permit_context",{}))
+    from src.workers.verification import PROFILE_TYPES, MAPPINGS, cached_conflict_fields, conflict_details
+    details = conflict_details(state)
+    cached = cached_conflict_fields(state) - details.keys()
     output=[]
     for need in actionable_needs(state):
         if need["category"]!="immediate":continue
         rid=need["rule_id"];fields=list(need["missing_fields"])
         target=need.get("document_type")
         if not target:target={"R006":"passport_copy","R008":"turkiye_entry_stamp","R019":"declaration_control_document","R015":"health_insurance"}.get(rid)
-        review_address_pair=False
-        if rid=="R017" and state.get("procedure") is not None:
-            present={getattr(d,"doc_type",None) for d in state.get("documents",[]) if getattr(d,"status",None)=="analyzed"}
-            if "utility_bill" in present and "address_form" not in present:target="address_form";fields=[]
-            elif "address_form" in present and "utility_bill" not in present:target="utility_bill";fields=[]
-            elif {"utility_bill","address_form"} <= present:
-                target="utility_bill" if context.utility_bill_accepted is not True else "address_form"
-                fields=[];review_address_pair=True
+        if rid == "R017" and (state.get("procedure") is not None or selected_address_method(state) is not None):
+            output.extend(_address_candidates(state, need, details))
+            continue
         available=any(getattr(d,"doc_type",None)==target and getattr(d,"status",None)=="analyzed" for d in state.get("documents",[]))
-        conflict_fields=set(state.get("verification_conflicts",[])) & {field for targets in MAPPINGS.get(target,{}).values() for field in targets}
+        conflict_fields = {
+            field for field, detail in details.items()
+            if not detail["resolved"] and any(row["document_type"] == target for row in detail["observations"])
+        }
+        conflict_fields.update(cached & {field for targets in MAPPINGS.get(target, {}).values() for field in targets})
         if conflict_fields:
             kind="CORRECT_INFORMATION";fields=sorted(conflict_fields)
         elif need["status"]=="failed":
             kind="CORRECT_INFORMATION"
             if rid=="R015":fields=["insurance_end_date"]
             if not fields:fields={"R015":["insurance_end_date"],"R006":["passport_expiry_date"],"R019":["declaration_control_document_signed"]}.get(rid,[])
-        elif review_address_pair:kind="REVIEW_DOCUMENT"
         elif need["documents"] or (target and not available and ((rid=="R006" and "passport_expiry_date" in fields) or rid in {"R008","R019","R017"})):
             kind="REQUEST_DOCUMENT"
         elif need["existing_evidence_to_review"]:kind="REVIEW_DOCUMENT" if fields else "PROVIDE_GUIDANCE"
@@ -272,10 +346,6 @@ def canonical_candidates(state):
             if target:documents=[PROFILE_TYPES.get(target,target)]
             else:documents=list(need["documents"])
         message=need['description']
-        if rid=='R017' and state.get('procedure') is not None:
-            from src.core.procedure import address_proof_status
-            address=address_proof_status(state)
-            message='Current address route: '+address['label']+'. Pieces: '+', '.join(row['label']+' '+row['status'] for row in address['parts'])+'.'
         output.append({"candidate_id":rid,"rule_ids":[rid],"status":need["status"],"issue":"coverage_end_insufficient" if rid=="R015" and need["status"]=="failed" else "missing_document_or_information", "waiting_for":need.get("waiting_for",[]),"action_type":kind,"target_document":PROFILE_TYPES.get(target,target),"fields":fields,"documents":documents,"message":message,"policy":getattr(next((r for r in state.get("relevant_requirements",[]) if r.rule_id==rid),None),"assessment_policy",None)})
     combined=canonical_tool_candidates(state)+output
     # Distinct document/field targets can share a legal rule. A rule ID is not
@@ -303,8 +373,12 @@ def canonical_tool_candidates(state):
     if stage=='IRO_REVIEW':
         from src.core.procedure import iro_package_readiness,_accepted_snapshot
         package=iro_package_readiness(state);context=_accepted_snapshot(state)['residence_permit_context']
-        drafts=state.get('email_drafts',[]) or []
-        if package['ready'] and context.scans_sent_to_iro is not True and not any(d.get('purpose')=='package_review' for d in drafts):
+        from src.tools.email import package_attachments_current
+        drafts = state.get("email_drafts") or []
+        has_current_draft = any(draft.get("purpose") == "package_review"
+                                and package_attachments_current(package, (item["document_id"] for item in draft.get("attachments", ())))
+                                for draft in drafts)
+        if package["ready"] and context.scans_sent_to_iro is not True and not has_current_draft:
             call=validate_tool_call({'call_id':'plan_iro_'+sha256(str(state.get('trace_id','')).encode()).hexdigest()[:20],
                 'name':'prepare_iro_email','arguments':{'purpose':'package_review','attachment_ids':package['attachment_ids']}}).model_dump(mode='json')
             return [{'candidate_id':'TOOL_IRO_PACKAGE','rule_ids':[],'status':'missing_information','issue':'supported_tool_action','waiting_for':[],

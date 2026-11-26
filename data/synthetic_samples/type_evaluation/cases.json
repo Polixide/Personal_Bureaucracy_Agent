@@ -1,0 +1,344 @@
+[
+  {
+    "id": "student_complete",
+    "file": "type_evaluation/student_complete.txt",
+    "document_type": "student_enrollment_certificate",
+    "extraction": {
+      "holder_name": "Morgan Example",
+      "student_id": "DEMO-S1",
+      "institution": "Example University",
+      "issue_date": "2028-09-18"
+    },
+    "classification": null,
+    "expected": {
+      "holder_name": "Morgan Example",
+      "student_id": "DEMO-S1",
+      "institution": "Example University",
+      "issue_date": "2028-09-18"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": false
+  },
+  {
+    "id": "student_partial",
+    "file": "type_evaluation/student_partial.txt",
+    "document_type": "student_enrollment_certificate",
+    "extraction": {
+      "holder_name": "Morgan Example",
+      "student_id": null,
+      "institution": "Example University",
+      "issue_date": null
+    },
+    "classification": null,
+    "expected": {
+      "holder_name": "Morgan Example",
+      "student_id": null,
+      "institution": "Example University",
+      "issue_date": null
+    },
+    "missing": [
+      "student_id",
+      "issue_date"
+    ],
+    "review": true,
+    "holdout": false
+  },
+  {
+    "id": "student_alternate",
+    "file": "type_evaluation/student_alternate.txt",
+    "document_type": "student_enrollment_certificate",
+    "extraction": {
+      "holder_name": "Morgan Example",
+      "student_id": "DEMO-S2",
+      "institution": "Example University",
+      "issue_date": "2028-09-19",
+      "enrollment_status": "Active"
+    },
+    "classification": null,
+    "expected": {
+      "holder_name": "Morgan Example",
+      "student_id": "DEMO-S2",
+      "institution": "Example University",
+      "issue_date": "2028-09-19",
+      "enrollment_status": "Active"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": false
+  },
+  {
+    "id": "insurance_complete",
+    "file": "type_evaluation/insurance_complete.txt",
+    "document_type": "health_insurance_certificate",
+    "extraction": {
+      "holder_name": "Morgan Example",
+      "insurer": "Example Mutual",
+      "policy_number": "DEMO-P1",
+      "issue_date": "2028-09-18",
+      "coverage_start_date": "2028-09-20",
+      "coverage_end_date": "2029-06-30",
+      "expiry_date": "2029-06-30"
+    },
+    "classification": null,
+    "expected": {
+      "holder_name": "Morgan Example",
+      "insurer": "Example Mutual",
+      "policy_number": "DEMO-P1",
+      "issue_date": "2028-09-18",
+      "coverage_start_date": "2028-09-20",
+      "coverage_end_date": "2029-06-30",
+      "expiry_date": "2029-06-30"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": false
+  },
+  {
+    "id": "insurance_multiline",
+    "file": "type_evaluation/insurance_multiline.txt",
+    "document_type": "health_insurance_certificate",
+    "extraction": {
+      "holder_name": "Morgan Example",
+      "insurer": "Example Mutual",
+      "policy_number": "DEMO-P2",
+      "issue_date": "2028-09-18",
+      "coverage_start_date": "2028-09-20",
+      "coverage_end_date": "2029-06-30",
+      "expiry_date": "2029-06-30"
+    },
+    "classification": null,
+    "expected": {
+      "holder_name": "Morgan Example",
+      "insurer": "Example Mutual",
+      "policy_number": "DEMO-P2",
+      "issue_date": "2028-09-18",
+      "coverage_start_date": "2028-09-20",
+      "coverage_end_date": "2029-06-30",
+      "expiry_date": "2029-06-30"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": false
+  },
+  {
+    "id": "insurance_partial",
+    "file": "type_evaluation/insurance_partial.txt",
+    "document_type": "health_insurance_certificate",
+    "extraction": {
+      "holder_name": "Morgan Example",
+      "insurer": "Example Mutual",
+      "policy_number": null,
+      "issue_date": null,
+      "coverage_end_date": null,
+      "expiry_date": null
+    },
+    "classification": null,
+    "expected": {
+      "holder_name": "Morgan Example",
+      "insurer": "Example Mutual",
+      "policy_number": null,
+      "issue_date": null,
+      "coverage_end_date": null,
+      "expiry_date": null
+    },
+    "missing": [
+      "policy_number",
+      "issue_date",
+      "expiry_date"
+    ],
+    "review": true,
+    "holdout": false
+  },
+  {
+    "id": "application_complete",
+    "file": "type_evaluation/application_complete.txt",
+    "document_type": "ikamet_application_form",
+    "extraction": {
+      "applicant_name": "Morgan Example",
+      "application_number": "DEMO-A1",
+      "passport_number": "DEMO-PASS1",
+      "application_date": "2028-09-18",
+      "permit_type": "Short term"
+    },
+    "classification": null,
+    "expected": {
+      "applicant_name": "Morgan Example",
+      "application_number": "DEMO-A1",
+      "passport_number": "DEMO-PASS1",
+      "application_date": "2028-09-18",
+      "permit_type": "Short term"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": false
+  },
+  {
+    "id": "application_partial",
+    "file": "type_evaluation/application_partial.txt",
+    "document_type": "ikamet_application_form",
+    "extraction": {
+      "applicant_name": "Morgan Example",
+      "application_number": "DEMO-A2",
+      "passport_number": null,
+      "application_date": null
+    },
+    "classification": null,
+    "expected": {
+      "applicant_name": "Morgan Example",
+      "application_number": "DEMO-A2",
+      "passport_number": null,
+      "application_date": null
+    },
+    "missing": [
+      "application_date"
+    ],
+    "review": true,
+    "holdout": false
+  },
+  {
+    "id": "application_alternate",
+    "file": "type_evaluation/application_alternate.txt",
+    "document_type": "ikamet_application_form",
+    "extraction": {
+      "applicant_name": "Morgan Example",
+      "application_number": "DEMO-A3",
+      "passport_number": "DEMO-PASS3",
+      "application_date": "2028-09-18"
+    },
+    "classification": null,
+    "expected": {
+      "applicant_name": "Morgan Example",
+      "application_number": "DEMO-A3",
+      "passport_number": "DEMO-PASS3",
+      "application_date": "2028-09-18"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": false
+  },
+  {
+    "id": "unrelated",
+    "file": "type_evaluation/unrelated.txt",
+    "document_type": "unknown",
+    "extraction": {
+      "source_snippets": {}
+    },
+    "classification": {
+      "document_type": "unknown",
+      "evidence": [],
+      "ambiguous": true
+    },
+    "expected": {},
+    "missing": [],
+    "review": true,
+    "holdout": false
+  },
+  {
+    "id": "mixed_types",
+    "file": "type_evaluation/mixed_types.txt",
+    "document_type": "unknown",
+    "extraction": {},
+    "classification": null,
+    "expected": {},
+    "missing": [],
+    "review": true,
+    "holdout": false
+  },
+  {
+    "id": "student_holdout",
+    "file": "type_evaluation/student_holdout.txt",
+    "document_type": "student_enrollment_certificate",
+    "extraction": {
+      "holder_name": "Casey Sample",
+      "student_id": "HOLD-S1",
+      "institution": "Horizon University",
+      "issue_date": "2028-10-21",
+      "source_snippets": {
+        "issue_date": "Recorded on: 2028-10-21"
+      }
+    },
+    "classification": {
+      "document_type": "student_enrollment_certificate",
+      "evidence": [
+        "Our university confirms this student is registered."
+      ]
+    },
+    "expected": {
+      "holder_name": "Casey Sample",
+      "student_id": "HOLD-S1",
+      "institution": "Horizon University",
+      "issue_date": "2028-10-21"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": true
+  },
+  {
+    "id": "insurance_holdout",
+    "file": "type_evaluation/insurance_holdout.txt",
+    "document_type": "health_insurance_certificate",
+    "extraction": {
+      "holder_name": "Casey Sample",
+      "insurer": "Example Mutual",
+      "policy_number": "HOLD-P1",
+      "issue_date": "2028-10-21",
+      "coverage_start_date": "2028-10-22",
+      "coverage_end_date": "2029-07-23",
+      "expiry_date": "2029-07-23",
+      "source_snippets": {
+        "policy_number": "Contract code: HOLD-P1",
+        "issue_date": "Issued on: 2028-10-21",
+        "coverage_start_date": "Protection begins: 2028-10-22",
+        "coverage_end_date": "Protection ends: 2029-07-23",
+        "expiry_date": "Protection ends: 2029-07-23"
+      }
+    },
+    "classification": {
+      "document_type": "health_insurance_certificate",
+      "evidence": [
+        "Medical coverage insurance for Casey Sample"
+      ]
+    },
+    "expected": {
+      "holder_name": "Casey Sample",
+      "insurer": "Example Mutual",
+      "policy_number": "HOLD-P1",
+      "issue_date": "2028-10-21",
+      "coverage_start_date": "2028-10-22",
+      "coverage_end_date": "2029-07-23",
+      "expiry_date": "2029-07-23"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": true
+  },
+  {
+    "id": "application_holdout",
+    "file": "type_evaluation/application_holdout.txt",
+    "document_type": "ikamet_application_form",
+    "extraction": {
+      "applicant_name": "Casey Sample",
+      "application_number": "HOLD-A1",
+      "application_date": "2028-10-21",
+      "source_snippets": {
+        "application_number": "Tracking code: HOLD-A1",
+        "application_date": "Submitted on: 2028-10-21"
+      }
+    },
+    "classification": {
+      "document_type": "ikamet_application_form",
+      "evidence": [
+        "Request for residence permission application"
+      ]
+    },
+    "expected": {
+      "applicant_name": "Casey Sample",
+      "application_number": "HOLD-A1",
+      "application_date": "2028-10-21"
+    },
+    "missing": [],
+    "review": false,
+    "holdout": true
+  }
+]

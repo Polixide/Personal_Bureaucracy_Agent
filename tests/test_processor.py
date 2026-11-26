@@ -874,7 +874,8 @@ def test_openai_sdk_factory_is_lazy_and_disables_automatic_retries(monkeypatch):
     factory=Mock()
     with patch.dict(sys.modules,{"openai":SimpleNamespace(OpenAI=factory)}):
         assert create_openai_for_test(23.5) is factory.return_value
-    factory.assert_called_once_with(timeout=23.5,max_retries=0)
+    factory.assert_called_once_with(api_key="test-key-not-a-secret", base_url="https://api.openai.com/v1",
+                                    timeout=23.5, max_retries=0)
 
 
 def test_openai_provider_accepts_numbered_images_and_strict_structured_output(monkeypatch,capsys):

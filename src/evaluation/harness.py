@@ -156,6 +156,10 @@ def run_curated(scenario: dict, workdir: Path) -> ScenarioResult:
         request = new_run(UserEvent(kind="upload", file_path=str(doc_path)), thread_id)
         request["residence_permit_context"] = ResidencePermitContext(
             **{**context, **scenario["changes"]})
+        if request["residence_permit_context"].address_proof_type == "dorm_certificate":
+            from src.evaluation.scenarios import synthetic_dormitory_evidence
+            document, reviews = synthetic_dormitory_evidence("Alex Example")
+            request.update(documents=[document], verification_records=reviews)
 
         gates: list[dict] = []
         expected_statuses = {rule: "passed" for rule in RULE_IDS} | scenario["statuses"]

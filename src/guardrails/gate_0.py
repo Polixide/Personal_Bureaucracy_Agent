@@ -37,7 +37,12 @@ def gate_0(state):
         except (ValueError, TypeError) as error: return reject("Invalid typed tool call")
         return result
     if event.kind == "generate_plan":
-        if state.get("verification_conflicts"):
+        from src.core.address_proof import address_proof_status
+        from src.workers.verification import conflict_details
+
+        recorded = next((rule for rule in state.get("relevant_requirements") or [] if rule.rule_id == "R017"), None)
+        stale_address = recorded is not None and (recorded.passed is True) != address_proof_status(state)["ready"]
+        if stale_address or state.get("verification_conflicts") or any(not detail["resolved"] for detail in conflict_details(state).values()):
             result["relevant_requirements"] = None
         return result
     if event.kind in {"resolve_conflict", "record_progress", "reevaluate", "delete_document", "replace_document", "cancel_document", "reprocess_document", "remove_correction"}:

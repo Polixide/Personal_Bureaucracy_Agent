@@ -112,7 +112,8 @@ def test_tax_identifier_alone_is_not_payment_evidence(tmp_path):
     with patch("src.document_processing.processor.Client") as client:
         client.return_value.chat.return_value=response({"document_type":"card_fee_receipt"})
         info=process_document(path)
-    assert info.document_type=="unknown"
+    assert info.document_type=="tax_id_certificate"
+    assert info.tax_identification_number is None
 
 
 def test_legal_expiry_is_user_declared_not_inferred_from_nationality(tmp_path):

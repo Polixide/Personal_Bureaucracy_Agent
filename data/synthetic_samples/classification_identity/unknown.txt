@@ -1,0 +1,4 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+Internal inventory record
+Boxes: 7
+Pens: 42

@@ -1,0 +1,166 @@
+SOURCE: Residence Permit (METU ISO)
+URL: https://iso.metu.edu.tr/en/residence-permit
+RETRIEVED: 2026-11-19
+SHA256: 4bcdfe241dbca714f830ccaacf3a88564760e4c0b948d6216fb12bbe5711bc22
+
+Residence Permit
+
+Useful Information
+
+Last Updated:
+
+05/11/2026 - 09:36
+
+English
+
+Türkçe
+
+Listen
+
+Upcoming days for the Migration Office Mobile Service Point on Campus (for fingerprints and address registration):
+
+03.11.2026 - 10.11.2026 - 26.11.2026
+
+Location: https://maps.app.goo.gl/uWWgWBxjYxxkWRVk8
+
+Student residence permit procedures for undergraduate, master's, and doctoral students are carried out within the scope of the "Cooperation Protocol on Residence Permit Applications of International Students" signed between the Presidency of Migration Management and the Council of Higher Education (YÖK) on 15/11/2023 and entered into force on 29/11/2023.
+
+Step 1. The student must complete the "pre-registration form" at https://e-ikamet.goc.gov.tr within the legal period, complete the online student residence permit application, and complete the appointment selection, then download the residence permit application form as a PDF. Depending on your situation, you may follow the first application, transfer, or extension steps on this page.
+
+Step 2. Even if you complete the appointment step and the system assigns you an appointment date, you will NOT attend your appointment at the Migration Office for student residence permit applications. You must submit your documents to ISO on the first Thursdays following your e-ikamet application. We will take the documents to the Migration Office periodically. You will not go to the Migration Office unless you receive a specific email from us instructing you to do so.
+
+Step 3. We will collect documents at ISO only on Thursdays from 09:30 to 12:00 and from 13:30 to 17:00. We do not accept residence permit application documents on other days.
+
+Ankara Migration Office does not process files that are more than thirty days past the student's e-ikamet application date. Our office submits documents to the Ankara Migration Office every two weeks. Therefore, to avoid such delays, it is important that students submit their application documents to our office on the first Thursday following the date of their e-ikamet application.
+
+Step 4. After submitting the documents to the Migration Office, they will inform ISO if any document or information is missing for any student. If so, we will notify you via your METU email. It is your responsibility to check your emails and act according to the instructions provided.
+
+Step 5. You can follow the status of your application via e-ikamet website. Once your card is ready, it will be posted to your address.
+
+ISO functions only as a document collection desk. If you have any problem or question regarding your residence permit, you must first contact 157 to receive the correct information directly from the Migration Office. If you still need assistance, please contact our office through the contact channels listed here: https://iso.metu.edu.tr/en/contact
+
+Although ISO's involvement has increased under this new protocol, it is still the student's responsibility to follow the required procedures and regulations regarding residence permits. The Migration Office remains the sole authority responsible for evaluating residence permit applications. Therefore, apart from collecting and submitting application documents to the Migration Office, the university has no involvement, responsibility, or authority in residence permit procedures.
+
+----------------
+
+REQUIRED DOCUMENTS
+
+Click each item to expand and see the details.
+
+1. Residence Permit Application Form
+
+Students who will enroll in undergraduate, master's, and doctoral programs must apply by selecting the "Student Residence Permit" type among residence permit categories. You must complete the online application form at https://e-ikamet.goc.gov.tr/ . After completing the form, download it as a PDF, print the first two pages, and sign it on the first page. (Please download the PDF immediately after completing the form. Do not postpone it or plan to download it later because after your appointment date has passed, you will no longer be able to access this PDF via e-Residence.)
+
+While filling out the form, remember that only fields written in red are mandatory. Fields written in black do not need to be filled in.
+
+If you have renewed your passport while in Türkiye and have not entered Türkiye with your new passport, enter your previous passport number and issue date, and the expiry date of your new passport.
+
+For the start date of your studies at METU, write your initial registration date, which you can find via program no. 61 at https://student.metu.edu.tr/ . For the end date of your studies, if you will graduate at the end of the fall semester, enter any date in March of the expected graduation year. If you will graduate at the end of the spring semester, enter any date in September of the expected graduation year.
+
+The form requires two addresses: the university address and your permanent address. Please refer to this document for address details. After completing the form, print it, sign it, and include it in your application file.
+
+2. Passport or passport substitute document copy
+
+A valid passport and copy (identity page, last entry page, and visa page if any). (Once you submit your documents to ISO, we will handle the "true copy" stamp procedure. Please bring your passport and photocopies with you.)
+
+If you have recently renewed your passport, please bring both passports with their photocopies.
+
+3. Residence Permit Information Form (not required if this is your first semester in your program)
+
+It must include registration date, foreign ID number, and expected graduation date.
+
+The student registration must be active in the YÖK system.
+
+Apply and download this document via program no. 205 at https://student.metu.edu.tr/ . YOU MUST PRINT THE FORM AFTER DOWNLOADING IT. This document requires approval from the Registrar‚Äôs Office after online application. Therefore, do not leave it to the last minute and apply a few days in advance.
+
+4. Proof of payment of residence permit card fee
+
+Students applying for a student residence permit pay only 964.0 TL (for 2026) card fee. Visa fees and residence permit fees are not required.
+
+To pay the card fee, first visit https://dijital.gib.gov.tr/ , then select " Göç İdaresi İkamet Tezkeresi Harcı Ödeme " and enter the accrue number ( tahakkuk numarası ) obtained at the end of your online application. Then complete the payment online and obtain the receipt. PLEASE USE A COMPUTER WHILE MAKING THE PAYMENT ON THIS WEBSITE. DO NOT USE YOUR MOBILE PHONES!
+
+5. Document showing place of residence
+
+1. If living in your own property: a copy of the title deed and a recent utility bill (water, electricity, natural gas, landline, etc.), or a subscription contract, or a numbering ( numarataj ) certificate from the municipality. (For extension applications, a residence registration document is sufficient.)
+
+2. If renting: an e-signed rental contract via e-devlet or a notarized rental agreement. The landlord's identity information and authorization documents (if applicable) must be attached.
+
+3. If staying in hotels, motels, or similar: a lodging document is required, along with proof of payment. AIRBNB reservations are not accepted.
+
+4. If staying in student dormitories: a signed and stamped/sealed document from the dormitory administration. The document must be recently issued. YOUR ROOM NUMBER SHOULD BE STATED IN THE DOCUMENT.
+
+5. If using a third person's address: a notarized undertaking from that person is required. If married, both spouses must provide consent. Address registration of the sponsor is mandatory. (A sponsor may support a maximum of two foreigners. If the sponsor is a foreigner, the residence permit duration of the applicant cannot exceed the sponsor's legal stay period.
+
+6. Address Registration Document (Yerlesim Yeri Belgesi) Only for extension applications
+
+NOTE (Address Registration): For extension applications, completed address registration is required. Applicants must submit a residence registration document via https://www.turkiye.gov.tr/nvi-yerlesim-yeri-ve-diger-adres-belgesi-sorg... If your address does not appear here, you must update it at the Migration Office by submitting a valid proof of address to register your address. After completing your registration, your address information will be available through the e-Government Portal. You should then obtain the relevant document ("Yerlesim Yeri Belgesi" in Turkish) from the link above and submit it to the ISO along with the other documents listed here.
+
+7. Health insurance
+
+In principle, foreigners must submit insurance covering the entire requested residence permit period. At least one of the following documents is required:
+
+(1) Private health insurance policy covering the residence period. First page of the insurance policy is sufficient. You can purchase private health insurance for more than one year, which is highly recommended to be eligible for a longer residence permit.
+
+(2) If you will have government insurance, then an official document of application to Social Security Institution for General Health Insurance (GSS) or an official signed/sealed provision document from SGK.
+
+(3) Nationals whose healthcare is covered by bilateral agreements are exempt.
+
+8. For students under 18 years old
+
+(a) Birth certificate (If parents cannot be identified in official ID documents, an official birth certificate is required.)
+
+(b) Consent letter ( muvafakatname )
+
+In case of divorce, an approved custody document, or proof of joint custody, or a notarized consent letter provided by the other parent in cases where the other parent has visitation rights, is required.
+
+In the event of the death of one parent, an officially certified death certificate is required.
+
+If a court decision of absence (missing person declaration) has been issued regarding one of the parents, an officially certified certificate of absence must be provided.
+
+For minors entering with visa exemption or other visa types, guardian documents and consent letters are required. For those entering with a student visa, these documents are not required. Therefore, even if you are a citizen of a visa-exempt country, obtaining a student visa before coming to Türkiye will save you from the additional documentation and bureaucratic burdens associated with being under 18, and is therefore highly important.
+
+9. Other Documents (If needed)
+
+Additional information or documents may be requested by the Migration Office during evaluation.
+
+IMPORTANT NOTES
+
+International students are called for fingerprint registration at times determined by the Migration Office. If you have already provided your fingerprints to the Migration Office, you do not need to do this again.
+
+You do not need to obtain a visa to enter Türkiye during the period your residence permit is valid. For example, when returning to Türkiye from a visit to your home country during a semester break, you may present your residence permit instead of a visa.
+
+Migration Office takes the online application date into consideration. In all circumstances, you must complete your e-ikamet application before your residence permit, visa, or visa-free stay period expires.
+
+In case of any change in name/surname, marital status, address, passport, department, or program, etc., the Ankara Migration Office must be informed immediately.
+
+In case of loss of the physical residece permit card, the Ankara Migration Office must be notified immediately.
+
+The list of students who withdraw from the program voluntarily or are dismissed from the program is submitted to the Ankara Migration Office every semester. Their student residence permits are canceled accordingly. Therefore, students must carefully follow their residence procedures.
+
+According to information received from the Migration Office (as of June 2026), when you graduate from your program and if your residence permit card's expiry date is after your graduation date, you may stay in Türkiye until the expiry date stated on your card. Those who wish to stay longer must apply for a short-term residence permit within six months following graduation, before their student residence permit expires. Each new graduation at a higher education level grants a separate right to apply for a post-graduation short-term residence permit. Therefore, you may apply for this permit after your undergraduate, master's, and PhD graduations separately.
+
+When applying for an extension, after the positive evaluation of your application, your new card will not be printed until your previous card expires. Therefore, if you need proof of your new permit before your new card is issued, you may obtain a document via: https://www.turkiye.gov.tr/goc-idaresi-ikamet-izni-kisisel-bilgi-sorgula...
+
+If you wish to leave Türkiye while your residence permit application is under evaluation by the Migration Office, please contact our office so that we can coordinate with the Migration Office regarding possible scenarios.
+
+If you remain enrolled in a double major program after graduating from your first major, you will still be eligible to extend your student residence permit. However, if you remain enrolled in a minor program after graduating from your major, you will not be eligible for an extension. In this case, please contact us for assistance.
+
+The expiry date of the residence permit issued depends on three main factors: your expected graduation date, your health insurance coverage period, and your passport validity.
+
+For example, if your expected graduation is at the end of the 2027-2028 spring semester, and your health insurance duration and passport validity allow it, your student residence permit may be issued until 30 November 2028. Similarly, if your expected graduation is at the end of the 2028-2029 fall semester, your permit may be issued until 31 March 2029, provided your insurance and passport validity allow it.
+
+Private health insurance policies can be purchased for multiple years. Such long-term insurance is beneficial as it prevents the need for annual renewal applications, repeated document collection, and annual residence permit card fee payments.
+
+It is also important to extend your passport before coming to Türkiye so that you have a passport covering your full period of study, which helps you obtain a longer-term residence permit in a single application.
+
+The student residence permit does not automatically grant residence rights to parents or other relatives of the student.
+
+Regarding work and work permits, please see here: https://iso.metu.edu.tr/en/work-permits
+
+Migration Office Call Center: 157
+
+Email address: ankara.ikamet@goc.gov.tr
+
+Migration Office Address: Barbaros Mahallesi, Binnaz Sk. No:2, 06680 Çankaya/Ankara
+
+https://maps.app.goo.gl/NuVnhNiko92nUmf56

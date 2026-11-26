@@ -1,0 +1,8 @@
+SYNTHETIC EXAMPLE - NOT AN OFFICIAL DOCUMENT
+ÖĞRENCİ BELGESİ
+Student Enrollment Certificate
+This document confirms that the student is enrolled at Example University.
+Student ID: DEMO-STUDENT-310
+Enrollment status: Active
+Instructions
+Students must submit a Residence Permit Application Form for the separate procedure.

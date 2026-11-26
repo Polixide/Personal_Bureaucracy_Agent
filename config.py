@@ -18,8 +18,11 @@ MAX_REFLECTION_ATTEMPTS = 3
 
 PLANNER_MAX_ACTIONS = int(os.getenv("PLANNER_MAX_ACTIONS", "3"))
 
-# Document providers only; Planner/Reflection continue using their existing Ollama path.
+# These are independent server defaults. Cloud document analysis also requires
+# an explicit action authorizing the selected file.
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+DOCUMENT_PROVIDER = os.getenv("DOCUMENT_PROVIDER", "local").strip().lower()
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "").strip().lower()
 DOCUMENT_FALLBACK_PROVIDER = os.getenv("DOCUMENT_FALLBACK_PROVIDER", "none").strip().lower()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "").strip()
 DOCUMENT_OCR_DPI = int(os.getenv("DOCUMENT_OCR_DPI", "200"))
@@ -28,9 +31,8 @@ DOCUMENT_FALLBACK_MAX_PAGES = int(os.getenv("DOCUMENT_FALLBACK_MAX_PAGES", "2"))
 DOCUMENT_MIN_TEXT_CHARS = 30
 DOCUMENT_OCR_MIN_CONFIDENCE = 0.6
 
-# Local-first by default. Auto can use cloud only with both key and model set.
-# Legacy provider variables remain supported for existing callers.
-DOCUMENT_AI_PROVIDER = os.getenv("DOCUMENT_AI_MODE", os.getenv("DOCUMENT_AI_PROVIDER", "legacy" if "LLM_PROVIDER" in os.environ or "DOCUMENT_FALLBACK_PROVIDER" in os.environ else "auto")).strip().lower()
+# Cloud document analysis needs explicit authorization for the current file.
+DOCUMENT_AI_PROVIDER = os.getenv("DOCUMENT_AI_MODE", os.getenv("DOCUMENT_AI_PROVIDER", "local-only")).strip().lower()
 OPENAI_DOCUMENT_MODEL = os.getenv("OPENAI_DOCUMENT_MODEL", OPENAI_MODEL).strip()
 
 DOCUMENT_CLASSIFICATION_MAX_CHARS = int(os.getenv("DOCUMENT_CLASSIFICATION_MAX_CHARS", "1200"))

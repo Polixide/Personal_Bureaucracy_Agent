@@ -7,12 +7,24 @@ from src.workers.rules_engine import evaluate_requirements
 
 CASES = json.loads((KNOWLEDGE_DIR / "test_cases.json").read_text(encoding="utf-8"))["tests"]
 
-def evaluate(values):
-    return {r.rule_id:r for r in evaluate_requirements({"residence_permit_context":ResidencePermitContext(**values)})}
+def evaluate(values, *, with_address_evidence=False):
+    state = {"residence_permit_context": ResidencePermitContext(**values)}
+    if with_address_evidence:
+        from src.evaluation.scenarios import confirm
+        from test_address_proof import add_document
+
+        method = values["address_proof_type"]
+        document = add_document(state, method)
+        attestation = "dorm_certificate_format" if method == "dorm_certificate" else "notary_certification"
+        state = confirm(state, document.doc_id, {attestation: True})
+    return {r.rule_id: r for r in evaluate_requirements(state)}
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c:c["id"])
 def test_current_knowledge_cases(case):
-    assert evaluate(case["input"])[case["rule"]].passed is (case["expected"] == "PASS")
+    positive_address = case["rule"] == "R017" and case["expected"] == "PASS"
+    if positive_address:
+        assert evaluate(case["input"])["R017"].passed is None
+    assert evaluate(case["input"], with_address_evidence=positive_address)[case["rule"]].passed is (case["expected"] == "PASS")
 
 @pytest.mark.parametrize("number", [i for i in range(1,30) if i not in (12,24,25,27,29)])
 def test_unknown_is_preserved(number):
@@ -69,7 +81,7 @@ RULE_BRANCHES = [
 
 @pytest.mark.parametrize("rule,positive,negative", RULE_BRANCHES, ids=[r[0] for r in RULE_BRANCHES])
 def test_every_current_rule_pass_and_fail(rule,positive,negative):
-    assert evaluate(positive)[rule].passed is True
+    assert evaluate(positive, with_address_evidence=rule == "R017")[rule].passed is True
     assert evaluate({**positive,**negative})[rule].passed is False
 
 

@@ -13,6 +13,9 @@ def prohibit_live_ollama(monkeypatch):
     def denied_openai(*args, **kwargs):
         raise AssertionError("Automated tests must mock OpenAI")
     monkeypatch.setattr("src.document_processing.providers._create_openai_client",denied_openai)
+    monkeypatch.setattr("src.core.model_provider.create_openai_client", denied_openai)
+    monkeypatch.setattr("src.core.model_provider._read_secret", lambda: "")
+    monkeypatch.setattr("ollama.Client.embed", denied)
     monkeypatch.setattr("src.document_processing.processor.DOCUMENT_AI_PROVIDER","legacy")
     monkeypatch.setattr("src.document_processing.processor.LLM_PROVIDER","ollama")
     monkeypatch.setattr("src.document_processing.processor.DOCUMENT_FALLBACK_PROVIDER","none")

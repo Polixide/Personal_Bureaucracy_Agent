@@ -1,0 +1,216 @@
+{
+  "benchmark_version": "pba-preparation-1.0.0",
+  "synthetic_only": true,
+  "profile_id": "sabanci_exchange_first_short_term",
+  "profile": {
+    "host_university": "Sabanci University", "student_type": "exchange", "application_type": "first",
+    "age": 23, "planned_stay_months": 4, "permit_category": "short_term", "permit_category_status": "confirmed"
+  },
+  "declarations": {
+    "is_in_turkiye": true, "entered_with_passport": true, "visa_required": false,
+    "application_date": "2027-02-01", "legal_stay_expiry_date": "2027-04-01",
+    "insurance_evidence_type": "private_health_insurance"
+  },
+  "safety": {
+    "official_execution_allowed": false, "approval_must_be_explicit": true,
+    "benchmark_supplies_approval": false, "production_persistence_allowed": false,
+    "private_input_allowed": false
+  },
+  "documents": {
+    "passport": {
+      "document_type": "passport_identity_page",
+      "observations": {"holder_name": "Synthetic Fixture Person", "passport_number": "SYNTH-PASS-01", "nationality": "Exampleland", "expiry_date": "2035-09-15", "identity_page_present": true}
+    },
+    "entry": {
+      "document_type": "turkiye_entry_stamp",
+      "observations": {"entry_stamp_present": true, "latest_entry_date": "2027-01-15"}
+    },
+    "student": {
+      "document_type": "student_enrollment_certificate",
+      "observations": {"holder_name": "Synthetic Fixture Person", "student_id": "SYNTH-ENROL-01", "institution": "Sabanci University", "issue_date": "2027-01-02", "exchange_student": true, "program_start_date": "2027-01-31", "program_end_date": "2027-05-31"}
+    },
+    "insurance": {
+      "document_type": "health_insurance_certificate",
+      "observations": {"holder_name": "Synthetic Fixture Person", "insurer": "Synthetic Example Assurance", "policy_number": "SYNTH-COVER-01", "coverage_start_date": "2027-01-01", "coverage_end_date": "2027-08-01"},
+      "attestations": {"insurance_valid_for_ikamet": true},
+      "synthetic_text": "Health Insurance Certificate\nInsured: Synthetic Fixture Person\nInsurer: Synthetic Example Assurance\nPolicy number: SYNTH-COVER-01\nCoverage start: 2027-01-01\nCoverage end: 2027-08-01\n"
+    },
+    "form": {
+      "document_type": "ikamet_application_form",
+      "observations": {"applicant_name": "Synthetic Fixture Person", "passport_or_foreign_id": "SYNTH-PASS-01", "permit_type": "short_term", "requested_start_date": "2027-01-31", "requested_end_date": "2027-05-31"},
+      "attestations": {"application_form_signed": true, "online_application_completed": true}
+    },
+    "declaration": {
+      "document_type": "declaration_control_document",
+      "observations": {"document_present": true, "signed": true}
+    },
+    "card": {
+      "document_type": "card_fee_receipt",
+      "observations": {"receipt_present": true}
+    }
+  },
+  "action_labels": {
+    "R001": "Supply student certificate or review its conflicting identity as specified by the scenario.",
+    "R006": "Supply a passport identity page or review conflicting passport evidence as specified.",
+    "R008": "Supply the Turkish entry-stamp page.",
+    "R015": "Review insurance evidence or the insufficient coverage period as specified.",
+    "R019": "Supply the Declaration Control Document."
+  },
+  "rule_basis": {
+    "R001": {"scope": "student_applicability", "source_ids": ["SAB_EXCHANGE_OVERVIEW"]},
+    "R006": {"scope": "national_permit", "source_ids": ["SAB_EXCHANGE_OVERVIEW", "GOV_FAQ"]},
+    "R008": {"scope": "student_applicability", "source_ids": ["GOV_SHORT_TERM_FORM_2026", "SAB_EXCHANGE_OVERVIEW"]},
+    "R014": {"scope": "university", "source_ids": ["SAB_EXCHANGE_OVERVIEW"]},
+    "R015": {"scope": "student_applicability", "source_ids": ["GOV_SHORT_TERM_FORM_2026", "GOV_RESIDENCE_TYPES", "SAB_EXCHANGE_OVERVIEW", "METU_RESIDENCE_2026"]},
+    "R019": {"scope": "university", "source_ids": ["SAB_EXCHANGE_CURRENT"]},
+    "R020": {"scope": "university", "source_ids": ["SAB_EXCHANGE_CURRENT", "SAB_EXCHANGE_OVERVIEW"]},
+    "R022": {"scope": "university", "source_ids": ["SAB_EXCHANGE_CURRENT", "SAB_EXCHANGE_OVERVIEW"]}
+  },
+  "scenarios": [
+    {
+      "id": "A", "description": "Missing documents. Propose the first three preparation tasks within the budget.",
+      "modes": ["offline", "live"], "intent": "prepare", "initial": {"accepted_documents": []},
+      "expected": {
+        "rule_outcomes": {"R006": "UNKNOWN", "R008": "UNKNOWN", "R014": "UNKNOWN", "R019": "UNKNOWN"},
+        "actions": [["R006", "R008", "R001"]], "action_types": {"R006": "REQUEST_DOCUMENT", "R008": "REQUEST_DOCUMENT", "R001": "REQUEST_DOCUMENT"},
+        "stop": "approval_required", "fallback": false
+      },
+      "budget": {"model_calls": 4, "actions": 3}
+    },
+    {
+      "id": "B", "description": "Partial preparation. Six accepted documents, with only the declaration document missing.",
+      "modes": ["offline", "live"], "intent": "prepare",
+      "initial": {"accepted_documents": ["passport", "entry", "student", "insurance", "form", "card"]},
+      "expected": {
+        "rule_outcomes": {"R006": "PASS", "R008": "PASS", "R014": "PASS", "R015": "PASS", "R019": "UNKNOWN"},
+        "actions": [["R019"]], "action_types": {"R019": "REQUEST_DOCUMENT"}, "stop": "approval_required", "fallback": false
+      },
+      "budget": {"model_calls": 4, "actions": 1}
+    },
+    {
+      "id": "C", "description": "Conflicting accepted identity observations and a conflicting passport-expiry declaration.",
+      "modes": ["offline", "live"], "intent": "prepare",
+      "initial": {
+        "accepted_documents": ["passport", "entry", "student", "insurance", "form", "declaration", "card"],
+        "observations": {"insurance": {"holder_name": "Other Synthetic Fixture"}},
+        "declarations": {"passport_expiry_date": "2031-02-01"}
+      },
+      "expected": {
+        "rule_outcomes": {"R006": "UNKNOWN", "R015": "PASS", "R019": "PASS"},
+        "withhold_context": ["holder_name", "passport_expiry_date"],
+        "actions": [["R006", "R015"], ["R006", "R015", "R001"]],
+        "action_types": {"R006": "CORRECT_INFORMATION", "R015": "CORRECT_INFORMATION", "R001": "CORRECT_INFORMATION"},
+        "stop": "approval_required", "fallback": false
+      },
+      "budget": {"model_calls": 4, "actions": 3}
+    },
+    {
+      "id": "D", "description": "Educational preparation advisory for coverage ending before both accepted end dates.",
+      "modes": ["offline", "live"], "intent": "prepare",
+      "initial": {
+        "accepted_documents": ["passport", "entry", "student", "insurance", "form", "declaration", "card"],
+        "observations": {"insurance": {"coverage_end_date": "2027-04-01"}}
+      },
+      "expected": {
+        "rule_outcomes": {"R006": "PASS", "R015": "FAIL", "R020": "UNKNOWN"},
+        "actions": [["R015"]], "action_types": {"R015": "CORRECT_INFORMATION"}, "stop": "approval_required",
+        "advisories": ["insurance_coverage_shortfall"], "retained_blockers": ["R015"], "fallback": false
+      },
+      "budget": {"model_calls": 4, "actions": 1}
+    },
+    {
+      "id": "E", "description": "All seven preparation documents complete. Later workflow readiness remains unknown.",
+      "modes": ["offline", "live"], "intent": "prepare",
+      "initial": {"accepted_documents": ["passport", "entry", "student", "insurance", "form", "declaration", "card"]},
+      "expected": {
+        "rule_outcomes": {"R006": "PASS", "R008": "PASS", "R014": "PASS", "R015": "PASS", "R019": "PASS", "R020": "UNKNOWN", "R022": "UNKNOWN"},
+        "actions": [[]], "stop": "approval_required", "preparation_complete": true, "fallback": false
+      },
+      "budget": {"model_calls": 0, "actions": 0}
+    },
+    {
+      "id": "F", "description": "Exact recorded five-row duplicate response. Consolidate the compatible evidence requests.",
+      "modes": ["offline"], "intent": "prepare", "mock": "compatible_duplicates",
+      "initial": {"accepted_documents": ["student", "insurance", "form", "card"]},
+      "expected": {
+        "rule_outcomes": {"R006": "UNKNOWN", "R008": "UNKNOWN", "R019": "UNKNOWN"},
+        "actions": [["R006", "R008", "R019"]], "action_types": {"R006": "REQUEST_DOCUMENT", "R008": "REQUEST_DOCUMENT", "R019": "REQUEST_DOCUMENT"},
+        "stop": "approval_required", "reflection_attempts": 0, "fallback": false
+      },
+      "budget": {"model_calls": 1, "actions": 3}
+    },
+    {
+      "id": "F-repair", "description": "Incompatible duplicate proposal requires a changed, validated LLM repair.",
+      "modes": ["offline"], "intent": "prepare", "mock": "incompatible_then_repair",
+      "initial": {"accepted_documents": ["student", "insurance", "form", "card"]},
+      "expected": {
+        "rule_outcomes": {"R006": "UNKNOWN", "R008": "UNKNOWN", "R019": "UNKNOWN"},
+        "actions": [["R006", "R008", "R019"]], "action_types": {"R006": "REQUEST_DOCUMENT", "R008": "REQUEST_DOCUMENT", "R019": "REQUEST_DOCUMENT"},
+        "stop": "approval_required", "reflection_attempts": 1, "fallback": false
+      },
+      "budget": {"model_calls": 2, "actions": 3}
+    },
+    {
+      "id": "F-stop", "description": "Paraphrased incompatible duplicates repeat the same invalid selection and require human review.",
+      "modes": ["offline"], "intent": "prepare", "mock": "incompatible_then_repeat",
+      "initial": {"accepted_documents": ["student", "insurance", "form", "card"]},
+      "expected": {
+        "rule_outcomes": {"R006": "UNKNOWN", "R008": "UNKNOWN", "R019": "UNKNOWN"},
+        "actions": [[]], "stop": "human_review", "terminal_issue": "UNCHANGED_INVALID_PLAN", "reflection_attempts": 1, "fallback": false
+      },
+      "budget": {"model_calls": 2, "actions": 0}
+    },
+    {
+      "id": "G", "description": "Degree-student variant outside the supported reference procedure.",
+      "modes": ["offline", "live"], "intent": "prepare",
+      "initial": {"accepted_documents": [], "profile": {"student_type": "degree"}},
+      "expected": {"rule_outcomes": {}, "applied_rule_count": 0, "actions": [[]], "stop": "unsupported_profile", "fallback": false},
+      "budget": {"model_calls": 0, "actions": 0}
+    },
+    {
+      "id": "H", "description": "Scripted Ollama timeout. Deterministic fallback still goes through Gate 1.",
+      "modes": ["offline"], "intent": "prepare", "mock": "timeout",
+      "initial": {"accepted_documents": ["student", "insurance", "form", "card"]},
+      "expected": {"rule_outcomes": {"R006": "UNKNOWN", "R008": "UNKNOWN", "R019": "UNKNOWN"},
+        "actions": [["R006", "R008", "R019"]], "stop": "approval_required", "fallback": true},
+      "budget": {"model_calls": 1, "actions": 3}
+    },
+    {
+      "id": "I", "description": "Backend ingestion of a designated synthetic insurance PDF or TXT. Preserve unconfirmed applicability.",
+      "modes": ["document-offline", "document-live"], "intent": "review_evidence",
+      "initial": {"accepted_documents": [], "incoming_document": "insurance"},
+      "expected": {
+        "rule_outcomes": {"R015": "UNKNOWN"}, "stop": "evidence_review", "fallback": false,
+        "extraction": {"document_type": "health_insurance_certificate", "fields_from": "insurance", "source_page": 1}
+      },
+      "budget": {"model_calls": 2, "actions": 0}
+    },
+    {
+      "id": "RAG-passport", "description": "Retrieve and cite the source for the passport-validity buffer.",
+      "modes": ["rag-offline", "rag-live"], "intent": "guidance",
+      "question": "Why is passport validity required?",
+      "initial": {"accepted_documents": []},
+      "expected": {"relevant_source_ids": ["GOV_FAQ"], "required_phrases": ["60 days"]},
+      "budget": {"model_calls": 1, "actions": 0}
+    },
+    {
+      "id": "RAG-unsupported", "description": "An unrelated question must yield an explicit evidence gap.",
+      "modes": ["rag-offline", "rag-live"], "intent": "guidance",
+      "question": "What does official guidance say about quantum xenon flux?",
+      "initial": {"accepted_documents": []},
+      "expected": {"insufficient": true},
+      "budget": {"model_calls": 0, "actions": 0}
+    },
+    {
+      "id": "RAG-dormitory", "description": "Return cited evidence for dormitory address proof from restored Sabanci sources.",
+      "modes": ["rag-offline", "rag-live"], "intent": "guidance",
+      "question": "What address proof do I need if I live in a dormitory?",
+      "initial": {"accepted_documents": []},
+      "expected": {
+        "relevant_source_ids": ["SAB_IRO_TEAM_ADDRESS_INSTRUCTION", "WEB_IRO_EN_EXCHANGE_STUDENTS_GUIDE_RESIDENCE_PERMIT", "SAB_EXCHANGE_CURRENT"],
+        "required_phrases": ["dorm", "certificate"]
+      },
+      "budget": {"model_calls": 1, "actions": 0}
+    }
+  ]
+}

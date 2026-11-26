@@ -44,8 +44,11 @@ ollama pull qwen3:4b
 RapidOCR uses bundled ONNX weights and CPU inference. No Tesseract executable or
 PATH edit is required. OCR initializes only when a PDF page lacks usable text.
 
-The supported runtime uses Ollama. An isolated lazy OpenAI provider extension
-remains dormant and unsupported; its SDK is not part of the installation.
+Ollama is the default model provider. The optional OpenAI provider supports
+planning, repair, public guidance and individually authorized document analysis.
+Configure the server credentials, then choose **OpenAI API** in Case settings.
+Open **Your details → Knowledge base** to test public retrieval and inspect the evidence.
+See [Terra setup, source inventory and verification](docs/TERRA_RAG_AUDIT.md).
 
 ## Local model configuration
 
@@ -65,7 +68,7 @@ through the environment and restart Python. General Ollama calls default to a
 ## Run
 
 ```powershell
-python -m streamlit run streamlit_app.py
+python -m streamlit run app.py --browser.gatherUsageStats false
 ```
 
 Enter a profile ID to create or resume its saved case. The app and CLI use
