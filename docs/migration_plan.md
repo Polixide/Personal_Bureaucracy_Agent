@@ -636,3 +636,13 @@ solution. Its Streamlit UI is not taken either: `src/ui/` imports that engine (`
 
 New tests: `tests/test_usage.py`; `tests/test_app.py` (OpenAI without a key warns and keeps the local model; with a
 key the cloud switch appears). No expected value changed.
+
+### 10.3 Gate 0
+| Module | Decision | Why |
+|---|---|---|
+| `src/agent/gate0.py` | **new**: `check_message`, `check_upload`, `check_profile` → `list[Issue]` | The kickoff design (slides 4-5) has Gate 0 (basic input checks) before the agent and Gate 1 after it. The input checks existed but were scattered (`save_upload` in `app.py`); now they are one module with codes like Gate 1's, plus new ones: message length, file size, bytes that match the extension, PDF page count. Not ported from Marco's `gate_0.py`: that one validates his `AgentState` events. |
+| `src/agent/chat.py` | **adapt**: `run_chat` calls Gate 0 first; a refused message returns `status="invalid_input"` without a model call or a Twin write | No wasted model call on an empty or oversized message. |
+| `app.py` | **adapt**: `save_upload` and the profile name use Gate 0; `UPLOAD_TYPES` comes from `config.py`; "How it works" explains Gate 0 | One place for the limits. |
+
+New tests: `tests/test_gate0.py`. No expected value changed (`tests/test_app.py::test_save_upload_rejects_bad_files`
+still expects a `ValueError` for `a.exe` and an empty `a.txt`).

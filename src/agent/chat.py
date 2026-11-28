@@ -27,6 +27,7 @@ import re
 from collections.abc import Callable
 from datetime import date
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -40,6 +41,7 @@ from src.agent.actions import suggestions
 from src.agent.loop import assistant_message, error_message
 from src.agent.orchestrator import Orchestrator, RunState, log_result, make_context, reflection, repair_message
 from src.agent.stated import stated_in, states_something
+from src.agent import gate0
 from src.llm import Backend, LLMError, ask_structured, is_cloud_backend, local_backend, to_json
 from src.memory.episodes import lessons_for
 from src.models import Issue, Pack
@@ -593,6 +595,12 @@ def history_for(store: TwinStore, user_id: str) -> list[ChatMessage]:
 
 
 # ---------------------------------------------------------------- turn --
+def refused_reply(issues: list[Issue], model_label: str = "") -> ChatReply:
+    """Gate 0 refused the message: say why, in the user's terms."""
+    return ChatReply(text=" ".join(issue.message for issue in issues), status="invalid_input", trace_id=uuid4().hex,
+                     gate_issues=[issue.model_dump() for issue in issues], model=model_label)
+
+
 def run_chat(message: str, store: TwinStore, packs: dict[str, Pack], user_id: str, today: date, backend: Backend,
              outbox_dir=OUTBOX_DIR, embedder: Backend | None = None,
              progress: Callable[[str], None] | None = None, review: bool | None = None,
@@ -602,6 +610,9 @@ def run_chat(message: str, store: TwinStore, packs: dict[str, Pack], user_id: st
     `backend` writes the reply (maybe a cloud model); `embedder` (local) searches the sources and is what the tools
     use, so document pages never leave the computer. `review` / `all_tools` default to: on with a cloud model.
     """
+    refused = gate0.check_message(message)
+    if refused:                                       # Gate 0: no model call, nothing written to the Twin
+        return refused_reply(refused, model_label)
     started = utc_now()
     history = history_for(store, user_id)
     cloud = is_cloud_backend(backend)          # the model chosen in the app, not only LLM_PROVIDER

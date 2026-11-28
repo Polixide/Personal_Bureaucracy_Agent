@@ -28,8 +28,8 @@ import streamlit as st
 
 from config import (CHAT_MAX_REPAIRS, CHAT_MAX_STEPS, CLOUD_MAX_REQUESTS, CLOUD_PRICES_AS_OF, DATABASE_PATH,
                     DOCUMENT_PROVIDER, EMBED_MODEL, LLM_PROVIDER, MAX_REPAIRS, MAX_STEPS, OUTBOX_DIR, PROJECT_ROOT,
-                    PROVIDER_LABELS, UPLOAD_DIR, WORKER_STEPS)
-from src.agent import orchestrator
+                    PROVIDER_LABELS, UPLOAD_DIR, UPLOAD_TYPES as ALLOWED_UPLOADS, WORKER_STEPS)
+from src.agent import gate0, orchestrator
 from src.agent.actions import Suggestion, suggestions
 from src.agent.briefing import (OPEN_PROPOSALS, ORIGIN_WORDS, Briefing, Step, askable_fields, build_briefing,
                                 checklist_rows, count_status, document_status, documents_for, field_question,
@@ -57,7 +57,7 @@ __all__ = ["askable_fields", "checklist_rows", "document_status", "documents_for
 AUTO_TYPE = "detect automatically"
 NO_PROCEDURE = "(let the agent decide)"
 NOT_ANSWERED = "not answered"
-UPLOAD_TYPES = ["pdf", "txt", "jpg", "jpeg", "png"]
+UPLOAD_TYPES = list(ALLOWED_UPLOADS)
 STATUS_ICONS = {"pass": "✅", "fail": "❌", "unknown": "❔"}
 TOOL_ICONS = {"create_ics": ":material/event:", "draft_email": ":material/mail:", "fill_pdf": ":material/picture_as_pdf:",
               "build_checklist": ":material/checklist:"}
@@ -70,11 +70,13 @@ CHECKLIST_LABELS = {"complete": "Ready", "needs confirmation": "Check the values
 KIND_WORDS = {"decide": "Your approval", "fix": "A problem to fix", "confirm": "Check what I read",
               "upload": "A document", "answer": "A question", "improve": "A recommendation", "try": "Next official step"}
 RUN_LABELS = {"answered": "Answer ready", "needs_user_input": "The agent asked you a question",
-              "needs_human_review": "Answer needs your review", "fallback": "Answer built from the rules alone"}
+              "needs_human_review": "Answer needs your review", "fallback": "Answer built from the rules alone",
+              "invalid_input": "Message not sent (Gate 0)"}
 REPLY_NOTES = {"answered": "✓ Checked by code",
                "fallback": "Written by code from your plan (the model's answer did not pass the checks)",
                "needs_human_review": "Read with care: not every automatic check passed",
-               "needs_user_input": "The agent needs an answer from you"}
+               "needs_user_input": "The agent needs an answer from you",
+               "invalid_input": "Gate 0: not sent to the model"}
 FOUND_BY = {"title": "recognised by its title", "mrz": "recognised by its machine-readable zone",
             "keywords": "recognised by its content", "model": "recognised by the language model",
             "vision": "recognised from the image by the vision model", "user": "read as the type you chose"}
@@ -93,6 +95,11 @@ COMING_UP = 3            # steps shown under "Now"
 READY_SHOWN = 4
 MAX_CHOICE_BUTTONS = 5
 HOW_IT_WORKS = """
+**0. Gate 0 checks what you send** (`src/agent/gate0.py`), before any model call: a message must not be empty or
+too long; a file must be a supported type, not empty, not too large, really what its extension says, and a PDF of
+a reasonable length. The model's own tool calls pass the same kind of gate: every call is validated with Pydantic
+in `src/tools/registry.py` and an invalid call never runs.
+
 **1. The state is computed by code.** Your documents are read by {reader} (the text, scans and photos); code checks
 every value against the page and keeps it as a *fact* of your Digital Twin. The rule engine
 (`src/rules.py`) evaluates every requirement with three-valued logic: pass, fail, or unknown (information missing).
@@ -130,11 +137,10 @@ the assistant can quote the source of an answer and answer questions outside the
 # ---------------------------------------------------------- pure helpers --
 def save_upload(name: str, content: bytes, user_id: str, directory: Path = UPLOAD_DIR) -> Path:
     """Store an upload under a content/user-derived name inside the project, never a browser path."""
+    refused = gate0.check_upload(name, content)          # Gate 0: type, size, real content, pages
+    if refused:
+        raise ValueError(refused[0].message)
     extension = Path(name).suffix.lower()
-    if extension.lstrip(".") not in UPLOAD_TYPES:
-        raise ValueError("Unsupported file. Choose a PDF, a TXT file or a photo (JPG or PNG).")
-    if not content:
-        raise ValueError("The uploaded file is empty.")
     directory = Path(directory).resolve()
     if not directory.is_relative_to(PROJECT_ROOT):
         raise ValueError("Uploads must stay inside the project.")
@@ -472,7 +478,9 @@ def sidebar(store: TwinStore, packs: dict[str, Pack]) -> tuple[str, date]:
     st.sidebar.caption("Your assistant for Turkish paperwork, one step at a time.")
     user_id = st.sidebar.text_input("Your profile name", value="demo-user",
                                     help="Use the same name next time to continue where you left off.").strip()
-    user_id = user_id or "demo-user"
+    if gate0.check_profile(user_id):                       # Gate 0: an empty or endless name
+        st.sidebar.caption("Profile names have 1 to 60 characters: using demo-user.")
+        user_id = "demo-user"
     choose_procedure(store, packs, user_id)
     model_choice()
     with st.sidebar.expander("Settings", icon=":material/settings:"):
@@ -707,6 +715,9 @@ def chat_turn(store: TwinStore, ctx: ToolContext, message: str) -> None:
                          outbox_dir=OUTBOX_DIR, embedder=local_backend(), progress=status.write,
                          model_label=agent_model_label("chat", provider()))
         status.update(label="Answer ready", state="complete", expanded=False)
+    if reply.status == "invalid_input":              # Gate 0 refused it: nothing reached the model or the Twin
+        flash(f"Gate 0: {reply.text}", "warning")
+        return
     st.session_state.setdefault("results", {})[ctx.user_id] = {"goal": message, "result": reply.model_dump(mode="json")}
 
 

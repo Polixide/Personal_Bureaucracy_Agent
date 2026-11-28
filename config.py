@@ -37,6 +37,13 @@ MAX_NEXT_ACTIONS = 5
 OBSERVATION_MAX_CHARS = 6000   # tool observations are cut to this size before the model sees them
 AGENT_RECURSION_LIMIT = 100    # LangGraph node visits per run (well above MAX_STEPS + repairs)
 
+# ---------------------------------------------------------------- Gate 0 --
+# What the user sends is checked by code before any model call or Twin write (src/agent/gate0.py).
+UPLOAD_TYPES = ("pdf", "txt", "jpg", "jpeg", "png")
+GATE0_MAX_MESSAGE_CHARS = 4000   # one chat turn; a long text belongs in a file
+GATE0_MAX_UPLOAD_MB = 20
+GATE0_MAX_PDF_PAGES = 60         # every page is read; a whole book would hold the model for an hour
+
 # ------------------------------------------------------------------ chat --
 # The chat assistant (src/agent/chat.py) starts from the state computed by code, so most turns need one call.
 # It runs on its own model: measured on the 4 GB GPU (one reply, 1250-token prompt), qwen3:4b took 42 s
