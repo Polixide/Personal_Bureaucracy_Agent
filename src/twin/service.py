@@ -37,6 +37,17 @@ def correct_document_field(store: TwinStore, pack: Pack, user_id: str, doc_id: s
                             note="user correction of the document observation")
 
 
+def correct_unconfirmed(store: TwinStore, pack: Pack, user_id: str, fact_id: int, raw: Any) -> Fact:
+    """The user corrects a value that waited for confirmation: the typed value counts, the old one is closed."""
+    fact = store.get_fact(fact_id)
+    if fact is None or fact.user_id != user_id or fact.valid_to is not None:
+        raise ValueError("Only a current value of this user can be corrected")
+    corrected = record_statement(store, pack, user_id, fact.field, raw, confirmed=True,
+                                 source_ref=fact.source_ref or APP_REF, note="corrected by the user")
+    store.close_fact(user_id, fact_id)
+    return corrected
+
+
 def resolve_conflict(store: TwinStore, pack: Pack, user_id: str, field: str, raw: Any) -> Fact:
     """The user explicitly chooses the value of a field whose sources disagree."""
     return record_statement(store, pack, user_id, field, raw, confirmed=True, source_ref=RESOLUTION_REF,

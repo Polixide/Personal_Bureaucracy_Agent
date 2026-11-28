@@ -119,6 +119,8 @@ RULE_CASES = [
     ("R027", {"approval_status": "pending"}, {"approval_status": "guaranteed"}),
     ("R028", {"decision_authority": "Migration Management"}, {"decision_authority": "Sabancı IRO"}),
     ("R029", {"submitted_to_iro": True, "tracking_channel": "e_ikamet"}, {"tracking_channel": "email"}),
+    ("R030", {"address_proof_type": "title_deed", "utility_bill_present": True},
+     {"address_proof_type": "title_deed", "utility_bill_present": False}),
 ]
 
 

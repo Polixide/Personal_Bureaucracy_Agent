@@ -11,6 +11,7 @@ import app
 import config
 import src.agent.chat as chat
 import src.agent.orchestrator as orchestrator
+from src.agent.briefing import build_briefing
 from src.agent.chat import ChatReply
 from src.agent.answer import AgentResult, FinalAnswer, NextAction
 from src.pack import load_all_packs, load_pack
@@ -114,15 +115,18 @@ def test_field_question_falls_back_to_a_short_question():
     assert app.field_question(IKAMET, "entry_stamp_present") == "Entry stamp present?"
 
 
-def test_open_item_count_adds_problems_questions_and_values_to_check():
+def test_open_item_count_is_the_number_of_plan_steps_and_grows_with_a_value_to_check():
+    # The status bar counts what the To do view lists: the steps of the plan (it used to count every askable field,
+    # also those a document upload answers, so the number did not match the list).
     results = evaluate_rules(IKAMET, {})
     with TwinStore(":memory:") as store:
         empty = build_view(IKAMET, [], [], date(2026, 11, 18))
         service.record_statement(store, IKAMET, "u", "age", 22, confirmed=False, source_ref="chat")
         waiting = build_view(IKAMET, store.current_facts("u", IKAMET.id), [], date(2026, 11, 18))
-    questions = len(app.askable_fields(IKAMET, app.missing_fields(app.user_results(IKAMET, results))))
-    assert app.open_item_count(IKAMET, results, empty) == questions
-    assert app.open_item_count(IKAMET, results, waiting) == questions + 1
+    first = build_briefing(IKAMET, [], [], empty, results)
+    second = build_briefing(IKAMET, [], [], waiting, results)
+    assert app.open_item_count(first) == len(first.steps)
+    assert app.open_item_count(second) == app.open_item_count(first) + 1
 
 
 def test_sandbox_refusal_is_explained_in_plain_words():
@@ -221,17 +225,16 @@ def test_empty_twin_opens_the_chat_with_a_welcome(page_env):
     assert len(page.chat_input) == 1
 
 
-def test_status_bar_and_checks_view_show_where_you_are(page_env):
+def test_the_journey_shows_where_you_are_and_details_list_every_requirement(page_env):
     seed(page_env, passport_expiry_date="2027-07-15")
     page = run_page()
     assert not page.exception
-    labels = [metric.label for metric in page.metric]
-    assert labels[:2] == ["Documents ready", "Checks passed"]
-    assert widget(page.metric, "Documents ready").value == f"0 / {len(IKAMET.procedure.documents)}"
-    checks = run_page("checks")
-    assert not checks.exception
-    assert any(e.label.endswith("Eligibility and legal stay · 0/4") for e in checks.expander)
-    assert any(e.label.startswith("Official sources") for e in checks.expander)
+    first_stage = IKAMET.procedure.stages[0].title
+    assert any(first_stage in m.value and "you are here" in m.value for m in page.markdown)
+    details = run_page("details")
+    assert not details.exception
+    assert any("Eligibility and legal stay · 0/4" in m.value for m in details.markdown)
+    assert any("Official sources" in m.value for m in details.markdown)
 
 
 @pytest.mark.parametrize("procedure_id", sorted(load_all_packs()))
@@ -242,27 +245,52 @@ def test_every_view_of_every_procedure_renders(page_env, procedure_id):
         assert not page.exception, (procedure_id, view, page.exception)
 
 
-def test_answers_typed_in_the_app_become_confirmed_facts(page_env):
+SKIP_LABELS = ("I don't have it yet", "I don't know yet", "Skip for now")
+
+
+def test_the_now_box_asks_one_thing_at_a_time_and_a_click_answers_it(page_env):
     seed(page_env)
-    page = run_page("details")
-    widget(page.text_input, "Permit type").input("short-term residence permit")
-    widget(page.button, "Save answers and recheck").click()
+    page = run_page()
+    for _ in range(12):        # the documents come first: skip them until the first question
+        if any(button.label == "Yes" for button in page.button):
+            break
+        next(button for button in page.button if button.label in SKIP_LABELS).click()
+        page.run()
+    assert any("Did you enter Türkiye with your passport?" in m.value for m in page.markdown)
+    widget(page.button, "Yes").click()
     page.run()
     assert not page.exception
     with TwinStore(page_env) as store:
         facts = {f.field: f for f in store.current_facts("demo-user", IKAMET.id)}
-    assert facts["permit_type"].value == "short-term residence permit" and facts["permit_type"].confirmed
+    assert facts["entered_with_passport"].value is True and facts["entered_with_passport"].confirmed
+
+
+def test_an_approved_e_mail_opens_in_gmail_already_filled_in(page_env):
+    seed(page_env)
+    with TwinStore(page_env) as store:
+        ctx = app.tool_context(store, load_all_packs(), "demo-user", date(2026, 11, 18))
+        assert app.run_tool(app.build_registry(), "draft_email", {
+            "to_role": "IRO", "subject": "My residence permit file",
+            "body": "Dear IRO, could you tell me which documents are still missing?"}, ctx, "orchestrator").ok
+    page = run_page()
+    assert any("E-mail draft to" in m.value for m in page.markdown)          # the Now box asks for approval
+    widget(page.button, "Approve").click()
+    page.run()
+    assert not page.exception
+    links = page.get("link_button")
+    assert links and "mail.google.com" in links[0].proto.url and "irolegal%40sabanciuniv.edu" in links[0].proto.url
 
 
 def test_checklist_is_proposed_then_written_only_after_approval(page_env):
     seed(page_env)
     page = run_page()
-    widget(page.button, "Prepare my checklist").click()
+    widget(page.button, "Checklist of my file").click()      # in "The agent can prepare for you"
     page.run()
     with TwinStore(page_env) as store:
         [proposal] = store.list_proposals("demo-user")
     assert proposal.status == "proposed" and not (config.OUTBOX_DIR / "demo-user").exists()
     assert any("Waiting for your decision" in m.value for m in page.markdown)
+    assert any("# Checklist:" in m.value for m in page.markdown)      # the preview shows what approving writes
     widget(page.button, "Approve").click()
     page.run()
     assert not page.exception
@@ -273,7 +301,7 @@ def test_checklist_is_proposed_then_written_only_after_approval(page_env):
 
 def test_sandbox_button_stores_a_simulation_and_explains_the_refusal(page_env):
     seed(page_env)
-    page = run_page()
+    page = run_page("details")
     widget(page.button, "Try this step").click()
     page.run()
     assert not page.exception
@@ -284,7 +312,7 @@ def test_sandbox_button_stores_a_simulation_and_explains_the_refusal(page_env):
 
 def fake_chat(calls):
     """Stands in for the chat assistant: stores the turn like the real one, without a model."""
-    def run(message, store, packs, user_id, today, backend, outbox_dir=None, embedder=None, progress=None):
+    def run(message, store, packs, user_id, today, backend, outbox_dir=None, embedder=None, progress=None, **kwargs):
         calls.append(message)
         if progress:
             progress("Writing the answer")
@@ -302,7 +330,7 @@ def test_the_plan_opens_the_chat_and_a_message_gets_an_answer(page_env, monkeypa
     monkeypatch.setattr(chat, "run_chat", fake_chat(calls))
     seed(page_env, passport_expiry_date="2027-07-15")
     page = run_page()
-    assert any("What to do next" in m.value for m in page.markdown)
+    assert any("Now" in m.value for m in page.markdown)
     page.chat_input[0].set_value("When does my passport expire?").run()
     assert not page.exception and calls == ["When does my passport expire?"]
     assert "Answer to: When does my passport expire?" in [m.value for m in page.markdown]
@@ -341,7 +369,7 @@ def test_a_fact_from_the_chat_is_confirmed_with_its_button(page_env):
 def test_full_check_by_the_agent_team_is_posted_in_the_chat(page_env, monkeypatch):
     goals = []
 
-    def fake_run_agent(goal, store, packs, user_id, today, backend, outbox_dir):
+    def fake_run_agent(goal, store, packs, user_id, today, backend, outbox_dir, **kwargs):
         goals.append(goal)
         answer = FinalAnswer(summary="Here is where you are.", next_actions=[NextAction(title="Upload passport", ref="R006")])
         return AgentResult(trace_id="t2", status="answered", answer=answer)
@@ -376,17 +404,17 @@ def test_technical_view_shows_the_run_log_with_its_rule_results(page_env):
         store.log_run(RunRecord(trace_id="t9", user_id="demo-user", procedure_id=IKAMET.id, goal="g",
                                 status="answered", started_at=datetime.now(timezone.utc),
                                 finished_at=datetime.now(timezone.utc), results=results))
-    page = run_page("technical")
+    page = run_page("details")
     assert not page.exception
-    assert any(e.label.startswith("Run log") for e in page.expander)
+    assert any("Run log" in m.value for m in page.markdown)
     assert app.run_passed(RunRecord(trace_id="x", user_id="u", procedure_id=None, goal="g", status="answered",
                                     started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
                                     results=results)) == f"0/{len(results)}"
 
 
-def test_a_question_used_by_several_sections_is_asked_once(page_env):
-    seed(page_env, "tc_kimlik_renewal")
-    page = run_page("details")
-    assert not page.exception
-    labels = [w.label for w in page.text_input]
-    assert labels.count("Why do you need a new card: expired, lost (or stolen) or damaged?") == 1
+def test_a_question_used_by_several_sections_is_asked_once():
+    pack = load_pack("tc_kimlik_renewal")
+    view = build_view(pack, [], [], date(2026, 11, 18))
+    briefing = build_briefing(pack, [], [], view, evaluate_rules(pack, view.fact_map()))
+    refs = [step.ref for step in briefing.steps if step.kind == "answer"]
+    assert "renewal_reason" in refs and len(refs) == len(set(refs))

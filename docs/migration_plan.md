@@ -241,6 +241,79 @@ must match a row in this file, or update this file first.
       expects version 4, and a v3 case was added.
     - New: `test_chat.py`, `test_segment.py`, `test_vision_and_crawl.py`.
 
+- **2026-11-24: cloud model option, reflection made visible, address documents, plain questions, new UI.**
+  User feedback: documents still read badly (the home address only partly, no utility bill), the chat assistant
+  often misses the point, reflection never shows up, the chat grows downwards forever, the checks are confusing and
+  some are pointless, and it is not clear where the plan comes from and when the tools (e-mail, form, calendar)
+  are used. Decisions, each recorded before the change:
+
+  | Module | Decision | Why |
+  |---|---|---|
+  | `src/llm.py` | **adapt**: `AnthropicBackend` (Claude, official `anthropic` SDK) and `OpenAIBackend` (GPT, official `openai` SDK) next to Ollama; `agent_backend()` / `local_backend()` | User approved both SDKs (2026-11-24) and chose "documents stay local": the cloud model runs the chat, the orchestrator and its workers and sees the state, never document pages. Schemas Claude cannot constrain (free-form `args`) are asked for in words; a refused schema is retried without it; errors become `LLMError`, so the deterministic fallback still works. |
+  | `src/agent/chat.py` | **adapt**: self-review (reflection) after Gate 1, `CHAT_MAX_REPAIRS` 1 → 2, every round recorded (`reflections`), all chat tools offered with a cloud model, section ids accepted as refs | Reflection existed (Gate 1 repair) but code tidied most mistakes first and the single repair usually ended in the fallback, so it was never seen. The self-review catches what Gate 1 cannot judge (prose that contradicts the state); code keeps only criticisms that quote words of the reply. |
+  | `src/document_processing/generic.py` | **adapt**: one re-reading of misquoted values (reflection), quotes over several lines, `lines` for multi-line values, choice fields must map to a known value | The address was read as its first line only, and the printed title "KİRA SÖZLEŞMESİ" was stored instead of `rental_agreement` (seen live). |
+  | `src/models.py`, `src/pack.py`, `src/twin/facts.py` | **adapt**: `FieldSpec.ask` (now / later / never) and `choices`, `Section.later`, `DocumentSpec.optional`, `ExtractSpec.lines`, derived `missing_documents` / `documents_complete` | Generic engine features; no procedure is named in code. |
+  | `src/agent/briefing.py`, `src/agent/gate1.py` | **adapt**: no questions for office data or computed values, yes/no about a missing document becomes an upload, later steps kept apart, Gate 1 does not require later-step failures in today's answer | "Iro window end?", "Missing required documents count?", "Application channel?" were asked as questions. |
+  | `src/agent/actions.py` | **new**: what the agent can prepare now (checklist, filled form, reminders for known dates, e-mail drafts) | Makes the twin → real tools explicit and one click away; they still only create proposals. |
+  | `procedures/ikamet_first` | **adapt**: plain questions, choices, ask flags, `turkey_address` / `turkey_phone` / `contact_email` as text, address proof document and optional utility bill, R030 (title deed needs a utility bill, **unverified**, source METU_RESIDENCE_2026), `iro_submission` marked later | The pack had no document for the address proof at all. Sabancı's list (dorm certificate, rental agreement, notarized commitment) has no utility bill; METU's list asks for one only with a title deed. |
+  | `app.py` | **replace layout** (same functions underneath): Assistant (fixed-size scrolling chat + plan + quick actions), To do (confirm or correct, fix, upload, questions, later steps, all requirements), Documents, Actions, Technical (tabs: how it works, last answer, run history, Twin, knowledge base with a search box) | The old Your details / Checks tabs were the confusing part. |
+
+  - **Measured live (local models, synthetic rental agreement over two lines):** before, `turkey_address` was the
+    first line only and `address_proof_type` the printed title (R017 then failed); after, the whole address and
+    `rental_agreement`. A chat turn on `qwen2.5:3b` with the self-review on passed Gate 1 and was reviewed and
+    rewritten; the small model criticised correct sentences too, so `SELF_REVIEW=auto` keeps it on only for a cloud
+    model. The cloud backends are tested with fake clients only (no API key in this environment).
+  - **Tests changed on purpose.**
+    - `tests/test_rules_oracle.py`: the oracle compares only the rules of the legacy snapshot (R030 did not exist
+      in the old engine); no legacy verdict changed. `procedures/ikamet_first/eval/scenarios.json`: R030 expected
+      statuses were added (pass where the proof is a dorm certificate or Airbnb, unknown where it is not given).
+    - `tests/test_pack.py`, `tests/test_tools.py`: 29 → 30 rules; `tests/test_rules.py`: a pass/fail case for R030.
+    - `tests/test_chat.py`: the repair test follows `CHAT_MAX_REPAIRS` (now 2). `tests/test_extract_document.py`:
+      a misquote now gets one second reading, so the scripted model gets a reply for it (still no fact accepted).
+    - `tests/test_app.py`: views renamed (details/checks → todo), status bar labels, the checklist button label, a
+      choice field stored as `short_term` instead of the typed text, the open-item count = plan steps, optional
+      documents not counted.
+    - New: `test_llm_cloud.py`, `test_reflection.py`, `test_pack_address.py`, `test_actions.py`.
+
+- **2026-11-24 (later): the app simplified for the presentation.** User feedback: "too confusing, a thousand things
+  to tick, To do repeats Documents, too many strange rules, the plan should connect to Gmail / Google Calendar".
+  Decisions: `app.py` **replace layout** again: three views (Assistant, Documents, Details); the plan is shown one
+  step at a time in a *Now* box with the control the step needs (one click answers a yes/no; *Skip for now*); the
+  journey bar shows the pack's official steps; the requirements list moved to Details. `src/agent/links.py`
+  **new**: an approved e-mail opens in Gmail and an approved reminder in Google Calendar through their public
+  "compose" / "add event" addresses, already filled in; the user presses Send or Save, so the hard rule "nothing is
+  sent or booked" holds and no OAuth, key or new library is needed (sending through the Gmail API would break that
+  rule). Packs `ikamet_first` and `ikamet_extension`: the IRO contact gets `irolegal@sabanciuniv.edu`, the address
+  the official page SAB_EXCHANGE_CURRENT gives. Tests changed on purpose: `tests/test_app.py` (views, the Now box,
+  Gmail link after approval), `tests/test_sandbox.py` (the unknown-address case now uses Migration Management, which
+  has no address in the sources; a new test checks the IRO address). New: `tests/test_links.py`.
+
+- **2026-11-25: documents can be read by the cloud model (opt-in).** User decision: "integrate GPT as the model that
+  reads the documents and extracts the information, so GPT's OCR is used instead of ours" (`gpt-6.1-terra`: text and
+  image input, Chat Completions and structured outputs supported, per the OpenAI model page). It reverses the
+  2026-11-24 choice "documents stay local" **only when asked**: `DOCUMENT_PROVIDER=cloud` with
+  `LLM_PROVIDER=openai|anthropic`; the default stays `local`. The app says which model reads the documents and that
+  the pages are sent to the provider.
+
+  | Module | Decision | Why |
+  |---|---|---|
+  | `src/llm.py` | **adapt**: `see()` on `OpenAIBackend` (image as a `data:` URL, detail high) and `AnthropicBackend` (base64 image block); `document_backend()`, `documents_in_cloud()`, `is_cloud_backend()`, `document_model_label()` | One switch decides who reads documents; embeddings stay local. |
+  | `src/document_processing/transcribe.py` | **new**: the cloud model transcribes picture pages (scans, photos, scans with a scanner-app text layer) from a JPEG of the page; if it fails, RapidOCR reads the page | RapidOCR misreads small print, Turkish letters and stamps. The transcription becomes the page text, so every later check is unchanged. |
+  | `src/document_processing/extractor.py` | **adapt**: `extract_pages(path, transcribe=None)`, `is_picture_page`, `page_png` / `page_jpeg` | Default behaviour unchanged (no `transcribe` means RapidOCR as before). JPEG for the cloud: a photographed page is ~1 MB instead of 6 MB as PNG (providers cap image size). |
+  | `src/document_processing/processor.py` | **adapt**: `process_document(..., backend=None)` sends the same prompts to the cloud model; `select_chunks` takes `max_context_chars // CHUNK_CHARS` chunks (still 2 at the local 3,400 budget); `process_passport_pages(..., pages=, **options)` reuses the pages already read | The 4 GB GPU limit (3,400 characters, 2 chunks) cut long documents; a cloud model reads the whole document (`CLOUD_DOCUMENT_MAX_INPUT_CHARS` 40,000). |
+  | `src/document_processing/generic.py`, `vision.py`, `src/tools/extract_document.py` | **adapt**: whole-document batches and sharper JPEG images for a cloud backend; the transcriber is used by `extract_file`; a note names the pages the cloud could not read | Same checks by code: quotes on the page, MRZ check digits, confirmation of what code cannot check. |
+  | `app.py`, `eval/document_eval.py` | **adapt**: tools read with `document_backend()`; the sidebar says who reads documents and what leaves the computer; the document evaluation runs on the cloud model with the same switch | The user sees the privacy trade-off; the before/after can be measured with `python -m eval.document_eval`. |
+
+  - **Limit, stated honestly:** with the cloud OCR, a value's quote is checked against the model's own
+    transcription, so a transcription error is caught only where code has a second check (MRZ check digits, date
+    and choice parsing, conflicts between documents). Locally the reference text came from RapidOCR, an independent
+    but weaker reader.
+  - **Verified offline:** the real `openai` 3.58 and `anthropic` 2.13 SDKs serialise the image requests (HTTP
+    intercepted with a mock transport, no network). Not yet run against the real API (no key in this environment).
+  - **Test changed on purpose:** `tests/test_llm_cloud.py::test_the_cloud_backends_cannot_see_images` encoded the
+    old decision; it is replaced by `test_documents_go_to_the_cloud_only_when_asked` (local by default, cloud only
+    with `DOCUMENT_PROVIDER=cloud` and a cloud provider). New: `tests/test_documents_cloud.py`.
+
 ## 1. What was audited
 
 There is no single integrated branch. The repository has four separate lines of work that all start from the
@@ -535,3 +608,20 @@ Progress (9.2):
     procedure (Kimlik included); a hard-coded İkamet flow would contradict the pack design.
   - *e-İkamet field-by-field sandbox*: `src/sandbox/mock_world.py` + `fill_pdf` + `simulate_submission`
     cover the same idea generically.
+
+## 10. Final release (branch `release/final`, 2026-11-28)
+
+Team decision (2026-11-28): one final branch for the presentation, started from `integration/milestone` (Neda),
+then `feature/dani-version-two` merged in (`332d5ea`, `0ddf6c8`: cloud models, reflection in the chat, the
+simplified app, address documents). From `feature/marco-integration-review` (Marco, Andrea) only ideas that fit
+this engine are ported by hand, crediting them; its architecture (deterministic router, candidate planner, one
+hard-coded İkamet procedure) and its deterministic pieces are not taken, the user asked for the most agentic
+solution. Its Streamlit UI is not taken either: `src/ui/` imports that engine (`src.core.procedure`,
+`src.core.graph`, `AgentState`, `legal_stay`, `address_proof`) in dozens of places, so it would be a rewrite.
+
+### 10.1 Merge of `feature/dani-version-two`
+| File | Decision | Why |
+|---|---|---|
+| `app.py` | Daniele's layout (Journey, Now box, Documents, Details) | The only textual conflict: Neda's side added link buttons to the old `done_list`, which the new layout moved. |
+| `src/agent/links.py`, `tests/test_links.py` | **delete**, use `src/tools/open_links.py` (Neda's port of Marco's links) | Two modules built the same Gmail / Google Calendar links. Neda's also offers the default e-mail app (mailto), gives no e-mail link when the sources have no address, and uses the reminder title that `create_ics` now stores. Its tests (`tests/test_open_links.py`) cover the same cases; `tests/test_app.py` still checks the Gmail link after approval. |
+| `tests/test_rag_compare.py` | 66 → 67 rule queries | One query per rule; `ikamet_first` gained R030 (section 2026-11-24 above), so 30 + 8 + 15 + 14 = 67. No retrieval result changed. |

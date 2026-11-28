@@ -87,7 +87,31 @@ def coerce_value(spec: FieldSpec, raw: Any) -> FactValue:
     text = str(raw).strip()
     if not text:
         raise ValueError(f"{spec.name}: empty text")
-    return spec.aliases.get(normalize_text(text), text)
+    key = normalize_text(text)
+    chosen = {normalize_text(label): value for label, value in spec.choices.items()}
+    if key in spec.aliases or key in chosen or not spec.choices:
+        return spec.aliases.get(key, chosen.get(key, text))
+    return choice_in_text(spec, text)
+
+
+def folded(text: str) -> str:
+    """Comparison form without accents or Turkish dotted/dotless i: 'KİRA SÖZLEŞMESİ' -> 'kira sozlesmesi'."""
+    text = unicodedata.normalize("NFKD", text.casefold().replace("\u0131", "i"))
+    return " ".join("".join(char for char in text if not unicodedata.combining(char)).split())
+
+
+def choice_in_text(spec: FieldSpec, text: str) -> str:
+    """A field with choices: the stored value whose alias, label or code appears in the text, else the text.
+
+    Documents print a title ("KİRA SÖZLEŞMESİ / RENTAL AGREEMENT"), not the code the rules compare.
+    """
+    found = folded(text)
+    phrases = {folded(alias): value for alias, value in spec.aliases.items()}
+    phrases.update({folded(value.replace("_", " ")): value for value in spec.choices.values()})
+    for phrase in sorted(phrases, key=len, reverse=True):
+        if phrase and phrase in found:
+            return phrases[phrase]
+    return text
 
 
 def _to_bool(raw: Any) -> bool:
@@ -287,6 +311,9 @@ def _check_procedure_refs(pack: Pack) -> list[Issue]:
                 issues.append(Issue(code="UNKNOWN_FIELD", message=f"derived uses {name!r}", item=derived.field))
         if derived.op == "document_complete" and pack.document(derived.doc_type) is None:
             issues.append(Issue(code="UNKNOWN_DOCUMENT", message=f"{derived.doc_type!r}", item=derived.field))
+        for doc_type in derived.doc_types:
+            if pack.document(doc_type) is None:
+                issues.append(Issue(code="UNKNOWN_DOCUMENT", message=f"{doc_type!r}", item=derived.field))
     for index, condition in enumerate(procedure.scope_conditions):
         issues += check_condition(pack, condition, f"scope_conditions[{index}]")
     for form in procedure.forms:

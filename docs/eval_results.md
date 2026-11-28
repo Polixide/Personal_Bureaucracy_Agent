@@ -1,4 +1,4 @@
-# Evaluation results (2026-11-20)
+# Evaluation results (2026-11-25)
 
 - Mode: offline; models: offline: eval.policy.RuleFollowingPolicy (no language model); k = 3 runs per scenario.
 - A = static checklist, B = single LLM (no state/rules/tools), D = orchestrator + ReAct workers + Gate 1.
@@ -6,9 +6,9 @@
 
 | system | runs | verdict_accuracy | date_errors | invented | valid_answer_rate | pass_k | avg_llm_calls | avg_seconds |
 |---|---|---|---|---|---|---|---|---|
-| A | 75 | 0.807 | 0 | 0 | 0.12 | 1/25 | 0.0 | 0.005 |
+| A | 75 | 0.807 | 0 | 0 | 0.16 | 1/25 | 0.0 | 0.004 |
 | B | not run offline (needs --live) |  |  |  |  |  |  |  |
-| D | 75 | 1.0 | 0 | 0 | 1.0 | 25/25 | 4.64 | 0.026 |
+| D | 75 | 1.0 | 0 | 0 | 1.0 | 25/25 | 4.64 | 0.025 |
 
 ## Agent behaviour (D)
 

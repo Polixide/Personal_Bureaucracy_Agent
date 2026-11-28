@@ -6,13 +6,19 @@ without a typed schema (src/document_processing/generic.py). In both paths only 
 values become fact proposals; `requires_confirmation` values wait for the user.
 
 `extract_file` is pure (no Twin). `run` is the registered tool: it stores the result in the Twin.
+
+Who reads is `ctx.backend` (src/llm.py `document_backend`). With a cloud backend (DOCUMENT_PROVIDER=cloud) the cloud
+model transcribes scans and photos instead of RapidOCR (src/document_processing/transcribe.py), the typed processor
+and the generic reader run on it with a whole-document budget, and it is the vision model. The checks by code
+after the model are the same in both cases.
 """
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from config import VISION_ENABLED
+from config import CLOUD_DOCUMENT_MAX_INPUT_CHARS, VISION_ENABLED
 
 from src.document_processing import processor as document_processor
 from src.document_processing.extractor import TextPage, extract_pages
@@ -20,9 +26,10 @@ from src.document_processing.generic import extract_generic
 from src.document_processing.grounding import GroundedValue, grounded_values
 from src.document_processing.observations import DocumentObservation, ExtractionResult, FactProposal
 from src.document_processing.segment import Segment, segment_pages
+from src.document_processing.transcribe import CloudTranscriber
 from src.document_processing.vision import read_image
 from src.document_processing.schemas import DOCUMENT_SCHEMAS, DocumentInfo
-from src.llm import Backend
+from src.llm import Backend, is_cloud_backend
 from src.models import Pack
 from src.pack import coerce_fact
 from src.tools.common import ToolContext, ToolError, ToolSpec, require_pack
@@ -170,6 +177,7 @@ def complete_typed(observation: DocumentObservation, pack: Pack, pages: list[Tex
     extra = [fact.model_copy(update={"requires_confirmation": True}) for fact in extra if fact.field not in known]
     if extra:
         observation.notes.append(f"{len(extra)} more values read with a quote from the page; please confirm them.")
+    observation.notes += [note for note in generic.notes if note.startswith("Read again")]   # the reflection round
     observation.facts += extra
     observation.grounded.update({name: value for name, value in generic.grounded.items() if name not in observation.grounded})
     observation.issues += issues
@@ -242,20 +250,39 @@ def find_documents(pages: list[TextPage], pack: Pack, doc_type: str | None, back
     return segment_pages(pages, pack, backend)
 
 
+def typed_options(backend: Backend | None) -> dict:
+    """Extra arguments of the typed processor: the cloud model and a whole-document budget, or none (local)."""
+    if not is_cloud_backend(backend):
+        return {}
+    return {"backend": backend, "max_context_chars": CLOUD_DOCUMENT_MAX_INPUT_CHARS}
+
+
+def reading_notes(observations: list[DocumentObservation], transcriber: CloudTranscriber | None) -> None:
+    """Tell the user which pages the cloud model could not transcribe (the local OCR read them instead)."""
+    note = transcriber.note() if transcriber else ""
+    if not note:
+        return
+    for observation in observations:
+        observation.notes.append(note)
+
+
 def extract_file(path: str | Path, pack: Pack, doc_type: str | None = None, backend: Backend | None = None,
                  processor: Callable | None = None, bundle: Callable | None = None,
                  only_pages: list[int] | None = None) -> ExtractionResult:
     """Extract one file: find the documents in it, then read each one. Never raises for document or model problems."""
     path = Path(path)
-    processor = processor or document_processor.process_document
-    bundle = bundle or document_processor.process_passport_pages
+    options = typed_options(backend)
+    processor = processor or partial(document_processor.process_document, **options)
     typed_pack = any(spec.doc_type in DOCUMENT_SCHEMAS for spec in pack.procedure.documents)
     if doc_type is not None and pack.document(doc_type) is None:
         return ExtractionResult(error=f"Unknown document type {doc_type!r} for procedure {pack.id}")
+    transcriber = CloudTranscriber(backend) if is_cloud_backend(backend) else None
     try:
-        pages = [page for page in extract_pages(path) if not only_pages or page.number in only_pages]
+        read = extract_pages(path, transcriber.read) if transcriber else extract_pages(path)
+        pages = [page for page in read if not only_pages or page.number in only_pages]
         if not pages:
             return ExtractionResult(error=f"The file has none of the pages {only_pages}")
+        bundle = bundle or partial(document_processor.process_passport_pages, pages=pages, **options)
         segments = find_documents(pages, pack, doc_type, backend)
         split = len(segments) > 1
         observations = []
@@ -265,6 +292,7 @@ def extract_file(path: str | Path, pack: Pack, doc_type: str | None = None, back
                 observations.append(look_at_pictures(observation, path, part, pack, backend))
     except EXTRACTION_ERRORS as error:
         return ExtractionResult(error=str(error))
+    reading_notes(observations, transcriber)
     return ExtractionResult(observations=observations)
 
 

@@ -14,14 +14,13 @@ model named waits for the user's confirmation.
 import re
 from datetime import date
 
-import pymupdf
 from pydantic import BaseModel, Field
 
-from config import VISION_MAX_SIDE
+from config import CLOUD_IMAGE_MAX_SIDE, VISION_MAX_SIDE
 from src.document_processing.evidence import normalized
-from src.document_processing.extractor import TextPage, open_document
+from src.document_processing.extractor import TextPage, open_document, page_jpeg, page_png
 from src.document_processing.grounding import GroundedValue
-from src.llm import ask_vision
+from src.llm import ask_vision, is_cloud_backend
 from src.models import DocumentSpec, Pack
 from src.pack import coerce_fact
 
@@ -58,10 +57,16 @@ class VisionRead(BaseModel):
 def page_image(path, number: int, max_side: int = VISION_MAX_SIDE) -> bytes:
     """PNG of one page, scaled so its longer side is at most max_side pixels (fewer tokens, faster)."""
     with open_document(path) as document:
-        page = document[number - 1]
-        longest = max(page.rect.width, page.rect.height) or 1.0
-        zoom = min(max_side / longest, 4.0)
-        return page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csRGB, alpha=False).tobytes("png")
+        return page_png(document[number - 1], max_side)
+
+
+def image_for(backend, path, number: int) -> bytes:
+    """A cloud model gets a sharp JPEG (small print stays legible, a small upload); the local 2B model a smaller
+    PNG (fewer tokens, faster)."""
+    if not is_cloud_backend(backend):
+        return page_image(path, number)
+    with open_document(path) as document:
+        return page_jpeg(document[number - 1], CLOUD_IMAGE_MAX_SIDE)
 
 
 # ---------------------------------------------------------------- dates --
@@ -185,7 +190,7 @@ def read_values(backend, pack: Pack, image: bytes, page: TextPage, spec: Documen
 def read_image(backend, pack: Pack, path, page: TextPage, specs: list[DocumentSpec], wanted: list[str] | None = None,
                known_type: str | None = None) -> VisionRead:
     """Name the page (unless known_type is given), then read its values; see the module docstring."""
-    image = page_image(path, page.number)
+    image = image_for(backend, path, page.number)
     read = VisionRead()
     doc_type = known_type
     if doc_type is None:

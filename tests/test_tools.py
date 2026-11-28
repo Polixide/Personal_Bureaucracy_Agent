@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from config import PROCEDURES_DIR
 from src.document_processing.schemas import HealthInsurance, SourceEvidence
-from src.pack import load_all_packs
+from src.pack import load_all_packs, load_pack
 from src.tools import extract_document
 from src.tools.common import ToolContext, ToolError, ToolSpec
 from src.tools.registry import build_registry, describe_tools, run_tool, tools_for
@@ -209,16 +209,19 @@ def test_tool_error_type_is_shared():
         raise ToolError("x")
 
 
+PACK_RULES = load_pack("ikamet_first").rules
+
+
 # ------------------------------------------- shapes seen from qwen3:4b live --
 def test_empty_section_id_means_all_sections(ctx):
     output = call(ctx, "evaluate_rules", {"section_id": ""}).output
-    assert output["section_id"] is None and sum(output["counts"].values()) == 29
+    assert output["section_id"] is None and sum(output["counts"].values()) == len(PACK_RULES)
 
 
 @pytest.mark.parametrize("word", ["null", "None", " all "])
 def test_null_none_and_all_mean_all_sections(ctx, word):
     output = call(ctx, "evaluate_rules", {"section_id": word}).output
-    assert output["section_id"] is None and sum(output["counts"].values()) == 29
+    assert output["section_id"] is None and sum(output["counts"].values()) == len(PACK_RULES)
 
 
 def test_a_single_field_name_is_accepted_as_a_list(ctx):

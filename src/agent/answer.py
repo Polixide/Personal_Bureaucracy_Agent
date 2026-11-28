@@ -103,3 +103,4 @@ class AgentResult(BaseModel):
     proposals: list[str] = Field(default_factory=list)
     loops_detected: int = 0
     invalid_calls: int = 0
+    reflections: list[dict] = Field(default_factory=list)   # correction rounds: {"by": ..., "issues": [...]}

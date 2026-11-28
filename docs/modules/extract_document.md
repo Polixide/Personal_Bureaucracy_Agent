@@ -10,6 +10,11 @@ scanned together): each becomes its own document in the Twin.
 1. **Text** (`src/document_processing/extractor.py`). The text layer of each page; OCR (RapidOCR, on the CPU)
    when the page is a scan: no text, or only a watermark/header over a full-page image. A photo is turned into
    a one-page PDF first. Each page remembers whether its text came from OCR (`TextPage.ocr`).
+   **With `DOCUMENT_PROVIDER=cloud`** (and `LLM_PROVIDER=openai|anthropic`) the cloud model is the OCR
+   (`transcribe.py`): every picture page, including a scan that carries a scanner app's text layer, is sent as a
+   JPEG and transcribed line by line; if the model fails, RapidOCR reads that page and the document gets a note. The
+   typed processor and the generic reader then run on the cloud model with the whole document
+   (`CLOUD_DOCUMENT_MAX_INPUT_CHARS`), and it is also the vision model. Every check below stays the same.
 2. **Which pages are which document** (`src/document_processing/segment.py`, code only).
    - A page **opens** a document when it has a machine-readable zone of that document's `mrz` kind (checked by its
      digits), or one of its `titles` in its top lines. A line with a value ("Passport number: X1") is not a title.
@@ -23,6 +28,13 @@ scanned together): each becomes its own document in the Twin.
      characters were read), asking only for the fields still missing.
    - **Second pass for typed documents.** Values the typed processor left out (not those it found ambiguous) are
      asked to the generic reader; they are stored as values **the user must confirm**.
+   - **Reflection.** A proposal refused because its quote is not on the page (or its value is not in the quote)
+     goes back to the model once with the reason; the new proposal is checked the same way. The document card says
+     "Read again after a check by code: …" when it worked.
+   - **Values over several lines.** Quotes may span consecutive lines; for a field with `lines` > 1 (an address)
+     code adds the lines that follow the quote on the page, until an empty line or another label ("Rent: …"). A text
+     field with `choices` must map to one of them ("KİRA SÖZLEŞMESİ" → `rental_agreement`), otherwise it is left for
+     the user to choose.
 4. **Pictures** (`vision.py`, vision model `qwen3-vl:2b-instruct`). Only for pages that are images:
    - nothing names the page (a border stamp has no title; its OCR text is "ISTANBUL 26.02.22"): the vision model
      chooses one of the pack's documents; every value of a document named this way waits for confirmation;
@@ -51,11 +63,15 @@ scanned together): each becomes its own document in the Twin.
 python -m pytest -q tests/test_extract_document.py tests/test_segment.py tests/test_vision_and_crawl.py \
     tests/test_processor.py tests/test_extractor.py
 python -m eval.document_eval --label "my change" --out docs/eval_documents.md    # live, needs Ollama
+python -m pytest -q tests/test_documents_cloud.py      # the cloud path, with fake clients
 ```
 
 ## Known limits
 - **Speed on a 4 GB GPU.** About 20–40 s per document; the vision model adds about 35 s for a stamp and up to
   2–3 minutes for a full-page photo, so it runs only on pictures, only when something is missing.
+- **Cloud reading trades privacy and independence for accuracy.** The page images and text go to the provider.
+  A quote is checked against the cloud model's own transcription, so a transcription error is caught only by the
+  second checks code has (MRZ check digits, date and choice parsing, conflicts between documents).
 - **Two documents of the same type in one file** (two passports) are read as one; their values then disagree and
   are shown as a conflict.
 - **Names on photos.** OCR often splits a name over two lines; such names are proposed for confirmation.

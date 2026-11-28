@@ -145,7 +145,8 @@ def test_generic_path_keeps_only_grounded_values(card_pack):
 ])
 def test_generic_path_drops_invented_values(card_pack, proposal, reason):
     pack, document = card_pack
-    backend = ScriptedBackend([{"fields": [proposal]}])
+    # a misquote gets one second reading (reflection): here the model finds nothing more
+    backend = ScriptedBackend([{"fields": [proposal]}, {"fields": []}])
     observation = extract_file(document, pack, doc_type="residence_permit_card", backend=backend).observations[0]
     assert observation.facts == []
     assert any(reason in issue for issue in observation.issues)

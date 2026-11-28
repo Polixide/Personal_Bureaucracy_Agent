@@ -14,6 +14,18 @@ can use its deterministic fallback.
 - **`ask_vision(backend, prompt, images, OutputModel, component)`** is `ask_structured` for the vision model: schema,
   validation, one retry, never raises; a backend without `see()` (test doubles) gives `ok=False`.
 - **`logged_chat(client, component=..., **kwargs)`** is used directly by the milestone-1 document processor.
+- **`AnthropicBackend`** (Claude, official `anthropic` SDK) and **`OpenAIBackend`** (GPT, official `openai` SDK):
+  same `chat()` contract, chosen by `LLM_PROVIDER` through **`agent_backend("chat" | "team")`**. Their `embed()`
+  uses the local Ollama model, so embeddings never leave the computer. They also have **`see()`** (page images as
+  JPEG/PNG bytes: a `data:` URL in high detail for GPT, a base64 image block for Claude), used only when
+  **`document_backend()`** gives them the documents: `DOCUMENT_PROVIDER=cloud` with a cloud `LLM_PROVIDER`
+  (`documents_in_cloud()`). Otherwise `document_backend()` is `local_backend()` (Ollama) and **document pages never
+  leave the computer**. `is_cloud_backend(backend)` lets the document code give a cloud model whole documents and
+  sharper images. Claude gets the schema as structured output
+  (`output_config.format`, after `strict_schema()` closes every object and drops length limits); a schema with a
+  free-form object (a tool's `args`) is asked for in the system text instead, and a schema the API refuses is retried
+  without the constraint. GPT gets `json_schema` mode (not strict), then JSON mode. A refusal, a network error or a
+  missing key is an `LLMError`, so callers fall back as with Ollama.
 
 ## Inputs and outputs
 ```python

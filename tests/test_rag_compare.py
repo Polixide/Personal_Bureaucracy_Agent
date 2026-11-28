@@ -73,7 +73,8 @@ def test_comparison_runs_every_case_with_every_retriever():
         assert 0 <= s["hit@1"] <= s["hit@3"] <= s["hit@5"] <= 1 and s["p50_ms"] <= s["p95_ms"]
         assert index[name] >= 0
     text = report(results, index, "fake", offline=True)
-    assert "## rules (66 queries)" in text and "## questions (31 queries)" in text
+    # one query per rule: 30 + 8 + 15 + 14 (67 since ikamet_first gained R030, migration_plan section 10)
+    assert "## rules (67 queries)" in text and "## questions (31 queries)" in text
 
 
 def test_a_correct_passage_needs_the_source_and_the_phrase():

@@ -7,6 +7,8 @@ test also re-ran the old engine against the snapshot; the old engine was deleted
 tests had passed together (commits fdc5ebd .. 486917b).
 Known, approved divergence: the old code-only "Milestone-1 scoped" R015 variant is not reproduced
 (docs/migration_plan.md, decision on R015); the snapshot uses the default mode.
+Rules added after the migration (R030, own property needs a utility bill) did not exist in the old engine, so the
+oracle compares only the rules of the snapshot; the new rules have their own tests (tests/test_pack_address.py).
 """
 import json
 from pathlib import Path
@@ -26,12 +28,15 @@ def load_cases() -> list[dict]:
 
 
 CASES = load_cases()
+LEGACY_RULES = set(CASES[0]["verdicts"])     # the rules the old engine knew
 
 
 def new_verdicts(context: dict) -> dict[str, str]:
     facts = {name: coerce_fact(PACK, name, value) for name, value in context.items()}
     output = {}
     for result in evaluate_rules(PACK, facts):
+        if result.rule_id not in LEGACY_RULES:
+            continue
         if result.status == "unknown":
             output[result.rule_id] = "unknown:" + ",".join(result.missing_fields)
         else:
@@ -45,7 +50,7 @@ def test_new_evaluator_matches_legacy_snapshot(case):
 
 
 def test_snapshot_exercises_every_rule_in_every_status():
-    seen = {rule_id: set() for rule_id in PACK.rule_ids()}
+    seen = {rule_id: set() for rule_id in PACK.rule_ids() if rule_id in LEGACY_RULES}
     for case in CASES:
         for rule_id, verdict in case["verdicts"].items():
             seen[rule_id].add(verdict.split(":")[0])

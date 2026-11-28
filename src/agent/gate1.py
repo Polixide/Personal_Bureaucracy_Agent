@@ -114,9 +114,16 @@ def check_claims(answer: FinalAnswer, gate: GateContext) -> list[Issue]:
 
 
 def check_failed_rules_addressed(answer: FinalAnswer, gate: GateContext) -> list[Issue]:
+    """Every failing blocking rule of today's steps is claimed or has an action.
+
+    Rules of sections the pack marks `later` (steps after the application, e.g. "the file must be complete before
+    the physical submission") are not required here: the plan lists them under later steps.
+    """
+    later = {section.id for section in gate.pack.procedure.sections if section.later} if gate.pack else set()
     mentioned = {claim.rule_id for claim in answer.claims} | {action.ref for action in answer.next_actions}
     return [Issue(code="MISSING_FAILED_RULE", item=r.rule_id, message=f"{r.rule_id} fails; claim it or add an action for it")
-            for r in gate.results if r.status == "fail" and r.severity == "blocking" and r.rule_id not in mentioned]
+            for r in gate.results if r.status == "fail" and r.severity == "blocking" and r.rule_id not in mentioned
+            and r.section not in later]
 
 
 def check_text_claims(text: str) -> list[Issue]:

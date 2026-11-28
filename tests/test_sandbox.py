@@ -98,10 +98,19 @@ def test_ics_escaping_and_folding():
 
 # --------------------------------------------------------------- email --
 def test_draft_email_is_a_draft_with_no_invented_address(ctx):
+    # Migration Management has no address in the sources: the draft says so instead of inventing one.
+    output = call(ctx, "draft_email", {"to_role": "Migration Management", "subject": "Question about my permit",
+                                       "body": "Hello, could you tell me which documents are still missing?"}).output
+    payload = ctx.store.get_proposal(output["action_id"]).payload
+    assert "fill it in yourself" in payload["to_email"] and "Migration" in payload["to_name"]
+
+
+def test_draft_email_uses_the_address_the_official_source_gives(ctx):
+    # IRO's address is on the official Sabancı page SAB_EXCHANGE_CURRENT ("send ... to irolegal@sabanciuniv.edu").
     output = call(ctx, "draft_email", {"to_role": "IRO", "subject": "Question about my residence permit",
                                        "body": "Dear IRO, could you tell me which documents are still missing?"}).output
     payload = ctx.store.get_proposal(output["action_id"]).payload
-    assert "fill it in yourself" in payload["to_email"] and "Sabancı" in payload["to_name"]
+    assert payload["to_email"] == "irolegal@sabanciuniv.edu" and "Sabancı" in payload["to_name"]
 
 
 @pytest.mark.parametrize("args,message", [
