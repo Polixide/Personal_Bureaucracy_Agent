@@ -2,7 +2,7 @@
 
 python -m eval.run_eval                          offline: D uses eval.policy.RuleFollowingPolicy, B is skipped
 python -m eval.run_eval --live                   Ollama (LLM_MODEL / EMBED_MODEL from config.py) for B and D
-python -m eval.run_eval --live --provider openai the cloud model for B and D (OPENAI_API_KEY in the environment)
+python -m eval.run_eval --live --provider openai --model gpt-6.1-terra --effort low   the cloud model for B and D
 Options: --k 3 (runs per scenario, for pass^k and pass@k), --out docs/eval_results.md, --procedure <id>
 
 Scenarios come from every pack's eval/scenarios.json (expected rule verdicts; never edited to improve a
@@ -23,7 +23,8 @@ from eval.metrics import RunMeasure, agent_behaviour, classify_failure, measure,
 from eval.policy import RuleFollowingPolicy
 from eval.systems import full_agent, single_llm, static_checklist
 from src.agent.gate1 import GateContext, build_gate_context
-from src.llm import USAGE, Backend, agent_backend, agent_model_label, missing_key, usage_summary
+from src.llm import (USAGE, Backend, add_model_arguments, agent_backend, agent_model_label, missing_key,
+                     model_argument_problem, usage_summary)
 from src.models import Pack
 from src.pack import load_all_packs, load_scenarios
 from src.tools.common import ToolContext
@@ -113,8 +114,9 @@ def evaluate(packs: dict[str, Pack], backend: Backend, k: int, live: bool, live_
 
 
 # --------------------------------------------------------------- report --
-COLUMNS = ["system", "runs", "verdict_accuracy", "date_errors", "invented", "valid_answer_rate", "pass^k", "pass@k",
-           "avg_llm_calls", "avg_seconds", "p95_seconds", "avg_tokens", "cost_usd"]
+COLUMNS = ["system", "runs", "verdict_accuracy", "unknown_kept_rate", "fail_recall", "date_errors", "invented",
+           "valid_answer_rate", "pass^k", "pass@k", "avg_llm_calls", "avg_seconds", "p95_seconds", "avg_tokens",
+           "cost_usd"]
 
 
 def table(rows: list[dict], columns: list[str]) -> list[str]:
@@ -139,6 +141,8 @@ def report(outcome: dict, k: int, live: bool, model: str = "") -> str:
              "- pass^k: scenarios where all k runs succeed; pass@k: chance that at least one of k runs succeeds. "
              "Tokens and cost come from the providers' usage reports (n/a offline or without a price).",
              "- reflection_recovery_rate: answers refused by Gate 1 that the model then repaired (not the fallback).",
+             "- unknown_kept_rate: expected-unknown rules still called unknown (never guessed); fail_recall: failing "
+             "rules the answer reports.",
              ""]
     lines += table(rows, COLUMNS) + ["", "## Agent behaviour (D)", ""]
     lines += table([agent_behaviour(d_runs)], list(agent_behaviour(d_runs)))
@@ -161,16 +165,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--procedure", default=None, help="evaluate only this pack")
-    parser.add_argument("--provider", default="ollama", choices=["ollama", "openai", "anthropic"],
-                        help="with --live: which model runs B and D")
+    add_model_arguments(parser)                      # with --live: --provider, --model, --effort
     args = parser.parse_args(argv)
-    if args.live and missing_key(args.provider):
-        parser.error(missing_key(args.provider))
+    problem = missing_key(args.provider) or model_argument_problem(args.provider, args.effort) if args.live else ""
+    if problem:
+        parser.error(problem)
     packs = load_all_packs()
     if args.procedure:
         packs = {args.procedure: packs[args.procedure]}
-    backend: Backend = agent_backend("team", args.provider) if args.live else RuleFollowingPolicy()
-    model = f"{agent_model_label('team', args.provider)} / {EMBED_MODEL}" if args.live else ""
+    choice = (args.provider, args.model, args.effort)
+    backend: Backend = agent_backend("team", *choice) if args.live else RuleFollowingPolicy()
+    model = f"{agent_model_label('team', *choice)} / {EMBED_MODEL}" if args.live else ""
     text = report(evaluate(packs, backend, args.k, args.live), args.k, args.live, model)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8")

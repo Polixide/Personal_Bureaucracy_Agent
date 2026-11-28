@@ -10,7 +10,8 @@ scanned together): each becomes its own document in the Twin.
 1. **Text** (`src/document_processing/extractor.py`). The text layer of each page; OCR (RapidOCR, on the CPU)
    when the page is a scan: no text, or only a watermark/header over a full-page image. A photo is turned into
    a one-page PDF first. Each page remembers whether its text came from OCR (`TextPage.ocr`).
-   **With `DOCUMENT_PROVIDER=cloud`** (and `LLM_PROVIDER=openai|anthropic`) the cloud model is the OCR
+   **When the cloud model reads the documents** (sidebar switch, or `DOCUMENT_PROVIDER=cloud`, with OpenAI or Claude
+   chosen) the cloud model is the OCR
    (`transcribe.py`): every picture page, including a scan that carries a scanner app's text layer, is sent as a
    JPEG and transcribed line by line; if the model fails, RapidOCR reads that page and the document gets a note. The
    typed processor and the generic reader then run on the cloud model with the whole document

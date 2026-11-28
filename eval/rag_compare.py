@@ -9,13 +9,20 @@ Two query sets:
 - questions: procedures/<id>/eval/rag_questions.json, user-style questions the rules do not decide, each
              with the source passages that answer it. Measures what the chat uses RAG for.
 
-Every retriever ranks the same chunks (src/rag/index.py). Speed: index time per retriever, and the median and
-95th-percentile time per query. In --offline mode the embedding ranks come from a bag-of-words fake, so only
+Every retriever ranks the same chunks (src/rag/index.py). Quality, over the top 5:
+- hit@1/3/5: a correct passage is in the first 1 / 3 / 5;
+- MRR@5: mean of 1 / rank of the first correct passage (0 when none);
+- precision@5: share of the 5 passages that are correct;
+- recall@5: share of the labelled sources (a question can have several) that the top 5 reaches;
+- nDCG@5: the correct passages weighted by their rank (1 / log2(rank + 1)), divided by the best possible order.
+Precision, recall and nDCG come from Andrea's retrieval metrics (feature/marco-integration-review).
+Speed: index time per retriever, and the median and 95th-percentile time per query. In --offline mode the embedding ranks come from a bag-of-words fake, so only
 the BM25 numbers and the pipeline are meaningful.
 """
 from eval import utf8_console
 import argparse
 import json
+import math
 import statistics
 import sys
 from pathlib import Path
@@ -52,6 +59,9 @@ class Result(BaseModel):
     case: Case
     ranks: dict[str, int | None]      # retriever -> rank of the first correct passage (1..K) or None
     seconds: dict[str, float]         # retriever -> query time
+    correct: dict[str, list[int]] = {}          # retriever -> ranks (1..K) of every correct passage in the top K
+    sources_found: dict[str, int] = {}          # retriever -> labelled sources reached in the top K
+    relevant_total: int = 0                     # correct passages in the whole pack (for nDCG's best order)
 
 
 def rule_cases(packs: dict[str, Pack]) -> list[Case]:
@@ -84,6 +94,22 @@ def first_correct(case: Case, ranked: list[Chunk]) -> int | None:
     return next((i + 1 for i, chunk in enumerate(ranked[:K]) if is_correct(case, chunk)), None)
 
 
+def correct_ranks(case: Case, ranked: list[Chunk]) -> list[int]:
+    """Ranks (1..K) of every correct passage in the top K."""
+    return [i + 1 for i, chunk in enumerate(ranked[:K]) if is_correct(case, chunk)]
+
+
+def sources_reached(case: Case, ranked: list[Chunk]) -> int:
+    """How many of the case's labelled sources have a correct passage in the top K."""
+    return len({chunk.source_id for chunk in ranked[:K] if is_correct(case, chunk)})
+
+
+def ndcg(ranks: list[int], relevant_total: int) -> float:
+    """Binary-relevance nDCG@K: DCG of the correct ranks over the DCG of the best possible top K."""
+    ideal = sum(1 / math.log2(position + 1) for position in range(1, min(K, relevant_total) + 1))
+    return sum(1 / math.log2(rank + 1) for rank in ranks) / ideal if ideal else 0.0
+
+
 class PackRetrievers:
     """The three retrievers over one pack's chunks, with their index times."""
 
@@ -109,11 +135,13 @@ class PackRetrievers:
         started = perf_counter()
         hybrid = [chunk for chunk, _ in fuse([semantic, lexical], K)]
         fuse_seconds = perf_counter() - started
-        return Result(case=case,
-                      ranks={"bm25": first_correct(case, lexical), "embedding": first_correct(case, semantic),
-                             "hybrid": first_correct(case, hybrid)},
+        lists = {"bm25": lexical, "embedding": semantic, "hybrid": hybrid}
+        return Result(case=case, ranks={name: first_correct(case, ranked) for name, ranked in lists.items()},
                       seconds={"bm25": bm25_seconds, "embedding": embedding_seconds,
-                               "hybrid": bm25_seconds + embedding_seconds + fuse_seconds})
+                               "hybrid": bm25_seconds + embedding_seconds + fuse_seconds},
+                      correct={name: correct_ranks(case, ranked) for name, ranked in lists.items()},
+                      sources_found={name: sources_reached(case, ranked) for name, ranked in lists.items()},
+                      relevant_total=sum(is_correct(case, chunk) for chunk in self.chunks))
 
 
 def evaluate(packs: dict[str, Pack], backend: Backend, cases: list[Case]) -> tuple[list[Result], dict]:
@@ -130,13 +158,17 @@ def evaluate(packs: dict[str, Pack], backend: Backend, cases: list[Case]) -> tup
 
 
 def scores(results: list[Result], retriever: str) -> dict:
-    """hit@1/3/5, MRR@5 and query time percentiles for one retriever over some results."""
+    """hit@1/3/5, MRR@5, precision/recall/nDCG@5 and query time percentiles for one retriever over some results."""
     ranks = [r.ranks[retriever] for r in results]
     times = sorted(r.seconds[retriever] * 1000 for r in results)
     count = max(len(results), 1)
     return {"n": len(results),
             **{f"hit@{n}": round(sum(1 for x in ranks if x is not None and x <= n) / count, 3) for n in (1, 3, 5)},
             "mrr": round(sum(1 / x for x in ranks if x) / count, 3),
+            "precision@5": round(sum(len(r.correct.get(retriever, [])) / K for r in results) / count, 3),
+            "recall@5": round(sum(r.sources_found.get(retriever, 0) / max(len(r.case.phrases), 1)
+                                  for r in results) / count, 3),
+            "ndcg@5": round(sum(ndcg(r.correct.get(retriever, []), r.relevant_total) for r in results) / count, 3),
             "p50_ms": round(statistics.median(times), 2) if times else 0.0,
             "p95_ms": round(times[min(len(times) - 1, int(0.95 * len(times)))], 2) if times else 0.0}
 
@@ -159,12 +191,13 @@ def report(results: list[Result], index: dict, model: str, offline: bool) -> str
 
 def overall_table(query_set: str, subset: list[Result], index: dict) -> list[str]:
     lines = [f"## {query_set} ({len(subset)} queries)", "",
-             "| retriever | hit@1 | hit@3 | hit@5 | MRR@5 | query p50 ms | query p95 ms | index s |",
-             "|---|---|---|---|---|---|---|---|"]
+             "| retriever | hit@1 | hit@3 | hit@5 | MRR@5 | precision@5 | recall@5 | nDCG@5 | query p50 ms | "
+             "query p95 ms | index s |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for name in RETRIEVERS:
         s = scores(subset, name)
-        lines.append(f"| {name} | {s['hit@1']} | {s['hit@3']} | {s['hit@5']} | {s['mrr']} | {s['p50_ms']} | "
-                     f"{s['p95_ms']} | {round(index[name], 2)} |")
+        lines.append(f"| {name} | {s['hit@1']} | {s['hit@3']} | {s['hit@5']} | {s['mrr']} | {s['precision@5']} | "
+                     f"{s['recall@5']} | {s['ndcg@5']} | {s['p50_ms']} | {s['p95_ms']} | {round(index[name], 2)} |")
     return lines + [""]
 
 

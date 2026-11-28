@@ -82,3 +82,20 @@ def test_a_correct_passage_needs_the_source_and_the_phrase():
                 phrases={"S": comparable("Kartı kaybetmesi halinde")})
     assert first_correct(case, [chunk("1", "x", "S"), chunk("2", "kartı KAYBETMESİ halinde durumu", "S")]) == 2
     assert first_correct(case, [chunk("3", "Kartı kaybetmesi halinde", "OTHER")]) is None
+
+
+def test_ndcg_precision_and_recall_on_a_known_ranking():
+    import math
+    from eval.rag_compare import K, ndcg
+    assert ndcg([1], 1) == 1.0                                  # the only correct passage first: best order
+    assert ndcg([2], 1) == pytest.approx(1 / math.log2(3))      # one place lower
+    assert ndcg([], 3) == 0.0 and ndcg([1, 2], 0) == 0.0
+    assert K == 5
+
+
+def test_scores_report_precision_recall_and_ndcg_for_every_retriever():
+    cases = question_cases(PACKS)[:4]
+    results, _ = evaluate(PACKS, ScriptedBackend(), cases)
+    for name in RETRIEVERS:
+        s = scores(results, name)
+        assert 0 <= s["precision@5"] <= 1 and 0 <= s["recall@5"] <= 1 and 0 <= s["ndcg@5"] <= 1

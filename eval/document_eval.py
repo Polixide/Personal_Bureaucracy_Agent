@@ -25,7 +25,8 @@ from pydantic import BaseModel
 from eval.document_samples import ExpectedDocument, Sample, synthetic_samples
 from src.document_processing.evidence import normalized
 from src.document_processing.observations import DocumentObservation
-from src.llm import document_backend
+from src.llm import (USAGE, add_model_arguments, document_backend, document_model_label, missing_key,
+                     model_argument_problem, usage_summary)
 from src.pack import load_pack
 from src.tools.extract_document import extract_file
 
@@ -44,6 +45,8 @@ class SampleScore(BaseModel):
     seconds: float
     error: str = ""
     wrong_values: list[str] = []
+    tokens: int | None = None        # model tokens spent on this file (None: not reported)
+    cost_usd: float | None = None    # estimated cloud cost of this file (None: local model or no price)
 
 
 def comparable(value) -> str:
@@ -102,9 +105,14 @@ def score_sample(sample: Sample, observations: list[DocumentObservation], second
 
 def run_sample(sample: Sample, backend) -> SampleScore:
     pack = load_pack(sample.procedure_id)
-    started = perf_counter()
+    started, mark = perf_counter(), USAGE.mark()
     result = extract_file(sample.file, pack, backend=backend)
-    return score_sample(sample, result.observations, perf_counter() - started, result.error or "")
+    score = score_sample(sample, result.observations, perf_counter() - started, result.error or "")
+    usage = usage_summary(USAGE.since(mark))
+    if usage["requests"] and usage["input_tokens"] is not None:
+        score.tokens = usage["input_tokens"] + usage["output_tokens"]
+    score.cost_usd = usage["cost_usd"] if usage["cloud_requests"] else None
+    return score
 
 
 def totals(scores: list[SampleScore]) -> dict[str, float]:
@@ -115,7 +123,19 @@ def totals(scores: list[SampleScore]) -> dict[str, float]:
             "values read wrong": sum(s.wrong for s in scores),
             "of which believed (not shown for confirmation)": sum(s.wrong - s.wrong_to_confirm for s in scores),
             "values not read": sum(s.missing for s in scores),
-            "seconds per file": round(sum(s.seconds for s in scores) / max(len(scores), 1), 1)}
+            "seconds per file": round(sum(s.seconds for s in scores) / max(len(scores), 1), 1),
+            "tokens per file": tokens_per_file(scores),
+            "estimated cloud cost": cost_text(scores)}
+
+
+def tokens_per_file(scores: list[SampleScore]) -> int | str:
+    known = [s.tokens for s in scores if s.tokens is not None]
+    return round(sum(known) / len(known)) if known else "n/a"
+
+
+def cost_text(scores: list[SampleScore]) -> str:
+    costs = [s.cost_usd for s in scores if s.cost_usd is not None]
+    return f"${sum(costs):.4f}" if costs else "n/a"
 
 
 def table(label: str, scores: list[SampleScore]) -> str:
@@ -139,8 +159,14 @@ def main() -> None:
     parser.add_argument("--label", default="current code")
     parser.add_argument("--out", type=Path, default=None, help="append the markdown section to this file")
     parser.add_argument("--only", nargs="*", default=None, help="sample ids to run")
+    add_model_arguments(parser)           # --provider openai --model ... --effort ...: the cloud model reads
     args = parser.parse_args()
-    backend = document_backend()          # Ollama, or the cloud model with DOCUMENT_PROVIDER=cloud
+    problem = (missing_key(args.provider) or model_argument_problem(args.provider, args.effort)) if args.provider else ""
+    if problem:
+        parser.error(problem)
+    cloud = True if args.provider in ("openai", "anthropic") else None     # None: DOCUMENT_PROVIDER decides
+    backend = document_backend(args.provider, cloud, args.model, args.effort)
+    print(f"Documents read by: {document_model_label(args.provider, cloud, args.model, args.effort)}", flush=True)
     with tempfile.TemporaryDirectory() as folder:
         samples = [s for s in synthetic_samples(Path(folder)) if not args.only or s.sample_id in args.only]
         scores = []

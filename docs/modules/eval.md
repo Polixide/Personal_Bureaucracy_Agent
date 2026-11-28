@@ -26,6 +26,7 @@ A scenario (generated from milestone-1 `tests/test_evaluation.py` and never edit
 
 The table columns are:
 - **verdict accuracy:** claims compared with the expected statuses; a rule the answer doesn't mention counts as "pass";
+- **unknown kept / fail recall:** expected-unknown rules still called unknown; expected-failing rules reported;
 - **date errors:** Gate 1 `UNSUPPORTED_DATE`;
 - **invented rules:** `CLAIM_UNKNOWN_RULE` + `INVENTED_RULE_ID`;
 - **valid-final-answer rate:** the share of answers that pass Gate 1;
@@ -41,6 +42,8 @@ first rejections, **issues caught by Gate 1** before the answer was delivered, a
 recovery rate are adapted from Andrea's metrics (`feature/marco-integration-review`). Failed D runs are classified
 as planning, tool/schema, observation misread or memory loss.
 
+The full list of metrics, with definitions, is `docs/metrics.md`.
+
 ## Why it is built this way
 - **The offline D is a pipeline test.** Offline, D uses `eval/policy.py:RuleFollowingPolicy`, a scripted policy
   that follows the orchestrator prompt literally. That checks the pipeline (tools, workers, Gate 1, fallback)
@@ -54,7 +57,8 @@ as planning, tool/schema, observation misread or memory loss.
 python -m pytest -q tests/test_eval.py
 python -m eval.run_eval            # offline, writes docs/eval_results.md
 python -m eval.run_eval --live     # needs `ollama pull qwen3:4b` and the EMBED_MODEL of config.py
-python -m eval.run_eval --live --provider openai --k 1   # the cloud model (OPENAI_API_KEY set; CLOUD_MAX_REQUESTS caps the spend)
+python -m eval.run_eval --live --provider openai --model gpt-6.1-terra --effort low --k 1   # the cloud model
+python -m eval.rag_compare --out docs/eval_rag_compare.md   # retrieval: hit@k, MRR, precision/recall/nDCG@5
 python -m pytest -q tests/test_memory_sessions.py
 python -m eval.rag_eval --models qwen3-embedding:0.6b bge-m3 --out docs/eval_rag.md   # live, embeddings only
 python -m eval.document_eval --label "my change" --out docs/eval_documents.md       # live: reading uploads

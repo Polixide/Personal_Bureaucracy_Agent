@@ -68,7 +68,7 @@ user ─► Gate 0 ─► orchestrator (ReAct: decide → act → observe) ─�
   verdicts, and `src/memory/episodes.py` keeps lessons from repairs that Gate 1 accepted.
 
 The whole project (problem, architecture, user experience, results, limits) is explained in one document:
-`docs/project_overview.md`. Each module has a one-page explanation in `docs/modules/`. The migration from the
+`docs/project_overview.md`; every evaluation metric is defined in `docs/metrics.md`. Each module has a one-page explanation in `docs/modules/`. The migration from the
 milestone-1 prototype is recorded in `docs/migration_plan.md`.
 
 ## Setup (Windows PowerShell)
@@ -96,6 +96,15 @@ $env:LLM_PROVIDER = "openai"                 # optional: start with OpenAI alrea
 $env:ANTHROPIC_API_KEY = "<your key>"        # optional: Claude appears as a third choice (ANTHROPIC_MODEL)
 streamlit run app.py
 ```
+Provider, model and effort can also be given in the terminal, after `--` (they win over the variables above):
+```powershell
+streamlit run app.py -- --provider openai --model gpt-6.1-terra --effort low
+streamlit run app.py -- --provider anthropic --model claude-sonnet-5-5 --effort medium
+streamlit run app.py -- --provider ollama --model qwen3:8b       # Ollama: one model for chat and team, no effort
+```
+`--effort` takes `none, minimal, low, medium, high, xhigh` for OpenAI and `low, medium, high` for Claude (each model
+decides which it supports); the sidebar shows the model and effort in use. The evaluation scripts take the same
+three options.
 A cloud model receives the state computed by code (rule results, values already read, the plan), never the pages
 of your documents, unless you switch on *The cloud model also reads my documents* in the sidebar
 (`DOCUMENT_PROVIDER=cloud` makes that the starting choice). With a cloud model the self-review (reflection) is on
@@ -112,9 +121,11 @@ streamlit run app.py                     # the app
 python -m pytest -q                      # tests (the LLM is always mocked; real Ollama calls fail the test)
 python -m eval.run_eval                  # offline evaluation -> docs/eval_results.md
 python -m eval.run_eval --live           # with the local model
-python -m eval.run_eval --live --provider openai --k 1   # the same scenarios with GPT (key set)
+python -m eval.run_eval --live --provider openai --model gpt-6.1-terra --effort low --k 1   # same scenarios, GPT
+python -m eval.chat_eval --provider openai --effort low  # the chat assistant on GPT (citations, reflection, cost)
+python -m eval.document_eval --provider openai --label gpt-6.1-terra   # documents read by GPT (tokens, cost)
 python -m eval.routing_eval              # which pack each of 38 goals selects (offline)
-python -m eval.rag_compare               # keyword (BM25) vs embedding vs hybrid retrieval
+python -m eval.rag_compare               # BM25 vs embedding vs hybrid: hit@k, MRR, precision/recall/nDCG@5
 python -m eval.speed                     # time of each part of the agent
 python -m src.integrations.mcp.server    # read-only MCP server (stdio) over the packs, for other MCP clients
 python -m src.pack validate ikamet_first # check a Procedure Pack

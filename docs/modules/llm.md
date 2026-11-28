@@ -15,11 +15,12 @@ can use its deterministic fallback.
   validation, one retry, never raises; a backend without `see()` (test doubles) gives `ok=False`.
 - **`logged_chat(client, component=..., **kwargs)`** is used directly by the milestone-1 document processor.
 - **`AnthropicBackend`** (Claude, official `anthropic` SDK) and **`OpenAIBackend`** (GPT, official `openai` SDK):
-  same `chat()` contract, chosen by `LLM_PROVIDER` through **`agent_backend("chat" | "team")`**. Their `embed()`
+  same `chat()` contract, chosen through **`agent_backend("chat" | "team", provider, model, effort)`** (the app's
+  sidebar or the terminal; `LLM_PROVIDER` when nothing is chosen). Their `embed()`
   uses the local Ollama model, so embeddings never leave the computer. They also have **`see()`** (page images as
   JPEG/PNG bytes: a `data:` URL in high detail for GPT, a base64 image block for Claude), used only when
-  **`document_backend()`** gives them the documents: `DOCUMENT_PROVIDER=cloud` with a cloud `LLM_PROVIDER`
-  (`documents_in_cloud()`). Otherwise `document_backend()` is `local_backend()` (Ollama) and **document pages never
+  **`document_backend()`** gives them the documents: the sidebar switch (or `DOCUMENT_PROVIDER=cloud`) with a cloud
+  provider (`documents_in_cloud()`). Otherwise `document_backend()` is `local_backend()` (Ollama) and **document pages never
   leave the computer**. `is_cloud_backend(backend)` lets the document code give a cloud model whole documents and
   sharper images. Claude gets the schema as structured output
   (`output_config.format`, after `strict_schema()` closes every object and drops length limits); a schema with a
@@ -38,6 +39,11 @@ can use its deterministic fallback.
   model seconds and `estimated_cost(calls)` from `CLOUD_PRICES` (None when a model has no price). With
   `CLOUD_MAX_REQUESTS` > 0 a cloud request past the cap is an `LLMError`, so the agent answers with the plan written
   by code, as when the model is unreachable.
+
+- **Model and effort from the terminal.** `add_model_arguments(parser)` gives the app and every evaluation script
+  the same options: `--provider`, `--model`, `--effort`. The backends take `effort` per instance (OpenAI
+  `reasoning_effort`, Claude `output_config.effort`; "" sends none); `model_argument_problem` refuses an effort the
+  provider does not list (`OPENAI_EFFORTS`, `CLAUDE_EFFORTS` in `config.py`) or any effort for Ollama.
 
 ## Inputs and outputs
 ```python

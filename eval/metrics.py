@@ -3,6 +3,10 @@
 Verdict accuracy: for each expected rule status, the answer's claim for that rule; a rule the answer
 does not mention counts as "pass" (answers must mention every failing rule and Gate 1 enforces it).
 
+Unknown kept: of the rules expected "unknown" (information missing), the share the answer still calls unknown,
+the project's core promise (unknown facts stay unknown, never guessed). Fail recall: of the failing rules, the share
+the answer reports (a missed failure is the costly error for the user).
+
 Reliability: pass^k (every one of the k runs of a scenario succeeds: the user can rely on it) and pass@k (at least
 one of k runs succeeds; the unbiased estimator of Chen et al. 2021). Cost: tokens and estimated USD per run, from
 the usage log of src/llm.py. Reflection: how often an answer refused by Gate 1 was repaired by the model. The last
@@ -31,6 +35,10 @@ class RunMeasure(BaseModel):
     seconds: float
     gate_codes: list[str] = Field(default_factory=list)
     agent: AgentResult | None = None
+    unknown_expected: int = 0            # expected "unknown" rules (information missing) ...
+    unknown_kept: int = 0                # ... that the answer still calls unknown (never guessed into pass/fail)
+    fail_expected: int = 0               # expected failing rules ...
+    fail_found: int = 0                  # ... that the answer reports as failing
     input_tokens: int | None = None      # None: no token count (offline policy, or a provider that reports none)
     output_tokens: int | None = None
     cost_usd: float | None = None        # None: a local model, or a cloud model without a price in config.py
@@ -41,6 +49,13 @@ def verdict_accuracy(answer: FinalAnswer | None, expected: dict[str, str]) -> fl
         return 1.0
     claims = {claim.rule_id: claim.status for claim in (answer.claims if answer else [])}
     return sum(claims.get(rule_id, "pass") == status for rule_id, status in expected.items()) / len(expected)
+
+
+def status_kept(answer: FinalAnswer | None, expected: dict[str, str], status: str) -> tuple[int, int]:
+    """(expected rules with this status, of which the answer claims the same status)."""
+    claims = {claim.rule_id: claim.status for claim in (answer.claims if answer else [])}
+    wanted = [rule_id for rule_id, value in expected.items() if value == status]
+    return len(wanted), sum(claims.get(rule_id) == status for rule_id in wanted)
 
 
 def measure(scenario_id: str, system: str, answer: FinalAnswer | None, expected: dict[str, str], gate: GateContext,
@@ -54,7 +69,11 @@ def measure(scenario_id: str, system: str, answer: FinalAnswer | None, expected:
     accuracy = verdict_accuracy(answer, expected)
     valid = answer is not None and not issues
     usage = usage if usage and usage.get("requests") else {}
+    unknown_expected, unknown_kept = status_kept(answer, expected, "unknown")
+    fail_expected, fail_found = status_kept(answer, expected, "fail")
     return RunMeasure(scenario_id=scenario_id, system=system, accuracy=round(accuracy, 3),
+                      unknown_expected=unknown_expected, unknown_kept=unknown_kept, fail_expected=fail_expected,
+                      fail_found=fail_found,
                       date_errors=codes.count("UNSUPPORTED_DATE"), inventions=sum(codes.count(c) for c in INVENTION_CODES),
                       valid=valid, success=valid and accuracy == 1.0, llm_calls=llm_calls, seconds=round(seconds, 3),
                       gate_codes=codes, agent=agent, input_tokens=usage.get("input_tokens"),
@@ -86,12 +105,17 @@ def pass_at_k(runs: list[RunMeasure], k: int) -> float:
     return sum(values) / len(values)
 
 
-def percentile(values: list[float], share: float) -> float:
-    """Nearest-rank percentile (share 0.5 = median, 0.95 = p95); 0.0 for no values."""
+def share(part: int, whole: int) -> float | str:
+    """part / whole rounded, or "n/a" when nothing was expected."""
+    return round(part / whole, 3) if whole else "n/a"
+
+
+def percentile(values: list[float], fraction: float) -> float:
+    """Nearest-rank percentile (fraction 0.5 = median, 0.95 = p95); 0.0 for no values."""
     ordered = sorted(values)
     if not ordered:
         return 0.0
-    return ordered[max(0, ceil(share * len(ordered)) - 1)]
+    return ordered[max(0, ceil(fraction * len(ordered)) - 1)]
 
 
 def per_run_cost(runs: list[RunMeasure]) -> tuple[str, str]:
@@ -113,6 +137,8 @@ def system_row(system: str, runs: list[RunMeasure], k: int = 1) -> dict:
             "verdict_accuracy": round(sum(r.accuracy for r in runs) / count, 3),
             "date_errors": sum(r.date_errors for r in runs), "invented": sum(r.inventions for r in runs),
             "valid_answer_rate": round(sum(r.valid for r in runs) / count, 3),
+            "unknown_kept_rate": share(sum(r.unknown_kept for r in runs), sum(r.unknown_expected for r in runs)),
+            "fail_recall": share(sum(r.fail_found for r in runs), sum(r.fail_expected for r in runs)),
             "pass^k": f"{pass_k(runs)}/{scenarios}", "pass@k": round(pass_at_k(runs, k), 3),
             "avg_llm_calls": round(sum(r.llm_calls for r in runs) / count, 2),
             "avg_seconds": round(sum(seconds) / count, 3), "p95_seconds": round(percentile(seconds, 0.95), 3),

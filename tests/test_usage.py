@@ -121,3 +121,43 @@ def test_a_model_without_a_price_has_no_cost(monkeypatch):
     calls = [ModelCall(component="c", model="claude-x", cloud=True, ok=True, seconds=1.0, input_tokens=10,
                        output_tokens=10)]
     assert estimated_cost(calls) is None and usage_summary(calls)["input_tokens"] == 10
+
+
+# ------------------------------------------------- model and effort from the terminal --
+def test_model_and_effort_from_the_terminal_reach_the_cloud_backend():
+    backend = llm.agent_backend("team", "openai", "gpt-test", "high")
+    assert backend.model == "gpt-test" and backend.effort == "high"
+    assert llm.agent_model_label("team", "openai", "gpt-test", "high") == "gpt-test, effort high (OpenAI, cloud)"
+    assert llm.agent_backend("team", "anthropic", None, "medium").effort == "medium"
+    assert llm.agent_backend("chat", "ollama", "qwen3:8b").model == "qwen3:8b"      # Ollama: one model, no effort
+
+
+def test_the_effort_is_sent_only_when_set():
+    sent = []
+
+    class Recorder(FakeOpenAI):
+        def create(self, **request):
+            sent.append(request)
+            return super().create(**request)
+
+    OpenAIBackend(client=Recorder(), embedder=FakeEmbedder(), effort="low").chat([{"role": "user", "content": "x"}],
+                                                                                 {"type": "object"}, "c")
+    OpenAIBackend(client=Recorder(), embedder=FakeEmbedder(), effort="").chat([{"role": "user", "content": "x"}],
+                                                                              {"type": "object"}, "c")
+    assert sent[0]["reasoning_effort"] == "low" and "reasoning_effort" not in sent[1]
+
+
+@pytest.mark.parametrize("provider,effort,ok", [("openai", "xhigh", True), ("openai", None, True),
+                                                ("anthropic", "high", True), ("anthropic", "xhigh", False),
+                                                ("ollama", "low", False)])
+def test_each_provider_accepts_its_own_efforts(provider, effort, ok):
+    assert (llm.model_argument_problem(provider, effort) == "") == ok
+
+
+def test_the_same_three_options_parse_for_every_script():
+    import argparse
+    parser = argparse.ArgumentParser()
+    llm.add_model_arguments(parser)
+    args = parser.parse_args(["--provider", "openai", "--model", "gpt-6.1-terra", "--effort", "low"])
+    assert (args.provider, args.model, args.effort) == ("openai", "gpt-6.1-terra", "low")
+    assert parser.parse_args([]).provider is None

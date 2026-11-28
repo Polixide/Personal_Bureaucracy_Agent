@@ -456,19 +456,25 @@ sequenceDiagram
 **Tests:** 1138 automated tests pass (`python -m pytest -q`). The LLM is always mocked, and a real model
 call fails a test.
 
-**Metrics** (`eval/metrics.py`; pass@k, p95, tokens/cost and reflection recovery adapted from Andrea's branch):
-verdict accuracy, date errors, invented rules, valid answer rate (Gate 1), **pass^k** (all k runs succeed: can the
-user rely on it?), **pass@k** (at least one of k succeeds), LLM calls, average and p95 seconds, tokens and
-estimated cost per run; for the agent: valid tool-call rate, steps, loops, fallback rate, human-review rate, issues
-caught by Gate 1 and the **reflection recovery rate** (refused answers the model then repaired).
-`python -m eval.run_eval --live --provider openai` runs the same scenarios on GPT.
+**Metrics** (every one defined in `docs/metrics.md`; pass@k, p95, tokens/cost, reflection recovery and
+precision/recall/nDCG adapted from Andrea's branch):
+- *agent vs baselines:* verdict accuracy, **unknown kept** (expected-unknown rules never guessed), **fail recall**,
+  date errors, invented rules, valid answer rate (Gate 1), **pass^k** (all k runs succeed: can the user rely on
+  it?), **pass@k** (at least one of k succeeds), LLM calls, average and p95 seconds, tokens and estimated cost;
+  for the agent also valid tool-call rate, steps, loops, fallback rate, human-review rate, issues caught by Gate 1
+  and the **reflection recovery rate** (refused answers the model then repaired);
+- *retrieval:* hit@1/3/5, MRR@5, precision@5, recall@5, nDCG@5, query p50/p95, index time;
+- *chat:* answered, first try, expected effects, citations valid, reflection rounds, seconds / tokens / cost per turn;
+- *documents:* documents found, values correct / wrong / believed wrong / not read, seconds, tokens and cost.
+
+Every script takes `--provider`, `--model`, `--effort`, so GPT is measured on the same cases as the local model.
 
 **Agent vs baselines** (`python -m eval.run_eval`, 25 scenarios × 3 runs, offline; `docs/eval_results.md`):
 
-| System | Verdict accuracy | Invented facts | Date errors | Valid answer rate | Pass^3 | Pass@3 |
-|---|---|---|---|---|---|---|
-| A: static checklist | 0.807 | 0 | 0 | 0.16 | 1/25 | 0.04 |
-| **D: our agent** | **1.0** | 0 | 0 | **1.0** | **25/25** | **1.0** |
+| System | Verdict accuracy | Unknown kept | Fail recall | Invented facts | Date errors | Valid answer rate | Pass^3 | Pass@3 |
+|---|---|---|---|---|---|---|---|---|
+| A: static checklist | 0.807 | 0.0 | 0.0 | 0 | 0 | 0.16 | 1/25 | 0.04 |
+| **D: our agent** | **1.0** | **1.0** | **1.0** | 0 | 0 | **1.0** | **25/25** | **1.0** |
 
 The offline run measures the pipeline (tools, Gate 1, Twin) with a scripted rule-following policy, not the model.
 In this run, valid tool calls were 100%, with 3.3 steps on average, 0 loops and 0 fallbacks. Procedure
@@ -545,12 +551,12 @@ development goals and 9/12 held out, with no wrong pack (the 3 others are ties, 
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-$env:OPENAI_API_KEY = "<your key>"           # only if you want OpenAI; choose it under "AI model"
-$env:OPENAI_REASONING_EFFORT = "low"         # faster replies
+$env:OPENAI_API_KEY = "<your key>"           # only if you want OpenAI
 $env:CLOUD_MAX_REQUESTS = "200"              # safety cap for the demo
 $env:TWIN_DATABASE = "data/demo_twin.sqlite" # a separate demo Twin, so your own profile stays untouched
-streamlit run app.py
-# in the sidebar: AI model -> OpenAI; optionally "The cloud model also reads my documents"
+streamlit run app.py -- --provider openai --model gpt-6.1-terra --effort low
+# or plain `streamlit run app.py` and choose AI model -> OpenAI in the sidebar;
+# optionally switch on "The cloud model also reads my documents"
 ```
 
 **A five-minute demo:**

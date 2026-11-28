@@ -18,6 +18,7 @@ pages never leave the computer, unless DOCUMENT_PROVIDER=cloud makes the cloud m
 also sees page images through `see`). Embeddings always stay local. Tests pass a scripted backend with the
 same `chat` / `embed` methods (see tests/fakes.py). Logs never contain prompt or reply text.
 """
+import argparse
 import base64
 import json
 import os
@@ -33,7 +34,8 @@ import openai
 from ollama import Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
-from config import (ANTHROPIC_MODEL, CHAT_MODEL, CLOUD_EFFORT, CLOUD_MAX_REQUESTS, CLOUD_MAX_TOKENS, CLOUD_PRICES,
+from config import (ANTHROPIC_MODEL, CHAT_MODEL, CLAUDE_EFFORTS, CLOUD_EFFORT, CLOUD_MAX_REQUESTS, CLOUD_MAX_TOKENS,
+                    CLOUD_PRICES, OPENAI_EFFORTS,
                     CLOUD_PROVIDERS, CLOUD_TIMEOUT, DOCUMENT_PROVIDER, EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX,
                     LLM_PROVIDER, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT, OPENAI_MODEL, OPENAI_REASONING_EFFORT,
                     PROVIDER_KEYS, VISION_MODEL, VISION_NUM_CTX, VISION_TIMEOUT)
@@ -295,8 +297,10 @@ class AnthropicBackend:
     """Claude through the official `anthropic` SDK (LLM_PROVIDER=anthropic). Embeddings stay local (Ollama)."""
     cloud = True
 
-    def __init__(self, model: str = ANTHROPIC_MODEL, client: Any = None, embedder: Any = None):
+    def __init__(self, model: str = ANTHROPIC_MODEL, client: Any = None, embedder: Any = None,
+                 effort: str | None = None):
         self.model = model
+        self.effort = CLOUD_EFFORT if effort is None else effort      # "" sends none
         self.client = client
         self.embedder = embedder or OllamaBackend()
 
@@ -325,7 +329,7 @@ class AnthropicBackend:
         raise LLMError(f"Claude refused the request: {error}")
 
     def _send(self, system: str, turns: list[dict], strict: dict | None, schema: dict, component: str) -> str:
-        output_config: dict[str, Any] = {"effort": CLOUD_EFFORT} if CLOUD_EFFORT else {}
+        output_config: dict[str, Any] = {"effort": self.effort} if self.effort else {}
         if strict is not None:
             output_config["format"] = {"type": "json_schema", "schema": strict}
         else:
@@ -361,8 +365,10 @@ class OpenAIBackend:
     """GPT through the official `openai` SDK (LLM_PROVIDER=openai). Embeddings stay local (Ollama)."""
     cloud = True
 
-    def __init__(self, model: str = OPENAI_MODEL, client: Any = None, embedder: Any = None):
+    def __init__(self, model: str = OPENAI_MODEL, client: Any = None, embedder: Any = None,
+                 effort: str | None = None):
         self.model = model
+        self.effort = OPENAI_REASONING_EFFORT if effort is None else effort      # "" sends none (model default)
         self.client = client
         self.embedder = embedder or OllamaBackend()
 
@@ -394,8 +400,8 @@ class OpenAIBackend:
     def _send(self, turns: list[dict], response_format: dict, component: str) -> str:
         request: dict[str, Any] = {"model": self.model, "messages": turns, "response_format": response_format,
                                    "max_completion_tokens": CLOUD_MAX_TOKENS}
-        if OPENAI_REASONING_EFFORT:
-            request["reasoning_effort"] = OPENAI_REASONING_EFFORT
+        if self.effort:
+            request["reasoning_effort"] = self.effort
         try:
             response = timed_call(component, self.model,
                                   lambda: self._client().chat.completions.create(**request), cloud=True)
@@ -428,7 +434,7 @@ def missing_key(provider: str | None = None) -> str:
     name = PROVIDER_KEYS.get(chosen(provider))
     if name is None or os.getenv(name, "").strip():
         return ""
-    return f"Set {name} in the terminal before starting the app (the key is never stored in the project)."
+    return f"Set {name} in the terminal first (the key is never stored in the project)."
 
 
 def is_cloud(provider: str | None = None) -> bool:
@@ -436,16 +442,19 @@ def is_cloud(provider: str | None = None) -> bool:
     return chosen(provider) in CLOUD_PROVIDERS
 
 
-def agent_backend(kind: str = "chat", provider: str | None = None) -> Any:
+def agent_backend(kind: str = "chat", provider: str | None = None, model: str | None = None,
+                  effort: str | None = None) -> Any:
     """The model that plans, talks and repairs: the chosen cloud model, otherwise Ollama.
 
     kind "chat" is the chat assistant (small fast local model), "team" the orchestrator and its workers.
+    `model` / `effort` come from the terminal (--model, --effort); None keeps config.py's values. Ollama has no
+    effort (thinking is always off) and uses `model` for both the chat and the team.
     """
     if chosen(provider) == "anthropic":
-        return AnthropicBackend()
+        return AnthropicBackend(model=model or ANTHROPIC_MODEL, effort=effort)
     if chosen(provider) == "openai":
-        return OpenAIBackend()
-    return OllamaBackend(model=CHAT_MODEL if kind == "chat" else LLM_MODEL)
+        return OpenAIBackend(model=model or OPENAI_MODEL, effort=effort)
+    return OllamaBackend(model=model or (CHAT_MODEL if kind == "chat" else LLM_MODEL))
 
 
 def local_backend() -> OllamaBackend:
@@ -465,30 +474,57 @@ def documents_in_cloud(provider: str | None = None, read_in_cloud: bool | None =
     return wanted and is_cloud(provider)
 
 
-def document_backend(provider: str | None = None, read_in_cloud: bool | None = None) -> Any:
+def document_backend(provider: str | None = None, read_in_cloud: bool | None = None, model: str | None = None,
+                     effort: str | None = None) -> Any:
     """Who reads documents (OCR of scans, extraction, vision): the cloud model when documents_in_cloud(), else Ollama.
 
-    Its `embed` stays local either way (the cloud backends hand embeddings to Ollama).
+    Its `embed` stays local either way (the cloud backends hand embeddings to Ollama). Locally the document models
+    of config.py are used (the terminal's --model is for the agent).
     """
     if documents_in_cloud(provider, read_in_cloud):
-        return agent_backend("team", provider)
+        return agent_backend("team", provider, model, effort)
     return local_backend()
 
 
-def document_model_label(provider: str | None = None, read_in_cloud: bool | None = None) -> str:
+def document_model_label(provider: str | None = None, read_in_cloud: bool | None = None, model: str | None = None,
+                         effort: str | None = None) -> str:
     """Which model reads the documents, in words, for the app."""
     if documents_in_cloud(provider, read_in_cloud):
-        return agent_model_label("team", provider)
+        return agent_model_label("team", provider, model, effort)
     return f"local models only (text, OCR, {VISION_MODEL})"
 
 
-def agent_model_label(kind: str = "chat", provider: str | None = None) -> str:
-    """Which model answers, in words, for the app."""
-    if chosen(provider) == "anthropic":
-        return f"{ANTHROPIC_MODEL} (Anthropic, cloud)"
-    if chosen(provider) == "openai":
-        return f"{OPENAI_MODEL} (OpenAI, cloud)"
-    return f"{CHAT_MODEL if kind == 'chat' else LLM_MODEL} (local)"
+def agent_model_label(kind: str = "chat", provider: str | None = None, model: str | None = None,
+                      effort: str | None = None) -> str:
+    """Which model answers (and with which effort), in words, for the app and the reports."""
+    backend = agent_backend(kind, provider, model, effort)
+    if chosen(provider) in CLOUD_PROVIDERS:
+        company = "Anthropic" if chosen(provider) == "anthropic" else "OpenAI"
+        effort_text = f", effort {backend.effort}" if backend.effort else ""
+        return f"{backend.model}{effort_text} ({company}, cloud)"
+    return f"{backend.model} (local)"
+
+
+# --------------------------------------------------- terminal arguments --
+def add_model_arguments(parser: argparse.ArgumentParser) -> None:
+    """--provider, --model, --effort: the same three options for the app and every evaluation script."""
+    parser.add_argument("--provider", choices=("ollama", "openai", "anthropic"), default=None,
+                        help="who runs the agent (default: LLM_PROVIDER in config.py)")
+    parser.add_argument("--model", default=None,
+                        help="model name for that provider (default: OPENAI_MODEL / ANTHROPIC_MODEL / Ollama models)")
+    parser.add_argument("--effort", default=None, choices=sorted(set(OPENAI_EFFORTS) | set(CLAUDE_EFFORTS)),
+                        help="reasoning effort of a cloud model (OpenAI: none ... xhigh; Claude: low, medium, high)")
+
+
+def model_argument_problem(provider: str | None, effort: str | None) -> str:
+    """Why this provider / effort pair cannot work ("" when it can): the effort list depends on the provider."""
+    name = chosen(provider)
+    if effort is None:
+        return ""
+    if name == "ollama":
+        return "--effort applies to cloud models only (Ollama runs with thinking off)"
+    allowed = OPENAI_EFFORTS if name == "openai" else CLAUDE_EFFORTS
+    return "" if effort in allowed else f"--effort {effort} is not valid for {name}: use one of {', '.join(allowed)}"
 
 
 # --------------------------------------------------------- structured --

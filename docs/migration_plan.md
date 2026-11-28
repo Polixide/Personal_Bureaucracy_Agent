@@ -668,3 +668,26 @@ Report column renamed `pass_k` → `pass^k` (same number); `docs/eval_results.md
   a 4100-character message is refused by Gate 0; a chat turn on `qwen2.5:3b` with self-review on passed Gate 1
   ("reflection: self-review: nothing to correct"); Details shows Gate 0 and the model usage. Not run against the
   real OpenAI API (no key in this environment).
+
+### 10.6 Coherence review, all metrics, model and effort from the terminal
+User request (2026-11-28): "check that everything is coherent; all the metrics must be there, RAG too; choose the
+model and its effort from the terminal".
+
+| Module | Decision | Why |
+|---|---|---|
+| `src/llm.py` | **adapt**: backends take `effort` per instance; `agent_backend` / `document_backend` / labels take `model` and `effort`; `add_model_arguments` (`--provider --model --effort`) and `model_argument_problem` | One way to choose provider, model and effort for the app and every evaluation script. |
+| `config.py` | `OPENAI_EFFORTS`, `CLAUDE_EFFORTS` | The values `--effort` accepts per provider. |
+| `app.py` | **adapt**: `streamlit run app.py -- --provider openai --model … --effort …` sets the starting choice; the sidebar shows model and effort; invalid options are reported and ignored | The terminal wins over the environment variables, which still work. |
+| `eval/metrics.py`, `eval/run_eval.py` | **adapt**: unknown kept, fail recall; `--model`, `--effort` | Unknown kept measures the project's core promise; fail recall the costly error. |
+| `eval/rag_compare.py` | **adapt**: precision@5, recall@5 (labelled sources reached), nDCG@5 | Andrea's retrieval metrics, on our labelled queries. |
+| `eval/chat_eval.py`, `eval/document_eval.py` | **adapt**: `--provider --model --effort`; citation validity, reflection rounds, tokens and cost per turn / file | So GPT can be measured on the same cases; the cost is visible. |
+| `src/agent/chat.py` | **adapt**: `build_reply` extracted | `run_chat` had grown to 41 lines with Gate 0 (CLAUDE.md: under 40). |
+| `docs/metrics.md` | **new**: every metric, its definition, its script and where the latest numbers are | One place to answer "which metrics do we have". |
+| Docs and skill | `chat.md`, `llm.md`, `extract_document.md`, `eval.md`, `README.md`, `project_overview.md`, `run-evals` skill, `data/reference_samples/SOURCES.md` | They still said `LLM_PROVIDER` decides, or cited the removed `knowledge/sources.json`. |
+
+Coherence checks run (script, read-only): every `config.py` setting is used; doc paths exist except historical
+mentions of milestone-1 files; functions over 40 lines among the files this branch changed: only
+`src/document_processing/processor.py:process_document` (75 lines already on `integration/milestone`, 81 now; the
+milestone-1 processor, left as is because its tests pin the exact model calls — a known exception). New tests in
+`tests/test_usage.py`, `tests/test_app.py`, `tests/test_eval.py`, `tests/test_rag_compare.py`. No expected value
+changed.

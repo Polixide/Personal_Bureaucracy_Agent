@@ -29,7 +29,7 @@ A ReAct agent built on the orchestrator's graph (`src/agent/orchestrator.py`), s
   retrieved for the message — 3 from the procedure's sources and up to 2 from the web corpus when they are about
   the question (`CORPUS_MIN_SCORE`). So a question usually needs **one** model call.
 - **Tools, chosen per message by code** (`offered_tools`; validated like every tool). With a **cloud model**
-  (`LLM_PROVIDER`) every chat tool is offered and STATE lists what can be prepared now (`can_prepare`: reminder
+  (the backend it gets is a cloud one: `is_cloud_backend`) every chat tool is offered and STATE lists what can be prepared now (`can_prepare`: reminder
   dates, form ids, contact roles), so the assistant may prepare an e-mail, a reminder or a form for the next step on
   its own (always a proposal). With a small local model: `search_procedures` and
   `search_sources` always; `record_fact` only when the message tells something (a date, or a sentence in the first
@@ -64,7 +64,8 @@ A ReAct agent built on the orchestrator's graph (`src/agent/orchestrator.py`), s
   "general information … nothing was checked against your documents" when there is no procedure and the reply
   cites web pages.
 - **Progress**: each step is shown while it runs ("Rechecking the requirements", "Checking the answer (Gate 1)").
-- **Model**: `agent_backend("chat")`: Claude or GPT when `LLM_PROVIDER` says so, else `CHAT_MODEL` (default
+- **Model**: `agent_backend("chat", provider, model, effort)`: the provider chosen in the sidebar (or on the
+  terminal with `--provider/--model/--effort`; else `LLM_PROVIDER`), locally `CHAT_MODEL` (default
   `qwen2.5:3b`), separate from the agent team's model. Tools (documents, search) always use the local backend. Measured on the 4 GB GPU:
   one reply took 16 s with `qwen2.5:3b` (all on the GPU) and 42 s with `qwen3:4b` (45% on the CPU); a smaller
   context (4096) only brought `qwen3:4b` to 37 s. On 8 typical messages (`docs/eval_chat.md`) `qwen2.5:3b` passed

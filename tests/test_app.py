@@ -2,6 +2,7 @@
 
 The agent is replaced by a fake (no model call); everything else (Twin, rules, sandbox, approval) is real.
 """
+import sys
 from datetime import date, datetime, timezone
 
 import pytest
@@ -238,6 +239,22 @@ def test_openai_with_its_key_runs_the_agent_and_offers_cloud_document_reading(pa
     assert page.session_state["provider_in_use"] == "openai"
     assert any(toggle.label == "The cloud model also reads my documents" for toggle in page.toggle)
     assert any("OpenAI, cloud" in caption.value for caption in page.caption)
+
+
+def test_provider_model_and_effort_can_come_from_the_terminal(page_env, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-real")
+    monkeypatch.setattr(sys, "argv", ["app.py", "--provider", "openai", "--model", "gpt-test", "--effort", "high"])
+    page = AppTest.from_file(APP_FILE, default_timeout=60).run()
+    assert not page.exception
+    assert page.session_state["provider_in_use"] == "openai"
+    assert any("gpt-test, effort high (OpenAI, cloud)" in caption.value for caption in page.caption)
+
+
+def test_invalid_terminal_options_are_reported_and_ignored(page_env, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["app.py", "--provider", "ollama", "--effort", "high"])
+    page = AppTest.from_file(APP_FILE, default_timeout=60).run()
+    assert not page.exception
+    assert any("terminal options" in warning.value for warning in page.warning)
 
 
 def test_empty_twin_opens_the_chat_with_a_welcome(page_env):

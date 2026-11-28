@@ -5,12 +5,13 @@
 - Offline D measures the pipeline with a rule-following scripted policy, not model quality.
 - pass^k: scenarios where all k runs succeed; pass@k: chance that at least one of k runs succeeds. Tokens and cost come from the providers' usage reports (n/a offline or without a price).
 - reflection_recovery_rate: answers refused by Gate 1 that the model then repaired (not the fallback).
+- unknown_kept_rate: expected-unknown rules still called unknown (never guessed); fail_recall: failing rules the answer reports.
 
-| system | runs | verdict_accuracy | date_errors | invented | valid_answer_rate | pass^k | pass@k | avg_llm_calls | avg_seconds | p95_seconds | avg_tokens | cost_usd |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| A | 75 | 0.807 | 0 | 0 | 0.16 | 1/25 | 0.04 | 0.0 | 0.006 | 0.011 | n/a | n/a |
-| B | not run offline (needs --live) |  |  |  |  |  |  |  |  |  |  |  |
-| D | 75 | 1.0 | 0 | 0 | 1.0 | 25/25 | 1.0 | 4.64 | 0.037 | 0.058 | n/a | n/a |
+| system | runs | verdict_accuracy | unknown_kept_rate | fail_recall | date_errors | invented | valid_answer_rate | pass^k | pass@k | avg_llm_calls | avg_seconds | p95_seconds | avg_tokens | cost_usd |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | 75 | 0.807 | 0.0 | 0.0 | 0 | 0 | 0.16 | 1/25 | 0.04 | 0.0 | 0.009 | 0.017 | n/a | n/a |
+| B | not run offline (needs --live) |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| D | 75 | 1.0 | 1.0 | 1.0 | 0 | 0 | 1.0 | 25/25 | 1.0 | 4.64 | 0.049 | 0.076 | n/a | n/a |
 
 ## Agent behaviour (D)
 

@@ -89,3 +89,14 @@ def test_reflection_recovery_counts_refused_answers_the_model_repaired():
     runs[0].agent, runs[1].agent = repaired, gave_up
     behaviour = agent_behaviour(runs)
     assert behaviour["reflection_recovery_rate"] == "1/2" and behaviour["gate1_issues_caught"] == 1
+
+
+def test_unknown_kept_and_fail_recall_follow_the_expected_statuses():
+    from eval.metrics import status_kept
+    expected = {"R001": "unknown", "R002": "unknown", "R006": "fail", "R007": "pass"}
+    answer = FinalAnswer(summary="x", claims=[Claim(rule_id="R001", status="unknown"),
+                                               Claim(rule_id="R002", status="fail"),     # guessed: a lost unknown
+                                               Claim(rule_id="R006", status="fail")])
+    assert status_kept(answer, expected, "unknown") == (2, 1)
+    assert status_kept(answer, expected, "fail") == (1, 1)
+    assert status_kept(None, expected, "fail") == (1, 0)

@@ -601,6 +601,16 @@ def refused_reply(issues: list[Issue], model_label: str = "") -> ChatReply:
                      gate_issues=[issue.model_dump() for issue in issues], model=model_label)
 
 
+def build_reply(result: AgentResult, ctx: ToolContext, passages: list[Hit], model_label: str) -> ChatReply:
+    """What the chat view shows for one finished turn: the text, its checks, sources, facts and reflection rounds."""
+    return ChatReply(text=reply_text(result), status=result.status, trace_id=result.trace_id,
+                     procedure_id=ctx.procedure_id, sources=reply_sources(ctx.pack(), result.answer, passages),
+                     facts=recorded_facts(ctx, result), proposals=result.proposals,
+                     steps=[step.model_dump(mode="json") for step in result.steps], llm_calls=result.llm_calls,
+                     gate_issues=[issue.model_dump() for issue in result.gate_issues],
+                     reflections=result.reflections, model=model_label)
+
+
 def run_chat(message: str, store: TwinStore, packs: dict[str, Pack], user_id: str, today: date, backend: Backend,
              outbox_dir=OUTBOX_DIR, embedder: Backend | None = None,
              progress: Callable[[str], None] | None = None, review: bool | None = None,
@@ -633,12 +643,7 @@ def run_chat(message: str, store: TwinStore, packs: dict[str, Pack], user_id: st
                                  {"recursion_limit": AGENT_RECURSION_LIMIT})
     result = agent.result(state)
     log_result(store, user_id, message, result, started, current_results(ctx) if ctx.pack() else [])
-    reply = ChatReply(text=reply_text(result), status=result.status, trace_id=result.trace_id,
-                      procedure_id=ctx.procedure_id, sources=reply_sources(ctx.pack(), result.answer, passages),
-                      facts=recorded_facts(ctx, result), proposals=result.proposals,
-                      steps=[step.model_dump(mode="json") for step in result.steps], llm_calls=result.llm_calls,
-                      gate_issues=[issue.model_dump() for issue in result.gate_issues],
-                      reflections=result.reflections, model=model_label)
+    reply = build_reply(result, ctx, passages, model_label)
     store.add_chat_message(ChatMessage(user_id=user_id, role="assistant", content=reply.text, procedure_id=ctx.procedure_id,
                                        trace_id=reply.trace_id, details=reply.model_dump(exclude={"text"})))
     return reply

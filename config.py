@@ -70,6 +70,9 @@ ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5-5")      # or clau
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-6.1-terra")
 CLOUD_EFFORT = os.getenv("CLOUD_EFFORT", "low")          # Claude effort: low | medium | high ("" sends none)
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "")   # "" sends none (model default)
+# Values accepted by --effort (app and evaluations); each model decides which of them it supports.
+OPENAI_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh")
+CLAUDE_EFFORTS = ("low", "medium", "high")
 CLOUD_MAX_TOKENS = 16000  # per reply, thinking included
 CLOUD_TIMEOUT = 120.0
 # The app's sidebar switches provider while it runs; LLM_PROVIDER above is only the starting choice.
