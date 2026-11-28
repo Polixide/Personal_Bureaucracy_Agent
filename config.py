@@ -59,11 +59,22 @@ SELF_REVIEW = os.getenv("SELF_REVIEW", "auto").strip().lower()
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()      # ollama | anthropic | openai
 CLOUD_PROVIDERS = ("anthropic", "openai")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5-5")      # or claude-sonnet-5-5 / claude-haiku-5-5
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
+# gpt-6.1-terra: text and image input, structured outputs (OpenAI model page, checked 2026-11-25); the team's choice.
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-6.1-terra")
 CLOUD_EFFORT = os.getenv("CLOUD_EFFORT", "low")          # Claude effort: low | medium | high ("" sends none)
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "")   # "" sends none (model default)
 CLOUD_MAX_TOKENS = 16000  # per reply, thinking included
 CLOUD_TIMEOUT = 120.0
+# The app's sidebar switches provider while it runs; LLM_PROVIDER above is only the starting choice.
+PROVIDER_LABELS = {"ollama": "Local (Ollama)", "openai": "OpenAI", "anthropic": "Claude (Anthropic)"}
+PROVIDER_KEYS = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}   # environment variables, never stored
+# Safety cap for a demo: cloud requests allowed while the app (or an evaluation) runs; 0 = no cap. Past it the agent
+# answers with the plan written by code, exactly as when the model is unreachable. (Idea from Andrea's branch.)
+CLOUD_MAX_REQUESTS = int(os.getenv("CLOUD_MAX_REQUESTS", "0"))
+# Cost estimate (app and evaluation): USD per million input / output tokens, from the provider's model page on
+# CLOUD_PRICES_AS_OF. A model missing here shows its tokens without a cost.
+CLOUD_PRICES_AS_OF = "2026-11-25"
+CLOUD_PRICES = {"gpt-6.1-terra": (1.0, 5.0)}
 
 # ------------------------------------------------------ document processing --
 DOCUMENT_OLLAMA_TIMEOUT = 180.0

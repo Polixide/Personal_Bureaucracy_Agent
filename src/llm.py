@@ -20,7 +20,9 @@ same `chat` / `embed` methods (see tests/fakes.py). Logs never contain prompt or
 """
 import base64
 import json
+import os
 import sys
+import threading
 from collections.abc import Callable
 from time import perf_counter
 from typing import Any, Protocol
@@ -31,10 +33,10 @@ import openai
 from ollama import Client, ResponseError
 from pydantic import BaseModel, ValidationError
 
-from config import (ANTHROPIC_MODEL, CHAT_MODEL, CLOUD_EFFORT, CLOUD_MAX_TOKENS, CLOUD_PROVIDERS, CLOUD_TIMEOUT,
-                    DOCUMENT_PROVIDER, EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX, LLM_PROVIDER, LLM_TEMPERATURE,
-                    OLLAMA_HOST, OLLAMA_TIMEOUT, OPENAI_MODEL, OPENAI_REASONING_EFFORT, VISION_MODEL, VISION_NUM_CTX,
-                    VISION_TIMEOUT)
+from config import (ANTHROPIC_MODEL, CHAT_MODEL, CLOUD_EFFORT, CLOUD_MAX_REQUESTS, CLOUD_MAX_TOKENS, CLOUD_PRICES,
+                    CLOUD_PROVIDERS, CLOUD_TIMEOUT, DOCUMENT_PROVIDER, EMBED_MODEL, LLM_MODEL, LLM_NUM_CTX,
+                    LLM_PROVIDER, LLM_TEMPERATURE, OLLAMA_HOST, OLLAMA_TIMEOUT, OPENAI_MODEL, OPENAI_REASONING_EFFORT,
+                    PROVIDER_KEYS, VISION_MODEL, VISION_NUM_CTX, VISION_TIMEOUT)
 
 TRANSPORT_ERRORS = (ResponseError, ConnectionError, httpx.HTTPError, TimeoutError)
 
@@ -62,10 +64,75 @@ def _emit(message: str) -> None:
         pass
 
 
-def timed_call(component: str, model: str, call: Callable[[], Any]) -> Any:
-    """Run one model call and log only model, component, outcome and duration (never prompt or reply text)."""
+# ------------------------------------------------------------- usage log --
+class ModelCall(BaseModel):
+    """One model request as the usage log keeps it: who, how long, how many tokens (never prompt or reply text)."""
+    component: str
+    model: str
+    cloud: bool
+    ok: bool
+    seconds: float
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+class UsageLog:
+    """Every model request since the process started (the app or an evaluation). Safe across Streamlit threads."""
+
+    def __init__(self) -> None:
+        self._calls: list[ModelCall] = []
+        self._lock = threading.Lock()
+
+    def add(self, call: ModelCall) -> None:
+        with self._lock:
+            self._calls.append(call)
+
+    def mark(self) -> int:
+        """A position to measure from: `since(mark)` returns the calls made after it (one run, one turn)."""
+        with self._lock:
+            return len(self._calls)
+
+    def since(self, mark: int = 0) -> list[ModelCall]:
+        with self._lock:
+            return list(self._calls[mark:])
+
+    def cloud_requests(self) -> int:
+        with self._lock:
+            return sum(call.cloud for call in self._calls)
+
+
+USAGE = UsageLog()
+
+
+def _count(value: Any) -> int | None:
+    """A token count, or None when the provider (or a test double) gives none."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def token_counts(response: Any) -> tuple[int | None, int | None]:
+    """(input, output) tokens: OpenAI and Anthropic report them in `usage`, Ollama as eval counts."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return _count(getattr(response, "prompt_eval_count", None)), _count(getattr(response, "eval_count", None))
+    sent = _count(getattr(usage, "prompt_tokens", None))
+    written = _count(getattr(usage, "completion_tokens", None))
+    if sent is None and written is None:                                   # Anthropic's names
+        sent, written = _count(getattr(usage, "input_tokens", None)), _count(getattr(usage, "output_tokens", None))
+    return sent, written
+
+
+def check_cloud_cap() -> None:
+    """CLOUD_MAX_REQUESTS reached: refuse the request, so the caller uses its deterministic fallback."""
+    if CLOUD_MAX_REQUESTS and USAGE.cloud_requests() >= CLOUD_MAX_REQUESTS:
+        raise LLMError(f"The cloud request limit ({CLOUD_MAX_REQUESTS}, CLOUD_MAX_REQUESTS) is reached")
+
+
+def timed_call(component: str, model: str, call: Callable[[], Any], cloud: bool = False) -> Any:
+    """Run one model call; log model, component, outcome and duration, and add it to USAGE (never prompt text)."""
     model = str(model).replace("\r", " ").replace("\n", " ")
     prefix = f"[LLM] {component} model={model}"
+    if cloud:
+        check_cloud_cap()
     started = perf_counter()
     _emit(prefix + " started")
     try:
@@ -73,9 +140,40 @@ def timed_call(component: str, model: str, call: Callable[[], Any]) -> Any:
     except Exception as error:
         outcome = "timeout" if isinstance(error, (TimeoutError, httpx.TimeoutException)) else "failure"
         _emit(f"{prefix} {outcome} elapsed={perf_counter() - started:.1f}s")
+        USAGE.add(ModelCall(component=component, model=model, cloud=cloud, ok=False,
+                            seconds=perf_counter() - started))
         raise
-    _emit(f"{prefix} success elapsed={perf_counter() - started:.1f}s")
+    seconds = perf_counter() - started
+    _emit(f"{prefix} success elapsed={seconds:.1f}s")
+    sent, written = token_counts(response)
+    USAGE.add(ModelCall(component=component, model=model, cloud=cloud, ok=True, seconds=seconds,
+                        input_tokens=sent, output_tokens=written))
     return response
+
+
+def estimated_cost(calls: list[ModelCall]) -> float | None:
+    """USD of the successful cloud calls (CLOUD_PRICES); None when one of them has no price or no token counts."""
+    total = 0.0
+    for call in calls:
+        if not call.cloud or not call.ok:
+            continue
+        price = CLOUD_PRICES.get(call.model)
+        if price is None or call.input_tokens is None or call.output_tokens is None:
+            return None
+        total += (call.input_tokens * price[0] + call.output_tokens * price[1]) / 1_000_000
+    return total
+
+
+def usage_summary(calls: list[ModelCall]) -> dict[str, Any]:
+    """Requests, failures, tokens, model seconds and estimated cost of some calls (a run, a session)."""
+    done = [call for call in calls if call.ok]
+    known = all(call.input_tokens is not None and call.output_tokens is not None for call in done)
+    return {"requests": len(calls), "cloud_requests": sum(call.cloud for call in calls),
+            "failures": len(calls) - len(done),
+            "input_tokens": sum(call.input_tokens or 0 for call in done) if known else None,
+            "output_tokens": sum(call.output_tokens or 0 for call in done) if known else None,
+            "model_seconds": round(sum(call.seconds for call in calls), 2),
+            "cost_usd": estimated_cost(calls)}
 
 
 def logged_chat(client: Any, *, component: str, **kwargs: Any) -> Any:
@@ -239,7 +337,8 @@ class AnthropicBackend:
         if output_config:
             request["output_config"] = output_config
         try:
-            response = timed_call(component, self.model, lambda: self._client().messages.create(**request))
+            response = timed_call(component, self.model, lambda: self._client().messages.create(**request),
+                                  cloud=True)
         except anthropic.BadRequestError:
             raise
         except anthropic.AnthropicError as error:
@@ -298,7 +397,8 @@ class OpenAIBackend:
         if OPENAI_REASONING_EFFORT:
             request["reasoning_effort"] = OPENAI_REASONING_EFFORT
         try:
-            response = timed_call(component, self.model, lambda: self._client().chat.completions.create(**request))
+            response = timed_call(component, self.model,
+                                  lambda: self._client().chat.completions.create(**request), cloud=True)
         except openai.BadRequestError:
             raise
         except openai.OpenAIError as error:
@@ -318,25 +418,38 @@ class OpenAIBackend:
         return self.embedder.embed(texts)
 
 
-def is_cloud() -> bool:
-    """True when the agent runs on a cloud model (LLM_PROVIDER=anthropic or openai)."""
-    return LLM_PROVIDER in CLOUD_PROVIDERS
+def chosen(provider: str | None = None) -> str:
+    """The provider in use: the one chosen in the app's sidebar, else LLM_PROVIDER (config.py)."""
+    return (provider or LLM_PROVIDER).strip().lower()
 
 
-def agent_backend(kind: str = "chat") -> Any:
-    """The model that plans, talks and repairs: the cloud model when LLM_PROVIDER says so, otherwise Ollama.
+def missing_key(provider: str | None = None) -> str:
+    """Empty when the provider can be used; otherwise what to do (a cloud provider needs its key in the environment)."""
+    name = PROVIDER_KEYS.get(chosen(provider))
+    if name is None or os.getenv(name, "").strip():
+        return ""
+    return f"Set {name} in the terminal before starting the app (the key is never stored in the project)."
+
+
+def is_cloud(provider: str | None = None) -> bool:
+    """True when the agent runs on a cloud model (openai or anthropic)."""
+    return chosen(provider) in CLOUD_PROVIDERS
+
+
+def agent_backend(kind: str = "chat", provider: str | None = None) -> Any:
+    """The model that plans, talks and repairs: the chosen cloud model, otherwise Ollama.
 
     kind "chat" is the chat assistant (small fast local model), "team" the orchestrator and its workers.
     """
-    if LLM_PROVIDER == "anthropic":
+    if chosen(provider) == "anthropic":
         return AnthropicBackend()
-    if LLM_PROVIDER == "openai":
+    if chosen(provider) == "openai":
         return OpenAIBackend()
     return OllamaBackend(model=CHAT_MODEL if kind == "chat" else LLM_MODEL)
 
 
 def local_backend() -> OllamaBackend:
-    """The local Ollama server: embeddings always, documents unless DOCUMENT_PROVIDER=cloud."""
+    """The local Ollama server: embeddings always, documents unless the cloud model reads them."""
     return OllamaBackend()
 
 
@@ -345,31 +458,35 @@ def is_cloud_backend(backend: Any) -> bool:
     return bool(getattr(backend, "cloud", False))
 
 
-def documents_in_cloud() -> bool:
-    """True when the cloud model reads the documents (DOCUMENT_PROVIDER=cloud with a cloud LLM_PROVIDER)."""
-    return DOCUMENT_PROVIDER == "cloud" and is_cloud()
+def documents_in_cloud(provider: str | None = None, read_in_cloud: bool | None = None) -> bool:
+    """True when the cloud model reads the documents: asked for (the app's switch, else DOCUMENT_PROVIDER=cloud)
+    and the agent runs on a cloud provider."""
+    wanted = DOCUMENT_PROVIDER == "cloud" if read_in_cloud is None else read_in_cloud
+    return wanted and is_cloud(provider)
 
 
-def document_backend() -> Any:
+def document_backend(provider: str | None = None, read_in_cloud: bool | None = None) -> Any:
     """Who reads documents (OCR of scans, extraction, vision): the cloud model when documents_in_cloud(), else Ollama.
 
     Its `embed` stays local either way (the cloud backends hand embeddings to Ollama).
     """
-    return agent_backend("team") if documents_in_cloud() else local_backend()
+    if documents_in_cloud(provider, read_in_cloud):
+        return agent_backend("team", provider)
+    return local_backend()
 
 
-def document_model_label() -> str:
+def document_model_label(provider: str | None = None, read_in_cloud: bool | None = None) -> str:
     """Which model reads the documents, in words, for the app."""
-    if documents_in_cloud():
-        return agent_model_label("team")
+    if documents_in_cloud(provider, read_in_cloud):
+        return agent_model_label("team", provider)
     return f"local models only (text, OCR, {VISION_MODEL})"
 
 
-def agent_model_label(kind: str = "chat") -> str:
+def agent_model_label(kind: str = "chat", provider: str | None = None) -> str:
     """Which model answers, in words, for the app."""
-    if LLM_PROVIDER == "anthropic":
+    if chosen(provider) == "anthropic":
         return f"{ANTHROPIC_MODEL} (Anthropic, cloud)"
-    if LLM_PROVIDER == "openai":
+    if chosen(provider) == "openai":
         return f"{OPENAI_MODEL} (OpenAI, cloud)"
     return f"{CHAT_MODEL if kind == 'chat' else LLM_MODEL} (local)"
 

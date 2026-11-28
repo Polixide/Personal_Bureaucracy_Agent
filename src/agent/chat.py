@@ -18,7 +18,7 @@ set up for a conversation:
     is then re-read once by the model itself against the state (self-review, SELF_REVIEW in config.py), and code
     keeps only the criticisms that quote words really in the reply. At most CHAT_MAX_REPAIRS rewrites; then, or
     without the model, the reply is the briefing in plain words. Every round is recorded and shown in the app;
-  - with a cloud model (LLM_PROVIDER) every chat tool is offered, so the assistant can prepare an e-mail, a
+  - with a cloud model (chosen in the app, or LLM_PROVIDER) every chat tool is offered, so the assistant can prepare an e-mail, a
     reminder or a form on its own initiative (always a proposal the user approves); with a small local model they
     are offered only when the message asks to prepare something.
 The conversation is kept in the Twin (chat_messages), so it continues across sessions.
@@ -40,7 +40,7 @@ from src.agent.actions import suggestions
 from src.agent.loop import assistant_message, error_message
 from src.agent.orchestrator import Orchestrator, RunState, log_result, make_context, reflection, repair_message
 from src.agent.stated import stated_in, states_something
-from src.llm import Backend, LLMError, ask_structured, is_cloud, local_backend, to_json
+from src.llm import Backend, LLMError, ask_structured, is_cloud_backend, local_backend, to_json
 from src.memory.episodes import lessons_for
 from src.models import Issue, Pack
 from src.rag.index import Hit, search, search_corpus
@@ -182,9 +182,9 @@ def passage_dates(passages: list[Hit]) -> set[date]:
 
 
 # --------------------------------------------------------- self-review --
-def review_enabled() -> bool:
+def review_enabled(cloud: bool) -> bool:
     """SELF_REVIEW: "1" on, "0" off, "auto" on with a cloud model only (with Ollama it costs about a minute)."""
-    return SELF_REVIEW == "1" or (SELF_REVIEW == "auto" and is_cloud())
+    return SELF_REVIEW == "1" or (SELF_REVIEW == "auto" and cloud)
 
 
 def flat(text: str) -> str:
@@ -604,7 +604,8 @@ def run_chat(message: str, store: TwinStore, packs: dict[str, Pack], user_id: st
     """
     started = utc_now()
     history = history_for(store, user_id)
-    tools_backend = embedder or (local_backend() if is_cloud() else backend)
+    cloud = is_cloud_backend(backend)          # the model chosen in the app, not only LLM_PROVIDER
+    tools_backend = embedder or (local_backend() if cloud else backend)
     ctx = make_context(store, packs, user_id, today, tools_backend, outbox_dir)
     store.add_chat_message(ChatMessage(user_id=user_id, role="user", content=message, procedure_id=ctx.procedure_id))
     if ctx.pack() is None:
@@ -615,8 +616,8 @@ def run_chat(message: str, store: TwinStore, packs: dict[str, Pack], user_id: st
     registry = build_registry()
     agent = ChatAgent(ctx, backend, registry, lambda codes: lessons_for(store, ctx.procedure_id, codes),
                       current_briefing(ctx), history, passages, progress, message,
-                      review=review_enabled() if review is None else review,
-                      all_tools=is_cloud() if all_tools is None else all_tools)
+                      review=review_enabled(cloud) if review is None else review,
+                      all_tools=cloud if all_tools is None else all_tools)
     state = agent.graph().invoke(agent.initial_state(message, lessons_for(store, ctx.procedure_id)),
                                  {"recursion_limit": AGENT_RECURSION_LIMIT})
     result = agent.result(state)

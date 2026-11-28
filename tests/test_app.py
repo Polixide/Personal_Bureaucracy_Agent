@@ -217,6 +217,29 @@ def seed(database, procedure_id: str = "ikamet_first", **facts) -> None:
             service.record_app_value(store, pack, "demo-user", field, value)
 
 
+def run_with_provider(provider: str) -> AppTest:
+    page = AppTest.from_file(APP_FILE, default_timeout=60)
+    page.session_state["provider"] = provider
+    return page.run()
+
+
+def test_openai_without_its_key_warns_and_the_local_model_answers(page_env, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    page = run_with_provider("openai")
+    assert not page.exception
+    assert any("OPENAI_API_KEY" in warning.value for warning in page.warning)
+    assert page.session_state["provider_in_use"] == "ollama"
+
+
+def test_openai_with_its_key_runs_the_agent_and_offers_cloud_document_reading(page_env, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-real")
+    page = run_with_provider("openai")
+    assert not page.exception
+    assert page.session_state["provider_in_use"] == "openai"
+    assert any(toggle.label == "The cloud model also reads my documents" for toggle in page.toggle)
+    assert any("OpenAI, cloud" in caption.value for caption in page.caption)
+
+
 def test_empty_twin_opens_the_chat_with_a_welcome(page_env):
     page = run_page()
     assert not page.exception

@@ -625,3 +625,14 @@ solution. Its Streamlit UI is not taken either: `src/ui/` imports that engine (`
 | `app.py` | Daniele's layout (Journey, Now box, Documents, Details) | The only textual conflict: Neda's side added link buttons to the old `done_list`, which the new layout moved. |
 | `src/agent/links.py`, `tests/test_links.py` | **delete**, use `src/tools/open_links.py` (Neda's port of Marco's links) | Two modules built the same Gmail / Google Calendar links. Neda's also offers the default e-mail app (mailto), gives no e-mail link when the sources have no address, and uses the reminder title that `create_ics` now stores. Its tests (`tests/test_open_links.py`) cover the same cases; `tests/test_app.py` still checks the Gmail link after approval. |
 | `tests/test_rag_compare.py` | 66 → 67 rule queries | One query per rule; `ikamet_first` gained R030 (section 2026-11-24 above), so 30 + 8 + 15 + 14 = 67. No retrieval result changed. |
+
+### 10.2 Choosing Ollama or OpenAI in the app; usage, cap and cost
+| Module | Decision | Why |
+|---|---|---|
+| `src/llm.py` | **adapt**: a `provider` argument on `agent_backend`, `is_cloud`, `document_backend`, the labels; `missing_key`; usage log `USAGE` filled by `timed_call`; `CLOUD_MAX_REQUESTS` cap; `estimated_cost` / `usage_summary` | The user asked to choose between Ollama and OpenAI. The cap, the token count and the cost estimate are Andrea's ideas (`src/core/model_provider.py`, `src/evaluation/metrics.py`), written for this backend contract. |
+| `src/agent/chat.py` | **adapt**: self-review and the full tool set follow the backend in use (`is_cloud_backend`) | With a run-time choice, `LLM_PROVIDER` no longer says which model answers. |
+| `app.py` | **adapt**: sidebar "AI model" (Local / OpenAI, Claude when its key is set), switch "the cloud model also reads my documents", model usage in Details → How it works | The privacy switch replaces the global `DOCUMENT_PROVIDER` for the session (Andrea asked consent per file; one switch per session keeps the demo simple). |
+| `config.py` | `OPENAI_MODEL` default `gpt-5.5` → `gpt-6.1-terra`; `PROVIDER_LABELS`, `PROVIDER_KEYS`, `CLOUD_MAX_REQUESTS`, `CLOUD_PRICES` | The team's model (also in Andrea's branch). |
+
+New tests: `tests/test_usage.py`; `tests/test_app.py` (OpenAI without a key warns and keeps the local model; with a
+key the cloud switch appears). No expected value changed.

@@ -15,8 +15,8 @@ Designed to be simple: one thing at a time.
 The Twin (SQLite at config.DATABASE_PATH) is the only source of truth. Verdicts come from src.rules, never from the
 model. Nothing is sent, booked, paid or submitted: an approved e-mail opens in the user's Gmail and an approved
 reminder in their Google Calendar, already filled in, and the user presses Send or Save (src/tools/open_links.py).
-Documents are read by the local models only; the agent may run on a cloud model (LLM_PROVIDER), which sees the
-state, never the pages.
+The sidebar chooses the model: Local (Ollama) or OpenAI (Claude too when its key is set). A cloud model sees the
+state, never the pages, unless the sidebar switch lets it read the documents.
 """
 import threading
 from collections.abc import Callable
@@ -26,17 +26,17 @@ from pathlib import Path
 
 import streamlit as st
 
-from config import (CHAT_MAX_REPAIRS, CHAT_MAX_STEPS, DATABASE_PATH, DOCUMENT_PROVIDER, EMBED_MODEL, LLM_PROVIDER,
-                    MAX_REPAIRS,
-                    MAX_STEPS, OUTBOX_DIR, PROJECT_ROOT, UPLOAD_DIR, WORKER_STEPS)
+from config import (CHAT_MAX_REPAIRS, CHAT_MAX_STEPS, CLOUD_MAX_REQUESTS, CLOUD_PRICES_AS_OF, DATABASE_PATH,
+                    DOCUMENT_PROVIDER, EMBED_MODEL, LLM_PROVIDER, MAX_REPAIRS, MAX_STEPS, OUTBOX_DIR, PROJECT_ROOT,
+                    PROVIDER_LABELS, UPLOAD_DIR, WORKER_STEPS)
 from src.agent import orchestrator
 from src.agent.actions import Suggestion, suggestions
 from src.agent.briefing import (OPEN_PROPOSALS, ORIGIN_WORDS, Briefing, Step, askable_fields, build_briefing,
                                 checklist_rows, count_status, document_status, documents_for, field_question,
                                 in_section, missing_fields, readable, user_results, user_sections)
 from src.agent.chat import review_enabled, run_chat
-from src.llm import (agent_backend, agent_model_label, document_backend, document_model_label, documents_in_cloud,
-                     is_cloud, local_backend)
+from src.llm import (USAGE, agent_backend, agent_model_label, document_backend, document_model_label,
+                     documents_in_cloud, is_cloud, local_backend, missing_key, usage_summary)
 from src.models import DocumentSpec, Pack, RuleResult
 from src.pack import load_all_packs
 from src.rag.crawl import load_corpus
@@ -162,11 +162,11 @@ def friendly_error(message: str) -> str:
     if "password" in text:
         return "Password-protected PDFs are not supported."
     if any(word in text for word in ("api key", "authentication", "credentials", "401")):
-        return "The cloud model refused the API key. Check ANTHROPIC_API_KEY / OPENAI_API_KEY, or use LLM_PROVIDER=ollama."
+        return "The cloud model refused the API key. Check OPENAI_API_KEY / ANTHROPIC_API_KEY, or choose Local (Ollama)."
     if "ollama" in text:
         return "The local model is not running. Start Ollama, or type the values yourself."
     if any(word in text for word in ("claude", "openai", "connect", "unavailable")):
-        return "The cloud model is not reachable. Check the internet connection, or use LLM_PROVIDER=ollama."
+        return "The cloud model is not reachable. Check the internet connection, or choose Local (Ollama)."
     return "Processing could not finish. Check the document and retry."
 
 
@@ -474,27 +474,63 @@ def sidebar(store: TwinStore, packs: dict[str, Pack]) -> tuple[str, date]:
                                     help="Use the same name next time to continue where you left off.").strip()
     user_id = user_id or "demo-user"
     choose_procedure(store, packs, user_id)
+    model_choice()
     with st.sidebar.expander("Settings", icon=":material/settings:"):
         today = st.date_input("Today's date (change it to test deadlines)", value=date.today())
         if st.button("Refresh", icon=":material/refresh:"):
             st.rerun()
         reset_box(store, user_id)
-        models_note()
     return user_id, today
+
+
+def provider() -> str:
+    """The provider chosen in the sidebar and usable now (a cloud provider without its key falls back to Ollama)."""
+    return st.session_state.get("provider_in_use", "ollama")
+
+
+def documents_cloud() -> bool:
+    """The sidebar switch: the cloud model reads the documents (only with a cloud provider)."""
+    return bool(st.session_state.get("docs_cloud", False))
+
+
+def provider_options() -> list[str]:
+    """Ollama and OpenAI always; Claude only when it is configured (its key, or LLM_PROVIDER=anthropic)."""
+    options = ["ollama", "openai"]
+    if LLM_PROVIDER == "anthropic" or not missing_key("anthropic"):
+        options.append("anthropic")
+    return options
+
+
+def model_choice() -> None:
+    """Sidebar: which model runs the assistant and the agent team, and what leaves the computer."""
+    options = provider_options()
+    start = LLM_PROVIDER if LLM_PROVIDER in options else "ollama"
+    chosen = st.sidebar.segmented_control("AI model", options, default=start, format_func=PROVIDER_LABELS.get,
+                                          key="provider") or start
+    problem = missing_key(chosen)
+    if problem:
+        st.sidebar.warning(f"{PROVIDER_LABELS[chosen]} is not ready. {problem} The local model answers meanwhile.")
+        chosen = "ollama"
+    st.session_state["provider_in_use"] = chosen
+    if is_cloud(chosen):
+        if "docs_cloud" not in st.session_state:
+            st.session_state["docs_cloud"] = DOCUMENT_PROVIDER == "cloud"
+        st.sidebar.toggle("The cloud model also reads my documents", key="docs_cloud",
+                          help="Page images and text are sent to the provider; its OCR replaces the local one. "
+                               "Code still checks every value against the page.")
+    models_note()
 
 
 def models_note() -> None:
     """Which models do what, and what leaves the computer."""
-    st.caption(f"Assistant: {agent_model_label('chat')} · Agent team: {agent_model_label('team')} · "
-               f"Documents: {document_model_label()}.")
-    if documents_in_cloud():
-        st.caption("Your documents are read in the cloud: their page images and text are sent to the provider. "
-                   "Code still checks every value against the page.")
-    elif is_cloud():
-        st.caption("The assistant runs in the cloud: it receives your state (requirements, values already read), "
-                   "never the pages of your documents.")
-    if DOCUMENT_PROVIDER == "cloud" and not is_cloud():
-        st.caption("DOCUMENT_PROVIDER=cloud needs LLM_PROVIDER=openai or anthropic: documents are read locally.")
+    st.sidebar.caption(f"Assistant: {agent_model_label('chat', provider())} · Agent team: "
+                       f"{agent_model_label('team', provider())} · Documents: "
+                       f"{document_model_label(provider(), documents_cloud())}.")
+    if documents_in_cloud(provider(), documents_cloud()):
+        st.sidebar.caption("Your documents are read in the cloud: their page images and text are sent to the provider.")
+    elif is_cloud(provider()):
+        st.sidebar.caption("The assistant runs in the cloud: it receives your state (requirements, values already "
+                           "read), never the pages of your documents.")
 
 
 def choose_procedure(store: TwinStore, packs: dict[str, Pack], user_id: str) -> None:
@@ -667,9 +703,9 @@ def ask_assistant(store: TwinStore, ctx: ToolContext, message: str) -> None:
 def chat_turn(store: TwinStore, ctx: ToolContext, message: str) -> None:
     """Run the assistant on one message, showing what it does while it works."""
     with st.status("The assistant is working...", expanded=True) as status:
-        reply = run_chat(message, store, ctx.packs, ctx.user_id, ctx.today, agent_backend("chat"),
+        reply = run_chat(message, store, ctx.packs, ctx.user_id, ctx.today, agent_backend("chat", provider()),
                          outbox_dir=OUTBOX_DIR, embedder=local_backend(), progress=status.write,
-                         model_label=agent_model_label("chat"))
+                         model_label=agent_model_label("chat", provider()))
         status.update(label="Answer ready", state="complete", expanded=False)
     st.session_state.setdefault("results", {})[ctx.user_id] = {"goal": message, "result": reply.model_dump(mode="json")}
 
@@ -892,8 +928,9 @@ def full_check_box(store: TwinStore, ctx: ToolContext) -> None:
 def full_check(store: TwinStore, ctx: ToolContext) -> None:
     store.add_chat_message(ChatMessage(user_id=ctx.user_id, role="user", content="🔍 Full check by the agent team",
                                        procedure_id=ctx.procedure_id))
-    result = orchestrator.run_agent(FULL_CHECK_GOAL, store, ctx.packs, ctx.user_id, ctx.today, agent_backend("team"),
-                                    outbox_dir=OUTBOX_DIR, tool_backend=document_backend())
+    result = orchestrator.run_agent(FULL_CHECK_GOAL, store, ctx.packs, ctx.user_id, ctx.today,
+                                    agent_backend("team", provider()), outbox_dir=OUTBOX_DIR,
+                                    tool_backend=document_backend(provider(), documents_cloud()))
     st.session_state.setdefault("results", {})[ctx.user_id] = {"goal": FULL_CHECK_GOAL,
                                                                "result": result.model_dump(mode="json")}
     text = (result.question or "") if result.status == "needs_user_input" else agent_text(result)
@@ -901,7 +938,7 @@ def full_check(store: TwinStore, ctx: ToolContext) -> None:
                                        trace_id=result.trace_id, details={"status": result.status,
                                                                           "proposals": result.proposals,
                                                                           "reflections": result.reflections,
-                                                                          "model": agent_model_label("team")}))
+                                                                          "model": agent_model_label("team", provider())}))
 
 
 def agent_text(result) -> str:
@@ -1077,11 +1114,14 @@ def view_details(store: TwinStore, ctx: ToolContext, pack: Pack, view: FactView,
         done_list(store, ctx.user_id)
     with tabs[2]:
         st.markdown(HOW_IT_WORKS.format(chat_steps=CHAT_MAX_STEPS, chat_repairs=CHAT_MAX_REPAIRS,
-                                        review="on" if review_enabled() else "off (switch on with SELF_REVIEW=1)",
+                                        review="on" if review_enabled(is_cloud(provider()))
+                                        else "off with a local model (switch on with SELF_REVIEW=1)",
                                         worker_steps=WORKER_STEPS, max_steps=MAX_STEPS, max_repairs=MAX_REPAIRS,
-                                        embed=EMBED_MODEL, reader=document_model_label()))
-        st.caption(f"Models: assistant {agent_model_label('chat')}; agent team {agent_model_label('team')}; documents "
-                   f"{document_model_label()}; LLM_PROVIDER={LLM_PROVIDER}, DOCUMENT_PROVIDER={DOCUMENT_PROVIDER}.")
+                                        embed=EMBED_MODEL, reader=document_model_label(provider(), documents_cloud())))
+        st.caption(f"Models: assistant {agent_model_label('chat', provider())}; agent team "
+                   f"{agent_model_label('team', provider())}; documents "
+                   f"{document_model_label(provider(), documents_cloud())}.")
+        usage_box()
     with tabs[3]:
         last_answer(st.session_state.get("results", {}).get(ctx.user_id))
     with tabs[4]:
@@ -1178,6 +1218,23 @@ def last_answer(last: dict | None) -> None:
         st.json(result["gate_issues"])
 
 
+def usage_box() -> None:
+    """Model requests since the app started: how many, tokens, model time and the estimated cloud cost."""
+    usage = usage_summary(USAGE.since(0))
+    if not usage["requests"]:
+        st.caption("No model request yet since the app started.")
+        return
+    tokens = ("n/a" if usage["input_tokens"] is None
+              else f"{usage['input_tokens']:,} in / {usage['output_tokens']:,} out")
+    cost = "n/a" if usage["cost_usd"] is None else f"${usage['cost_usd']:.4f}"
+    cap = f" of {CLOUD_MAX_REQUESTS}" if CLOUD_MAX_REQUESTS else ""
+    st.markdown(f"**Model usage since the app started:** {usage['requests']} requests "
+                f"({usage['cloud_requests']}{cap} in the cloud, {usage['failures']} failed) · tokens {tokens} · "
+                f"model time {usage['model_seconds']:.0f} s · estimated cloud cost {cost}")
+    st.caption(f"Cost from the price list in config.py (as of {CLOUD_PRICES_AS_OF}); n/a when a model has no price. "
+               "CLOUD_MAX_REQUESTS caps the cloud requests; past it the agent answers with the plan written by code.")
+
+
 def run_history(store: TwinStore, pack: Pack, user_id: str) -> None:
     """Every run of this profile (memory across sessions) and the lessons kept from validated repairs."""
     runs = [run for run in store.list_runs(user_id) if run.procedure_id == pack.id]
@@ -1215,9 +1272,10 @@ def run_passed(run) -> str:
 
 # ------------------------------------------------------------------ page --
 def tool_context(store: TwinStore, packs: dict[str, Pack], user_id: str, today: date) -> ToolContext:
-    """Tools read documents with `document_backend()`: the local models, or the cloud model if DOCUMENT_PROVIDER=cloud."""
+    """Tools read documents with `document_backend`: the local models, or the cloud model when the sidebar says so."""
     active = store.active_procedure(user_id)
-    return ToolContext(store=store, packs=packs, user_id=user_id, today=today, backend=document_backend(),
+    return ToolContext(store=store, packs=packs, user_id=user_id, today=today,
+                       backend=document_backend(provider(), documents_cloud()),
                        procedure_id=active if active in packs else None)
 
 

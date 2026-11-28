@@ -27,6 +27,18 @@ can use its deterministic fallback.
   without the constraint. GPT gets `json_schema` mode (not strict), then JSON mode. A refusal, a network error or a
   missing key is an `LLMError`, so callers fall back as with Ollama.
 
+- **Choosing the provider while the app runs (2026-11-28).** `agent_backend(kind, provider)`, `is_cloud(provider)`,
+  `document_backend(provider, read_in_cloud)` and the two label functions take the provider chosen in the app's
+  sidebar (`ollama`, `openai`, `anthropic`); without it they use `LLM_PROVIDER`. `missing_key(provider)` says what
+  to set when a cloud provider has no key in the environment (the app then keeps the local model). The chat decides
+  self-review and its tool set from the backend it actually got (`is_cloud_backend`), not from the config.
+- **Usage log, cap and cost (ideas from Andrea's branch).** `timed_call` adds every request to `USAGE`
+  (`ModelCall`: component, model, cloud or local, ok, seconds, input/output tokens read from the provider's reply).
+  `USAGE.mark()` / `USAGE.since(mark)` measure one run; `usage_summary(calls)` gives requests, failures, tokens,
+  model seconds and `estimated_cost(calls)` from `CLOUD_PRICES` (None when a model has no price). With
+  `CLOUD_MAX_REQUESTS` > 0 a cloud request past the cap is an `LLMError`, so the agent answers with the plan written
+  by code, as when the model is unreachable.
+
 ## Inputs and outputs
 ```python
 result = ask_structured(backend, [{"role": "user", "content": "..."}], Decision, "orchestrator")
