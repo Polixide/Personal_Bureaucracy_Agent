@@ -495,8 +495,17 @@ by code. A turn took about 69 s on average. This is why the optional cloud model
 
 **Retrieval** (`docs/eval_rag.md`, 567 passages, 66 questions): bge-m3 has hit@3 0.758 overall and 0.931 on
 `ikamet_first`. It was chosen over qwen3-embedding:0.6b (0.667), especially for English questions over Turkish
-pages. Neda's comparison (`docs/eval_rag_compare.md`, 31 hand-labelled Kimlik questions): embeddings hit@3 0.903,
-keyword search (BM25) 0.29, hybrid 0.774, so the embeddings stay alone.
+pages. The full comparison (`docs/eval_rag_compare.md`, Neda's benchmark with precision, recall and nDCG added,
+rerun 2026-11-28 on the 4 GB laptop):
+
+| Retriever | Questions (31, hand-labelled) hit@3 | recall@5 | nDCG@5 | Rules (67) hit@3 | nDCG@5 |
+|---|---|---|---|---|---|
+| keyword (BM25) | 0.29 | 0.274 | 0.195 | 0.582 | 0.369 |
+| **embedding (bge-m3)** | **0.903** | **0.919** | **0.823** | **0.746** | **0.568** |
+| hybrid (fusion) | 0.774 | 0.855 | 0.699 | 0.672 | 0.498 |
+
+The embeddings stay alone: the fusion only adds the keyword errors. (precision@5 is low for every retriever, at most
+0.38, because a question usually has one or two correct passages among the five shown.)
 
 **Live agent on the Kimlik packs** (Neda, `docs/eval_live_tc_kimlik_*.md`, `qwen3:4b`, 6 scenarios each): D
 reaches verdict accuracy 0.845 / 1.0 and pass 4/6 / 5/6 (first card / renewal), against 0/6 for the static

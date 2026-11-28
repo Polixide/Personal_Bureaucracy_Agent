@@ -81,7 +81,7 @@ Thirteen files with known values (text PDFs, scans, a phone photo, two documents
 | Report | Last run | Mode |
 |---|---|---|
 | `docs/eval_results.md` | 2026-11-28 | offline (scripted policy: pipeline, not model quality) |
-| `docs/eval_rag_compare.md` | 2026-11-28 | live, bge-m3 |
+| `docs/eval_rag_compare.md` | 2026-11-28 | live, bge-m3 (on the 4 GB laptop: a query takes ~0.7 s here, ~25 ms on Neda's M5) |
 | `docs/eval_live_tc_kimlik_first.md`, `docs/eval_live_tc_kimlik_renewal.md` | 2026-11-24 (Neda) | live, qwen3:4b |
 | `docs/eval_chat.md` | 2026-11-20 | live, qwen2.5:3b (written before the citation, reflection and cost columns) |
 | `docs/eval_documents.md` | 2026-11-20 | live, local models (written before the token and cost columns) |

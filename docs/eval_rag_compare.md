@@ -2,29 +2,29 @@
 
 Top-5; hybrid = reciprocal rank fusion of the top 20 of each. Index time is for all packs in the run, from an empty cache.
 
-## rules (66 queries)
+## rules (67 queries)
 
-| retriever | hit@1 | hit@3 | hit@5 | MRR@5 | query p50 ms | query p95 ms | index s |
-|---|---|---|---|---|---|---|---|
-| bm25 | 0.364 | 0.576 | 0.636 | 0.475 | 0.23 | 0.52 | 0.02 |
-| embedding | 0.561 | 0.758 | 0.803 | 0.655 | 32.56 | 46.18 | 12.09 |
-| hybrid | 0.47 | 0.667 | 0.773 | 0.586 | 32.82 | 46.5 | 12.11 |
+| retriever | hit@1 | hit@3 | hit@5 | MRR@5 | precision@5 | recall@5 | nDCG@5 | query p50 ms | query p95 ms | index s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| bm25 | 0.373 | 0.582 | 0.642 | 0.483 | 0.313 | 0.561 | 0.369 | 0.59 | 3.51 | 0.08 |
+| embedding | 0.552 | 0.746 | 0.806 | 0.649 | 0.379 | 0.687 | 0.568 | 767.43 | 1326.0 | 395.8 |
+| hybrid | 0.463 | 0.672 | 0.776 | 0.582 | 0.361 | 0.673 | 0.498 | 767.76 | 1329.5 | 395.87 |
 
 hit@3 by procedure_id:
 
-| retriever | ikamet_extension (n=8) | ikamet_first (n=29) | tc_kimlik_first (n=15) | tc_kimlik_renewal (n=14) |
+| retriever | ikamet_extension (n=8) | ikamet_first (n=30) | tc_kimlik_first (n=15) | tc_kimlik_renewal (n=14) |
 |---|---|---|---|---|
-| bm25 | 0.875 | 0.931 | 0.133 | 0.143 |
-| embedding | 0.625 | 0.931 | 0.6 | 0.643 |
-| hybrid | 0.875 | 0.862 | 0.4 | 0.429 |
+| bm25 | 0.875 | 0.933 | 0.133 | 0.143 |
+| embedding | 0.625 | 0.9 | 0.6 | 0.643 |
+| hybrid | 0.875 | 0.867 | 0.4 | 0.429 |
 
 ## questions (31 queries)
 
-| retriever | hit@1 | hit@3 | hit@5 | MRR@5 | query p50 ms | query p95 ms | index s |
-|---|---|---|---|---|---|---|---|
-| bm25 | 0.097 | 0.29 | 0.29 | 0.183 | 0.06 | 0.08 | 0.02 |
-| embedding | 0.742 | 0.903 | 0.968 | 0.832 | 23.11 | 26.99 | 12.09 |
-| hybrid | 0.548 | 0.774 | 0.903 | 0.681 | 23.19 | 27.06 | 12.11 |
+| retriever | hit@1 | hit@3 | hit@5 | MRR@5 | precision@5 | recall@5 | nDCG@5 | query p50 ms | query p95 ms | index s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| bm25 | 0.097 | 0.29 | 0.29 | 0.183 | 0.065 | 0.274 | 0.195 | 0.18 | 0.39 | 0.08 |
+| embedding | 0.742 | 0.903 | 0.968 | 0.832 | 0.232 | 0.919 | 0.823 | 672.22 | 774.43 | 395.8 |
+| hybrid | 0.548 | 0.774 | 0.903 | 0.681 | 0.213 | 0.855 | 0.699 | 672.41 | 774.75 | 395.87 |
 
 hit@3 by procedure_id:
 
