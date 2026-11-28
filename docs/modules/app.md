@@ -17,10 +17,14 @@ Before a procedure is chosen, the page is the conversation alone.
 `streamlit run app.py`. Each rerun opens the Twin at `config.DATABASE_PATH` (env `TWIN_DATABASE` overrides it).
 The Now box shows `briefing.build_briefing(...).steps[0]` (skipped steps move to the end, per session). Answers given
 with a click or typed are confirmed facts (`service.record_app_value`); a corrected value closes the unsure one
-(`service.correct_unconfirmed`). The chat calls `run_chat` (`agent_backend("chat")`), the full check `run_agent`
-(`agent_backend("team")`); tools always use the local backend. *The agent can prepare* lists `actions.suggestions`;
+(`service.correct_unconfirmed`). The sidebar's *AI model* (Local / OpenAI, Claude when its key is set) is passed to
+every model call: the chat calls `run_chat` (`agent_backend("chat", provider())`), the full check `run_agent`
+(`agent_backend("team", provider())`); tools read documents with `document_backend(provider(), documents_cloud())`,
+local unless the sidebar switch lets the cloud model read them. A cloud choice without its key shows a warning and
+keeps the local model. Uploads and the profile name pass Gate 0 (`src/agent/gate0.py`) first; a chat message refused
+by Gate 0 is shown as a warning. Details → How it works ends with the model usage (requests, tokens, cost). *The agent can prepare* lists `actions.suggestions`;
 each one is a proposal shown in the Now box with a preview, and after approval *Ready for you* opens it in Gmail or
-Google Calendar already filled in (`src/agent/links.py`).
+Google Calendar already filled in (`src/tools/open_links.py`, which also offers the default e-mail app).
 
 ## Why it is built this way
 - **One step at a time.** A list of 27 requirements and 20 questions is not an agentic experience. The plan is
@@ -35,7 +39,7 @@ Google Calendar already filled in (`src/agent/links.py`).
 
 ## How to test it
 ```
-python -m pytest -q tests/test_app.py tests/test_links.py
+python -m pytest -q tests/test_app.py tests/test_open_links.py tests/test_gate0.py
 streamlit run app.py
 ```
 Page tests (AppTest, fake assistant and orchestrator, temporary Twin) render every view of every procedure, answer a

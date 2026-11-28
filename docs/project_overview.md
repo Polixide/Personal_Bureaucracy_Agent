@@ -1,6 +1,8 @@
 # Personal Bureaucracy Agent: the whole project in one document
 
-CS58012 Agentic AI Systems, Sabancı University. Written 2026-11-25 on branch `feature/dani-version-two`.
+CS58012 Agentic AI Systems, Sabancı University. Written 2026-11-25, updated 2026-11-28 for the final release
+(branch `release/final`: Neda's integration branch, Daniele's branch, and ideas from Marco's and Andrea's branch;
+who did what is in `docs/migration_plan.md` sections 9 and 10).
 This file explains **what** the agent is, **why** someone would use it, **how** it is built, and **what the user
 should experience**. Each module has a one-page explanation in `docs/modules/`, and every design decision is
 recorded in `docs/migration_plan.md`.
@@ -76,7 +78,7 @@ The evaluation compares three systems on the same 25 scenarios (§9):
 | Every rule cites an official source | `source_ids` must exist in `sources.json`. A rule nobody has checked yet is `unverified`, and any answer that uses it must say so. |
 | Tool arguments are validated | Pydantic validates every call before the tool runs. An invalid call becomes an error observation for the model, never an execution. |
 | The app never crashes because of the model | Schema-constrained output → one retry → deterministic fallback (the plan written by code). |
-| Privacy | By default documents are read only by local models, and a cloud model (if enabled) receives the state computed by code, never the pages. Sending the pages to the cloud model is a separate, explicit switch (`DOCUMENT_PROVIDER=cloud`) that the app announces. API keys stay in the environment. Synthetic data only in the repository. |
+| Privacy | By default documents are read only by local models, and a cloud model (if enabled) receives the state computed by code, never the pages. Sending the pages to the cloud model is a separate, explicit switch in the sidebar (default from `DOCUMENT_PROVIDER`) that the app announces. API keys stay in the environment. Synthetic data only in the repository. |
 
 ---
 
@@ -86,7 +88,8 @@ The evaluation compares three systems on the same 25 scenarios (§9):
 
 ```mermaid
 flowchart TB
-    U["User"] -->|"goal, chat, uploads, clicks"| APP["Streamlit app (app.py)<br/>Journey · Assistant + Now box · Documents · Details"]
+    U["User"] -->|"goal, chat, uploads, clicks"| APP["Streamlit app (app.py)<br/>Journey · Assistant + Now box · Documents · Details<br/>sidebar: AI model Local / OpenAI"]
+    APP --> G0["Gate 0<br/>input checks by code"]
 
     subgraph AGENT["Agent layer (src/agent)"]
         BRIEF["Briefing<br/>the plan, computed by code"]
@@ -113,10 +116,12 @@ flowchart TB
 
     DOCS["Document processing<br/>text, OCR, MRZ, vision model<br/>local, or cloud if chosen"]
     RAG["Knowledge base / RAG<br/>official pages, bge-m3"]
-    LLM["src/llm.py<br/>Ollama · Claude · GPT"]
+    LLM["src/llm.py<br/>Ollama · OpenAI · Claude<br/>usage log, cap, cost"]
     REAL["Real world: Gmail, Google Calendar,<br/>e-İkamet, IRO. The user acts."]
+    MCP["MCP server (read-only, stdio)<br/>find_procedure · search_official_sources"]
 
-    APP --> BRIEF & CHAT & ORCH
+    G0 --> BRIEF & CHAT & ORCH
+    MCP -.-> PACK & RAG
     CHAT & ORCH --> TOOLS
     CHAT & ORCH --> G1 --> REF
     CHAT & ORCH -.->|"model unusable"| FB
@@ -166,7 +171,7 @@ flowchart TB
 
 **4. Document processing** (`src/document_processing/`, `src/tools/extract_document.py`), local by default
 - **Who reads.** By default the local models (RapidOCR, `qwen3:4b`, `qwen3-vl:2b-instruct`). With
-  `DOCUMENT_PROVIDER=cloud` the cloud model (for example `gpt-6.1-terra`) reads instead:
+  the sidebar switch on (or `DOCUMENT_PROVIDER=cloud`) the cloud model (for example `gpt-6.1-terra`) reads instead:
   - it transcribes scans and photos from the page image, replacing RapidOCR;
   - it reads whole documents rather than the 3,400 characters that fit the 4 GB GPU;
   - it is also the vision model.
@@ -245,14 +250,15 @@ decide/act → fallback → END                 2 invalid steps in a row, a loop
 | sandbox | `simulate_submission` | try an official stage in the mock portal |
 | artifact (proposal only) | `draft_email`, `create_ics`, `fill_pdf`, `build_checklist` | e-mail to a contact of the pack, all-day calendar event from a date **field**, filled PDF form, Markdown checklist |
 
-**7. Sandbox, approval and the real world** (`src/sandbox/`, `src/agent/actions.py`, `src/agent/links.py`)
+**7. Sandbox, approval and the real world** (`src/sandbox/`, `src/agent/actions.py`, `src/tools/open_links.py`)
 - `simulate_submission` tries a stage in a **mock portal** that applies the pack's own rules. It says *accepted*
   or *refused, because…*. Nothing is submitted.
 - **Promotion gate.** A proposal tied to a stage (for example the e-mail that starts the IRO step) can be
   approved only if the latest simulation of that stage was accepted **on exactly the current facts**. A
   fingerprint of the facts is stored, so any change requires a new simulation.
 - **Approve** writes the artifact to the user's local outbox (`.eml`, `.ics`, `.pdf`, `.md`). It then shows:
-  - **Open in Gmail**: a compose window with the recipient, subject and body filled in;
+  - **Open in Gmail** and **Open in email app** (mailto): a compose window with the recipient, subject and body
+    filled in (only when the official sources give an address);
   - **Add to Google Calendar**: a new event with the date filled in.
 
   The user presses Send or Save. No Google login or API key is needed, and the hard rule holds.
@@ -270,15 +276,34 @@ decide/act → fallback → END                 2 invalid steps in a row, a loop
 - `draft-rules` proposes rule drafts whose quotes code verifies. Only a person edits `rules.json`.
 
 **9. Models** (`src/llm.py`, `config.py`). All LLM calls go through one module: schema-constrained output,
-Pydantic validation, one retry, then a fallback.
+Pydantic validation, one retry, then a fallback. The model is chosen in the app's sidebar (*AI model*: Local or
+OpenAI; Claude too when its key is set); a cloud choice without its key keeps the local model.
 
-| Job | Default (local, Ollama, 4 GB GPU) | Optional cloud (`LLM_PROVIDER`) |
+| Job | Local (Ollama, 4 GB GPU) | OpenAI (chosen in the sidebar) |
 |---|---|---|
-| Chat assistant | `qwen2.5:3b` | `gpt-5.5` (OpenAI) or `claude-opus-5-5` (Anthropic) |
+| Chat assistant | `qwen2.5:3b` | `gpt-6.1-terra` (or `claude-opus-5-5` with Anthropic) |
 | Orchestrator and workers | `qwen3:4b` | the same cloud model |
 | Self-review | off (about 1 min more per turn locally) | on (`SELF_REVIEW=auto`) |
-| Reading documents | `qwen3:4b` + RapidOCR + `qwen3-vl:2b-instruct` | local unless `DOCUMENT_PROVIDER=cloud`; then the cloud model transcribes the pages (its OCR), extracts the values and is the vision model |
+| Tools offered in the chat | only when the message asks to prepare something | all, so it prepares e-mails, reminders, forms on its own initiative (always proposals) |
+| Reading documents | `qwen3:4b` + RapidOCR + `qwen3-vl:2b-instruct` | local unless the sidebar switch *the cloud model also reads my documents* is on; then it transcribes the pages (its OCR), extracts the values and is the vision model |
 | Embeddings | `bge-m3` | always local |
+
+Every model request is logged (`USAGE`: component, model, seconds, input/output tokens from the provider's reply).
+Details → How it works shows requests, tokens, model time and the estimated cloud cost (price list in
+`config.py`); `CLOUD_MAX_REQUESTS` caps cloud requests for a demo (past it the plan written by code answers).
+(Usage log, cap and cost are ideas from Andrea's branch.)
+
+**10. Gate 0** (`src/agent/gate0.py`). Gate 1 checks what the model says; Gate 0 checks what the user sends, before
+any model call or Twin write: a message must not be empty or longer than 4000 characters; a file must be a
+supported type (PDF, TXT, JPG, PNG), not empty, at most 20 MB, really what its extension says (a renamed file is
+refused), and a PDF of at most 60 pages. A refused chat message gets `status="invalid_input"` without a model call.
+The model's own tool calls pass the same kind of gate: Pydantic validation in `run_tool`.
+
+**11. MCP server** (`src/integrations/mcp/server.py`, ported by Neda from Marco). A read-only Model Context
+Protocol server (stdio, JSON-RPC, revision 2025-11-25) that lets any MCP client (an IDE, another agent) use the same
+knowledge: tool `find_procedure` (the deterministic pack ranking), tool `search_official_sources` (embedding
+search in a pack's official texts) and one resource `procedure://<id>` per pack. The app does not need it; it
+shows that the knowledge layer is reusable outside the app. Run `python -m src.integrations.mcp.server`.
 
 ### 4.3 One request, end to end
 
@@ -410,9 +435,9 @@ sequenceDiagram
 ## 6. Safety, privacy and trust
 
 - **By default, documents never leave the computer.** Text, OCR, vision and embeddings run on the local Ollama
-  server. With `LLM_PROVIDER=openai|anthropic`, only the state computed by code is sent: rule results, values
+  server. With OpenAI or Claude chosen in the sidebar, only the state computed by code is sent: rule results, values
   already read, the plan. Keys come from environment variables and are never stored in the project.
-- **Sending documents to the cloud is a separate, visible choice.** With `DOCUMENT_PROVIDER=cloud`, the page images
+- **Sending documents to the cloud is a separate, visible choice.** With the sidebar switch on, the page images
   and text go to the provider for a much better reading, and the sidebar says so. Embeddings stay local. The
   trade-off: a quote is then checked against the cloud model's own transcription, so a transcription error is
   caught only by code's second checks (MRZ check digits, date and choice parsing, conflicts between documents).
@@ -428,15 +453,22 @@ sequenceDiagram
 
 ## 7. Evaluation and results
 
-**Tests:** 1063 automated tests pass (`python -m pytest -q`). The LLM is always mocked, and a real model call
-fails a test.
+**Tests:** 1138 automated tests pass (`python -m pytest -q`). The LLM is always mocked, and a real model
+call fails a test.
+
+**Metrics** (`eval/metrics.py`; pass@k, p95, tokens/cost and reflection recovery adapted from Andrea's branch):
+verdict accuracy, date errors, invented rules, valid answer rate (Gate 1), **pass^k** (all k runs succeed: can the
+user rely on it?), **pass@k** (at least one of k succeeds), LLM calls, average and p95 seconds, tokens and
+estimated cost per run; for the agent: valid tool-call rate, steps, loops, fallback rate, human-review rate, issues
+caught by Gate 1 and the **reflection recovery rate** (refused answers the model then repaired).
+`python -m eval.run_eval --live --provider openai` runs the same scenarios on GPT.
 
 **Agent vs baselines** (`python -m eval.run_eval`, 25 scenarios × 3 runs, offline; `docs/eval_results.md`):
 
-| System | Verdict accuracy | Invented facts | Date errors | Valid answer rate | Pass^3 |
-|---|---|---|---|---|---|
-| A: static checklist | 0.807 | 0 | 0 | 0.16 | 1/25 |
-| **D: our agent** | **1.0** | 0 | 0 | **1.0** | **25/25** |
+| System | Verdict accuracy | Invented facts | Date errors | Valid answer rate | Pass^3 | Pass@3 |
+|---|---|---|---|---|---|---|
+| A: static checklist | 0.807 | 0 | 0 | 0.16 | 1/25 | 0.04 |
+| **D: our agent** | **1.0** | 0 | 0 | **1.0** | **25/25** | **1.0** |
 
 The offline run measures the pipeline (tools, Gate 1, Twin) with a scripted rule-following policy, not the model.
 In this run, valid tool calls were 100%, with 3.3 steps on average, 0 loops and 0 fallbacks. Procedure
@@ -457,7 +489,18 @@ by code. A turn took about 69 s on average. This is why the optional cloud model
 
 **Retrieval** (`docs/eval_rag.md`, 567 passages, 66 questions): bge-m3 has hit@3 0.758 overall and 0.931 on
 `ikamet_first`. It was chosen over qwen3-embedding:0.6b (0.667), especially for English questions over Turkish
-pages.
+pages. Neda's comparison (`docs/eval_rag_compare.md`, 31 hand-labelled Kimlik questions): embeddings hit@3 0.903,
+keyword search (BM25) 0.29, hybrid 0.774, so the embeddings stay alone.
+
+**Live agent on the Kimlik packs** (Neda, `docs/eval_live_tc_kimlik_*.md`, `qwen3:4b`, 6 scenarios each): D
+reaches verdict accuracy 0.845 / 1.0 and pass 4/6 / 5/6 (first card / renewal), against 0/6 for the static
+checklist and the single LLM, which writes no valid answer.
+
+**Procedure routing** (Neda, `docs/eval_routing.md`, 38 goals): with aliases and qualifiers, 26/26 on the
+development goals and 9/12 held out, with no wrong pack (the 3 others are ties, where the agent asks).
+
+**Speed** (Neda, `docs/eval_speed.md`): the deterministic parts take milliseconds (routing 0.17 ms, all rules
+0.03 ms, a whole scripted agent run 6.6 ms); the time is in the model calls.
 
 ---
 
@@ -482,8 +525,9 @@ pages.
 | `app.py` | the Streamlit interface (journey, Assistant + Now box, Documents, Details) |
 | `config.py` | every setting (models, step budgets, paths, RAG) |
 | `src/llm.py` | the only way to call a model (Ollama, Anthropic, OpenAI) |
-| `src/agent/` | orchestrator, workers, chat assistant, briefing (plan), Gate 1, fallback, actions, Gmail / Calendar links |
-| `src/tools/` | the 12 tools and their registry |
+| `src/agent/` | orchestrator, workers, chat assistant, briefing (plan), Gate 0, Gate 1, fallback, actions |
+| `src/tools/` | the 12 tools and their registry; `open_links.py` (Gmail / mailto / Google Calendar links) |
+| `src/integrations/mcp/` | the read-only MCP server |
 | `src/rules.py`, `src/pack.py`, `src/models.py` | rule engine and Procedure Pack loader / schema |
 | `src/twin/` | Digital Twin store, facts and service |
 | `src/sandbox/` | mock portal, approval, promotion gate |
@@ -492,7 +536,7 @@ pages.
 | `src/memory/episodes.py` | lessons from validated repairs |
 | `procedures/` | the four Procedure Packs |
 | `eval/` | baselines A / B / D, metrics, document / chat / RAG / memory evaluations |
-| `tests/` | 1063 tests |
+| `tests/` | 1138 tests |
 | `docs/modules/` | one page per module; `docs/migration_plan.md` holds every decision |
 
 ---
@@ -501,24 +545,23 @@ pages.
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-# local only (documents, chat and team on Ollama):
+$env:OPENAI_API_KEY = "<your key>"           # only if you want OpenAI; choose it under "AI model"
+$env:OPENAI_REASONING_EFFORT = "low"         # faster replies
+$env:CLOUD_MAX_REQUESTS = "200"              # safety cap for the demo
+$env:TWIN_DATABASE = "data/demo_twin.sqlite" # a separate demo Twin, so your own profile stays untouched
 streamlit run app.py
-# chat and agent team on GPT (documents stay local):
-$env:LLM_PROVIDER = "openai"; $env:OPENAI_API_KEY = "<your key>"; streamlit run app.py
-# everything on GPT-6.1 Terra, documents included (its OCR replaces RapidOCR):
-$env:OPENAI_MODEL = "gpt-6.1-terra"; $env:OPENAI_REASONING_EFFORT = "low"; $env:DOCUMENT_PROVIDER = "cloud"
-streamlit run app.py
-# a separate demo Twin, so your own profile stays untouched:
-$env:TWIN_DATABASE = "data/demo_twin.sqlite"; streamlit run app.py
+# in the sidebar: AI model -> OpenAI; optionally "The cloud model also reads my documents"
 ```
 
 **A five-minute demo:**
-1. Choose *İkamet*. Show the journey ("you are here") and the **Now** box: one step, not a list.
+1. In the sidebar choose **OpenAI** (or stay local). Choose *İkamet*. Show the journey ("you are here") and the
+   **Now** box: one step, not a list.
 2. Attach a public specimen from `data/reference_samples/` with **+**. Show the values read, a value to confirm,
    and the plan updating.
 3. Answer a question with one click, and skip one.
 4. Click *"Write an e-mail to IRO about my next step"* → **Approve** → **Open in Gmail** (prefilled; we do not
    press Send).
 5. Approve a calendar reminder → **Add to Google Calendar**.
-6. *Details* → *Last answer*: the ReAct steps, Gate 1 and the reflection rounds. *Requirements*: every rule with
-   its official source and verified / unverified status.
+6. *Details* → *Last answer*: the ReAct steps, Gate 1 and the reflection rounds. *How it works*: Gate 0 → ReAct
+   → Gate 1 → reflection, and the model usage and cost. *Requirements*: every rule with its official source and
+   verified / unverified status.

@@ -1,0 +1,3 @@
+[server]
+# Same limit as Gate 0 (config.GATE0_MAX_UPLOAD_MB): the upload box says 20MB, not the default 200MB.
+maxUploadSize = 20

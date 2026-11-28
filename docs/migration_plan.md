@@ -656,3 +656,15 @@ still expects a `ValueError` for `a.exe` and an empty `a.txt`).
 
 Report column renamed `pass_k` → `pass^k` (same number); `docs/eval_results.md` regenerated offline. New tests in
 `tests/test_eval.py`. No expected value changed.
+
+### 10.5 Documentation and app polish
+- `README.md`, `docs/project_overview.md`, `docs/modules/app.md`: the final architecture (Gate 0 → ReAct → Gate 1 →
+  reflection), the model choice in the sidebar, the MCP server, the metrics and Neda's evaluations (routing,
+  retrieval comparison, live Kimlik runs, speed).
+- `app.py` "How it works": Gate 0 and the MCP server.
+- `.streamlit/config.toml`: `maxUploadSize = 20`, the same limit as Gate 0 (the upload box said 200 MB).
+  `.gitignore`: `.streamlit/secrets.toml`.
+- Checked in Edge on a scratch Twin with the local models: OpenAI without a key warns and keeps the local model;
+  a 4100-character message is refused by Gate 0; a chat turn on `qwen2.5:3b` with self-review on passed Gate 1
+  ("reflection: self-review: nothing to correct"); Details shows Gate 0 and the model usage. Not run against the
+  real OpenAI API (no key in this environment).

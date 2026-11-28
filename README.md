@@ -14,6 +14,18 @@ Nothing leaves the Digital Twin before you approve it, and the agent never acts 
 Python. Unknown facts stay unknown.
 
 ## Architecture
+```
+user ─► Gate 0 ─► orchestrator (ReAct: decide → act → observe) ─┬─► workers (one ReAct loop per section)
+        (input)        │ tools validated with Pydantic           │
+                       ▼                                          ▼
+                 Digital Twin (SQLite) ◄── rule engine (pass / fail / unknown) ── Procedure Packs
+                       │
+                       └─► final answer ─► Gate 1 ─► (refused: reflection, at most 3) ─► user
+```
+- **Gate 0** (`src/agent/gate0.py`) checks what the user sends before any model call: a message must not be empty
+  or too long; a file must be a supported type, not empty, not too large, really what its extension says, and a
+  PDF of a reasonable length. The model's tool calls have the same kind of gate: Pydantic validation in
+  `src/tools/registry.py`, and an invalid call never runs.
 - **Orchestrator-Workers with ReAct** (`src/agent/`). The orchestrator (LangGraph cycle
   `decide → act → decide`) decomposes the goal into the procedure's sections, delegates each one with
   `delegate_section` to a worker (a small bounded ReAct loop with read-only tools), and synthesizes one answer.
@@ -72,20 +84,24 @@ ollama pull bge-m3                # embeddings, chosen by measurement (docs/eval
 All settings live in `config.py`. Models can also be chosen with `OLLAMA_MODEL`, `OLLAMA_CHAT_MODEL` and
 `OLLAMA_VISION_MODEL`; `VISION_ENABLED=0` switches the vision model off.
 
-### Optional: a cloud model for the assistant, the agent team and (if you choose) the documents
-By default reading documents stays on the local models; a cloud model receives the state computed by code (rule
-results, values already read, the plan), never the pages of your documents. The key stays in your environment.
+### Optional: OpenAI (or Claude) instead of the local model
+Set the key in the terminal, start the app, and choose **OpenAI** under *AI model* in the sidebar (you can switch
+back to *Local (Ollama)* at any time). Without the key the app says so and keeps the local model. The key stays in
+your environment and is never stored in the project.
 ```powershell
-$env:LLM_PROVIDER = "anthropic"; $env:ANTHROPIC_API_KEY = "<your key>"   # Claude (default claude-opus-5-5)
-$env:ANTHROPIC_MODEL = "claude-sonnet-5-5"                               # optional: a cheaper Claude
-$env:LLM_PROVIDER = "openai"; $env:OPENAI_API_KEY = "<your key>"         # or GPT (OPENAI_MODEL, default gpt-5.5)
-$env:OPENAI_MODEL = "gpt-6.1-terra"; $env:OPENAI_REASONING_EFFORT = "low"   # e.g. GPT-6.1 Terra, faster replies
-$env:DOCUMENT_PROVIDER = "cloud"     # optional: the cloud model also reads the documents (its OCR replaces RapidOCR)
+$env:OPENAI_API_KEY = "<your key>"           # GPT (OPENAI_MODEL, default gpt-6.1-terra)
+$env:OPENAI_REASONING_EFFORT = "low"         # optional: faster replies
+$env:CLOUD_MAX_REQUESTS = "200"              # optional: safety cap on cloud requests while the app runs
+$env:LLM_PROVIDER = "openai"                 # optional: start with OpenAI already chosen
+$env:ANTHROPIC_API_KEY = "<your key>"        # optional: Claude appears as a third choice (ANTHROPIC_MODEL)
 streamlit run app.py
 ```
-With a cloud model the self-review (reflection) is on by default (`SELF_REVIEW=auto`) and the assistant may
-prepare e-mails, reminders and forms on its own initiative (always proposals you approve).
-With `DOCUMENT_PROVIDER=cloud` the page images and their text are sent to the provider (the sidebar says so):
+A cloud model receives the state computed by code (rule results, values already read, the plan), never the pages
+of your documents, unless you switch on *The cloud model also reads my documents* in the sidebar
+(`DOCUMENT_PROVIDER=cloud` makes that the starting choice). With a cloud model the self-review (reflection) is on
+(`SELF_REVIEW=auto`) and the assistant may prepare e-mails, reminders and forms on its own initiative (always
+proposals you approve). Details → How it works shows the model requests, tokens and the estimated cost.
+When the cloud model reads the documents, the page images and their text are sent to the provider:
 the model transcribes scans and photos, reads whole documents and is the vision model; code still checks every
 value (quote on the page, MRZ check digits, your confirmation for what it cannot check). Measure it with
 `python -m eval.document_eval --label "gpt-6.1-terra"` in the same terminal.
@@ -96,6 +112,11 @@ streamlit run app.py                     # the app
 python -m pytest -q                      # tests (the LLM is always mocked; real Ollama calls fail the test)
 python -m eval.run_eval                  # offline evaluation -> docs/eval_results.md
 python -m eval.run_eval --live           # with the local model
+python -m eval.run_eval --live --provider openai --k 1   # the same scenarios with GPT (key set)
+python -m eval.routing_eval              # which pack each of 38 goals selects (offline)
+python -m eval.rag_compare               # keyword (BM25) vs embedding vs hybrid retrieval
+python -m eval.speed                     # time of each part of the agent
+python -m src.integrations.mcp.server    # read-only MCP server (stdio) over the packs, for other MCP clients
 python -m src.pack validate ikamet_first # check a Procedure Pack
 python -m src.rag check tc_kimlik_first  # did an official page change? which rules to review?
 python -m src.rag fetch tc_kimlik_first  # save the current official texts
@@ -109,8 +130,9 @@ python -m eval.chat_eval                 # the chat assistant on 8 typical messa
 
 ### The app
 The layout comes from Neda's interface; the agent, the Twin and the rules behind it are ours.
-- **Sidebar.** Your profile name (the same name continues where you left off), the procedure, today's date, and
-  *Reset* (clear the conversation, or delete the profile).
+- **Sidebar.** Your profile name (the same name continues where you left off), the procedure, the **AI model**
+  (Local / OpenAI) with what leaves the computer, today's date, and *Reset* (clear the conversation, or delete the
+  profile).
 - **Journey.** The official steps (online application → fingerprints → scans to IRO → submission) with "you are
   here", and one progress bar.
 - **Assistant.** The chat (a fixed-size window that scrolls) and beside it the **Now** box: the one next step, with
@@ -118,8 +140,9 @@ The layout comes from Neda's interface; the agent, the Twin and the rules behind
   for now*. Approved e-mails open in **Gmail** and reminders in **Google Calendar**, already filled in: you press Send
   or Save. *The agent can prepare* lists the checklist, the form, calendar reminders and e-mails.
 - **Documents.** Upload (the type is found automatically, several documents in one PDF are fine) and what was read.
-- **Details.** For examiners: every requirement with its source, the sandbox, how the agent works (ReAct, Gate 1,
-  reflection), the last answer step by step, history, the Twin, the knowledge base.
+- **Details.** For examiners: every requirement with its source, the sandbox, how the agent works (Gate 0, ReAct,
+  Gate 1, reflection) with the model usage and cost, the last answer step by step, history, the Twin, the
+  knowledge base.
 
 One agent run or document reading per profile runs at a time; other tabs wait and refresh by themselves.
 To try it without personal documents, upload the files in `data/synthetic_samples/` (for example

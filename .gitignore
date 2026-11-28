@@ -25,3 +25,5 @@ data/synthetic_samples/Policy-*.pdf
 data/synthetic_samples/Student_certificate.pdf
 claude/
 ./CLAUDE.md
+# Streamlit secrets (API keys) never go into the repository
+.streamlit/secrets.toml

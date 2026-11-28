@@ -131,6 +131,9 @@ already filled in: you press Send or Save. Nothing is sent, booked, paid or subm
 
 **8. Official sources (RAG).** The rules cite official pages; their text is searched by meaning (`{embed}`, local), so
 the assistant can quote the source of an answer and answer questions outside the rules. It never decides a rule.
+
+**9. The same knowledge for other agents (MCP).** `python -m src.integrations.mcp.server` is a read-only Model Context
+Protocol server: any MCP client can find the procedure for a goal and search the official sources of a pack.
 """
 
 
