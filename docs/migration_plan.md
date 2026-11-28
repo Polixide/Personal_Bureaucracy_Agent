@@ -646,3 +646,13 @@ key the cloud switch appears). No expected value changed.
 
 New tests: `tests/test_gate0.py`. No expected value changed (`tests/test_app.py::test_save_upload_rejects_bad_files`
 still expects a `ValueError` for `a.exe` and an empty `a.txt`).
+
+### 10.4 Metrics
+| Module | Decision | Why |
+|---|---|---|
+| `eval/metrics.py` | **adapt**: pass@k next to pass^k, p95 seconds, tokens and cost per run, human-review rate, issues caught by Gate 1, reflection recovery rate | Andrea's framework (`src/evaluation/metrics.py`) has many metrics; these are the ones that measure *this* engine and make sense for the course (reliability, cost, reflection). Not taken: action precision/recall/F1 against labelled candidate ids, tied to his candidate planner. |
+| `eval/run_eval.py` | **adapt**: `--provider ollama|openai|anthropic` for live runs; per-run usage from `USAGE` | The team wants to compare the local model with GPT on the same scenarios. |
+| `eval/*.py` | **adapt**: reports printed as UTF-8 (`eval.utf8_console`) | `python -m eval.routing_eval` crashed on the Windows console (cp1252 cannot print "ğ"). |
+
+Report column renamed `pass_k` → `pass^k` (same number); `docs/eval_results.md` regenerated offline. New tests in
+`tests/test_eval.py`. No expected value changed.

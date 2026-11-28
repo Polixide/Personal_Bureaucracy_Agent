@@ -29,11 +29,17 @@ The table columns are:
 - **date errors:** Gate 1 `UNSUPPORTED_DATE`;
 - **invented rules:** `CLAIM_UNKNOWN_RULE` + `INVENTED_RULE_ID`;
 - **valid-final-answer rate:** the share of answers that pass Gate 1;
-- **pass^k:** all k runs of a scenario succeed;
-- **average LLM calls and average seconds.**
+- **pass^k:** all k runs of a scenario succeed (can the user rely on it?);
+- **pass@k:** the chance that at least one of k runs succeeds (unbiased estimator of Chen et al. 2021);
+- **average LLM calls, average and p95 seconds** (p95: nearest rank);
+- **average tokens and estimated cost** per run, from the providers' usage reports (`USAGE` in `src/llm.py`) and
+  the price list in `config.py`; "n/a" offline or for a model without a price.
 
-D's behaviour metrics are the valid tool-call rate, average steps, loops, fallback rate and Gate 1 first
-rejections. Failed D runs are classified as planning, tool/schema, observation misread or memory loss.
+D's behaviour metrics are the valid tool-call rate, average steps, loops, fallback rate, human-review rate, Gate 1
+first rejections, **issues caught by Gate 1** before the answer was delivered, and the **reflection recovery rate**
+(answers refused by Gate 1 that the model then repaired instead of falling back). pass@k, p95, tokens/cost and the
+recovery rate are adapted from Andrea's metrics (`feature/marco-integration-review`). Failed D runs are classified
+as planning, tool/schema, observation misread or memory loss.
 
 ## Why it is built this way
 - **The offline D is a pipeline test.** Offline, D uses `eval/policy.py:RuleFollowingPolicy`, a scripted policy
@@ -48,6 +54,7 @@ rejections. Failed D runs are classified as planning, tool/schema, observation m
 python -m pytest -q tests/test_eval.py
 python -m eval.run_eval            # offline, writes docs/eval_results.md
 python -m eval.run_eval --live     # needs `ollama pull qwen3:4b` and the EMBED_MODEL of config.py
+python -m eval.run_eval --live --provider openai --k 1   # the cloud model (OPENAI_API_KEY set; CLOUD_MAX_REQUESTS caps the spend)
 python -m pytest -q tests/test_memory_sessions.py
 python -m eval.rag_eval --models qwen3-embedding:0.6b bge-m3 --out docs/eval_rag.md   # live, embeddings only
 python -m eval.document_eval --label "my change" --out docs/eval_documents.md       # live: reading uploads

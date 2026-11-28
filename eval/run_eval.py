@@ -1,12 +1,14 @@
 """Scenario evaluation of A (static checklist), B (single LLM) and D (full agent).
 
-python -m eval.run_eval            offline: D uses eval.policy.RuleFollowingPolicy, B is skipped
-python -m eval.run_eval --live     Ollama (LLM_MODEL / EMBED_MODEL from config.py) for B and D
-Options: --k 3 (runs per scenario, for pass^k), --out docs/eval_results.md, --procedure <id>
+python -m eval.run_eval                          offline: D uses eval.policy.RuleFollowingPolicy, B is skipped
+python -m eval.run_eval --live                   Ollama (LLM_MODEL / EMBED_MODEL from config.py) for B and D
+python -m eval.run_eval --live --provider openai the cloud model for B and D (OPENAI_API_KEY in the environment)
+Options: --k 3 (runs per scenario, for pass^k and pass@k), --out docs/eval_results.md, --procedure <id>
 
 Scenarios come from every pack's eval/scenarios.json (expected rule verdicts; never edited to improve a
 score) plus eval/goal_scenarios.json (procedure identification). Each run uses a fresh in-memory Twin.
 """
+from eval import utf8_console
 import argparse
 import json
 import sys
@@ -21,7 +23,7 @@ from eval.metrics import RunMeasure, agent_behaviour, classify_failure, measure,
 from eval.policy import RuleFollowingPolicy
 from eval.systems import full_agent, single_llm, static_checklist
 from src.agent.gate1 import GateContext, build_gate_context
-from src.llm import Backend, OllamaBackend
+from src.llm import USAGE, Backend, agent_backend, agent_model_label, missing_key, usage_summary
 from src.models import Pack
 from src.pack import load_all_packs, load_scenarios
 from src.tools.common import ToolContext
@@ -59,22 +61,23 @@ def run_a(pack: Pack, packs: dict, scenario: dict) -> RunMeasure:
 
 def run_b(pack: Pack, packs: dict, scenario: dict, backend: Backend) -> RunMeasure:
     today = date.fromisoformat(scenario["today"])
-    started = perf_counter()
+    started, mark = perf_counter(), USAGE.mark()
     answer, calls = single_llm(backend, pack, scenario["goal"], scenario["facts"])
     with seeded_store(pack, scenario) as store:
         gate = gate_for(store, packs, pack.id, today, [])
-        return measure(scenario["scenario_id"], "B", answer, scenario["expected"]["rule_status"], gate, calls, perf_counter() - started)
+        return measure(scenario["scenario_id"], "B", answer, scenario["expected"]["rule_status"], gate, calls,
+                       perf_counter() - started, usage=usage_summary(USAGE.since(mark)))
 
 
 def run_d(pack: Pack, packs: dict, scenario: dict, backend: Backend) -> RunMeasure:
     today = date.fromisoformat(scenario["today"])
-    started = perf_counter()
+    started, mark = perf_counter(), USAGE.mark()
     with seeded_store(pack, scenario) as store, tempfile.TemporaryDirectory() as outbox:
         result = full_agent(store, packs, USER, scenario["goal"], today, backend, Path(outbox))
         refs = [f.finding_id for f in result.findings] + result.proposals
         gate = gate_for(store, packs, pack.id, today, refs)
         return measure(scenario["scenario_id"], "D", result.answer, scenario["expected"]["rule_status"], gate,
-                       result.llm_calls, perf_counter() - started, agent=result)
+                       result.llm_calls, perf_counter() - started, agent=result, usage=usage_summary(USAGE.since(mark)))
 
 
 def run_goal(packs: dict, scenario: dict, backend: Backend) -> dict:
@@ -110,8 +113,8 @@ def evaluate(packs: dict[str, Pack], backend: Backend, k: int, live: bool, live_
 
 
 # --------------------------------------------------------------- report --
-COLUMNS = ["system", "runs", "verdict_accuracy", "date_errors", "invented", "valid_answer_rate", "pass_k",
-           "avg_llm_calls", "avg_seconds"]
+COLUMNS = ["system", "runs", "verdict_accuracy", "date_errors", "invented", "valid_answer_rate", "pass^k", "pass@k",
+           "avg_llm_calls", "avg_seconds", "p95_seconds", "avg_tokens", "cost_usd"]
 
 
 def table(rows: list[dict], columns: list[str]) -> list[str]:
@@ -120,18 +123,23 @@ def table(rows: list[dict], columns: list[str]) -> list[str]:
     return lines
 
 
-def report(outcome: dict, k: int, live: bool) -> str:
+def report(outcome: dict, k: int, live: bool, model: str = "") -> str:
     runs = outcome["runs"]
     systems = ["A", "B", "D"] if live else ["A", "D"]
-    rows = [system_row(system, [r for r in runs if r.system == system]) for system in systems]
+    rows = [system_row(system, [r for r in runs if r.system == system], k) for system in systems]
     if not live:
         rows.insert(1, {"system": "B", "runs": "not run offline (needs --live)"})
     d_runs = [r for r in runs if r.system == "D"]
-    model = f"{LLM_MODEL} / {EMBED_MODEL}" if live else "offline: eval.policy.RuleFollowingPolicy (no language model)"
+    if not model:
+        model = f"{LLM_MODEL} / {EMBED_MODEL}" if live else "offline: eval.policy.RuleFollowingPolicy (no language model)"
     lines = [f"# Evaluation results ({date.today().isoformat()})", "", f"- Mode: {'live' if live else 'offline'}; "
              f"models: {model}; k = {k} runs per scenario.",
              "- A = static checklist, B = single LLM (no state/rules/tools), D = orchestrator + ReAct workers + Gate 1.",
-             "- Offline D measures the pipeline with a rule-following scripted policy, not model quality.", ""]
+             "- Offline D measures the pipeline with a rule-following scripted policy, not model quality.",
+             "- pass^k: scenarios where all k runs succeed; pass@k: chance that at least one of k runs succeeds. "
+             "Tokens and cost come from the providers' usage reports (n/a offline or without a price).",
+             "- reflection_recovery_rate: answers refused by Gate 1 that the model then repaired (not the fallback).",
+             ""]
     lines += table(rows, COLUMNS) + ["", "## Agent behaviour (D)", ""]
     lines += table([agent_behaviour(d_runs)], list(agent_behaviour(d_runs)))
     lines += ["", "## Procedure identification (D)", ""]
@@ -153,12 +161,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--procedure", default=None, help="evaluate only this pack")
+    parser.add_argument("--provider", default="ollama", choices=["ollama", "openai", "anthropic"],
+                        help="with --live: which model runs B and D")
     args = parser.parse_args(argv)
+    if args.live and missing_key(args.provider):
+        parser.error(missing_key(args.provider))
     packs = load_all_packs()
     if args.procedure:
         packs = {args.procedure: packs[args.procedure]}
-    backend: Backend = OllamaBackend() if args.live else RuleFollowingPolicy()
-    text = report(evaluate(packs, backend, args.k, args.live), args.k, args.live)
+    backend: Backend = agent_backend("team", args.provider) if args.live else RuleFollowingPolicy()
+    model = f"{agent_model_label('team', args.provider)} / {EMBED_MODEL}" if args.live else ""
+    text = report(evaluate(packs, backend, args.k, args.live), args.k, args.live, model)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8")
     sys.stdout.write(text)
@@ -166,4 +179,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main())

@@ -13,6 +13,7 @@ Every retriever ranks the same chunks (src/rag/index.py). Speed: index time per 
 95th-percentile time per query. In --offline mode the embedding ranks come from a bag-of-words fake, so only
 the BM25 numbers and the pipeline are meaningful.
 """
+from eval import utf8_console
 import argparse
 import json
 import statistics
@@ -210,4 +211,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main(sys.argv[1:]))

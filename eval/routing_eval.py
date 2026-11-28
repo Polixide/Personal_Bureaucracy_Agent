@@ -7,6 +7,7 @@ Goals are in eval/routing_goals.json with a 'dev' split (used while fixing the m
 Counts: correct, wrong pack, picked a pack when none was expected (false start), and no pack when one was
 expected (missed, including ties where the agent asks).
 """
+from eval import utf8_console
 import argparse
 import json
 import sys
@@ -82,4 +83,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main(sys.argv[1:]))

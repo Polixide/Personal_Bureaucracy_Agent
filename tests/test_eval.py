@@ -1,4 +1,6 @@
 """eval/: offline evaluation of A and D, metrics, report, and B with a scripted model."""
+import pytest
+
 from fakes import ScriptedBackend
 from eval.metrics import pass_k, verdict_accuracy
 from eval.policy import RuleFollowingPolicy
@@ -52,3 +54,38 @@ def test_cli_writes_the_results_file(tmp_path, capsys):
     out = tmp_path / "results.md"
     assert main(["--k", "1", "--out", str(out), "--procedure", "ikamet_first"]) == 0
     assert out.read_text(encoding="utf-8").startswith("# Evaluation results")
+
+
+# ------------------------------------------------- metrics from Andrea's branch --
+def measured(scenario, success, seconds=1.0, tokens=None, cost=None):
+    from eval.metrics import RunMeasure
+    return RunMeasure(scenario_id=scenario, system="D", accuracy=1.0, date_errors=0, inventions=0, valid=success,
+                      success=success, llm_calls=1, seconds=seconds, input_tokens=tokens, output_tokens=0 if tokens else None,
+                      cost_usd=cost)
+
+
+def test_pass_at_k_is_the_chance_that_one_of_k_runs_succeeds():
+    from eval.metrics import pass_at_k
+    runs = [measured("s1", True), measured("s1", False), measured("s1", False),      # 1 of 3
+            measured("s2", False), measured("s2", False), measured("s2", False)]     # 0 of 3
+    assert pass_at_k(runs, 3) == 0.5                      # s1 has a success among its 3 runs, s2 none
+    assert pass_at_k(runs, 1) == pytest.approx((1 / 3 + 0) / 2)   # one draw: s1 succeeds a third of the time
+
+
+def test_p95_is_the_nearest_rank_and_cost_is_unknown_without_counts():
+    from eval.metrics import per_run_cost, percentile
+    assert percentile([float(s) for s in range(1, 21)], 0.95) == 19.0 and percentile([], 0.5) == 0.0
+    assert per_run_cost([measured("s", True)]) == ("n/a", "n/a")
+    assert per_run_cost([measured("s", True, tokens=1000, cost=0.002)]) == ("1,000", "$0.0020")
+
+
+def test_reflection_recovery_counts_refused_answers_the_model_repaired():
+    from eval.metrics import agent_behaviour
+    from src.agent.answer import AgentResult
+    repaired = AgentResult(trace_id="t1", status="answered", first_answer_rejected=True,
+                           reflections=[{"by": "Gate 1", "issues": [{"code": "CLAIM_MISMATCH"}]}])
+    gave_up = AgentResult(trace_id="t2", status="fallback", first_answer_rejected=True, fallback_used=True)
+    runs = [measured("s1", True), measured("s2", False)]
+    runs[0].agent, runs[1].agent = repaired, gave_up
+    behaviour = agent_behaviour(runs)
+    assert behaviour["reflection_recovery_rate"] == "1/2" and behaviour["gate1_issues_caught"] == 1

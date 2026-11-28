@@ -11,6 +11,7 @@ a few cents per run):
     $env:LLM_PROVIDER="openai"; $env:DOCUMENT_PROVIDER="cloud"; $env:OPENAI_MODEL="gpt-6.1-terra"
     python -m eval.document_eval --label "gpt-6.1-terra" --out docs/eval_documents.md
 """
+from eval import utf8_console
 import argparse
 import json
 import sys
@@ -155,4 +156,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main())

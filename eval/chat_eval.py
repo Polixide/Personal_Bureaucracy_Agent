@@ -7,6 +7,7 @@ the reply passed Gate 1 (not replaced by the plan), the expected tool effect (a 
 a proposal created, a procedure selected), and the expected source cited. The facts and the expected effects
 are fixed here; nothing is compared with a model's wording.
 """
+from eval import utf8_console
 import argparse
 import json
 import sqlite3
@@ -174,4 +175,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main())

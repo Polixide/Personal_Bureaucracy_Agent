@@ -1,20 +1,22 @@
-# Evaluation results (2026-11-25)
+# Evaluation results (2026-11-28)
 
 - Mode: offline; models: offline: eval.policy.RuleFollowingPolicy (no language model); k = 3 runs per scenario.
 - A = static checklist, B = single LLM (no state/rules/tools), D = orchestrator + ReAct workers + Gate 1.
 - Offline D measures the pipeline with a rule-following scripted policy, not model quality.
+- pass^k: scenarios where all k runs succeed; pass@k: chance that at least one of k runs succeeds. Tokens and cost come from the providers' usage reports (n/a offline or without a price).
+- reflection_recovery_rate: answers refused by Gate 1 that the model then repaired (not the fallback).
 
-| system | runs | verdict_accuracy | date_errors | invented | valid_answer_rate | pass_k | avg_llm_calls | avg_seconds |
-|---|---|---|---|---|---|---|---|---|
-| A | 75 | 0.807 | 0 | 0 | 0.16 | 1/25 | 0.0 | 0.004 |
-| B | not run offline (needs --live) |  |  |  |  |  |  |  |
-| D | 75 | 1.0 | 0 | 0 | 1.0 | 25/25 | 4.64 | 0.025 |
+| system | runs | verdict_accuracy | date_errors | invented | valid_answer_rate | pass^k | pass@k | avg_llm_calls | avg_seconds | p95_seconds | avg_tokens | cost_usd |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | 75 | 0.807 | 0 | 0 | 0.16 | 1/25 | 0.04 | 0.0 | 0.006 | 0.011 | n/a | n/a |
+| B | not run offline (needs --live) |  |  |  |  |  |  |  |  |  |  |  |
+| D | 75 | 1.0 | 0 | 0 | 1.0 | 25/25 | 1.0 | 4.64 | 0.037 | 0.058 | n/a | n/a |
 
 ## Agent behaviour (D)
 
-| valid_tool_call_rate | avg_steps | loops_detected | fallback_rate | gate1_first_rejections |
-|---|---|---|---|---|
-| 1.0 | 3.32 | 0 | 0.0 | 0 |
+| valid_tool_call_rate | avg_steps | loops_detected | fallback_rate | human_review_rate | gate1_first_rejections | gate1_issues_caught | reflection_recovery_rate |
+|---|---|---|---|---|---|---|---|
+| 1.0 | 3.32 | 0 | 0.0 | 0.0 | 0 | 0 | n/a |
 
 ## Procedure identification (D)
 

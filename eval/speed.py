@@ -11,6 +11,7 @@ facts, evaluating the rules, keyword retrieval, and a whole agent run driven by 
 loads the model) and warm ones, embedding a question, indexing a pack, reading synthetic Kimlik documents,
 and a whole Kimlik agent run. Every item is timed on its own; the report gives median and 95th percentile.
 """
+from eval import utf8_console
 import argparse
 import json
 import platform
@@ -204,4 +205,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main(sys.argv[1:]))

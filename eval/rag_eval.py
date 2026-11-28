@@ -10,6 +10,7 @@ Queries are built from the packs themselves, so nobody hand-picks easy questions
 Turkish sources with English descriptions make most ID-card queries cross-lingual, like real users.
 Each model starts from an empty in-memory vector cache, so the indexing time is measured too.
 """
+from eval import utf8_console
 import argparse
 import re
 import sys
@@ -143,4 +144,5 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    utf8_console()
     sys.exit(main(sys.argv[1:]))
